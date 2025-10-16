@@ -26,6 +26,7 @@ import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
 import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
 import CodexConfigEditor from "@/components/ProviderForm/CodexConfigEditor";
+import KimiModelSelector from "@/components/ProviderForm/KimiModelSelector";
 import { Zap } from "lucide-react";
 import {
   useProviderCategory,
@@ -35,6 +36,7 @@ import {
   useCodexConfigState,
   useApiKeyLink,
   useCustomEndpoints,
+  useKimiModelSelector,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -69,7 +71,7 @@ export function ProviderForm({
   const isEditMode = Boolean(initialData);
 
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
-    initialData ? null : "custom",
+    initialData ? null : "custom"
   );
   const [activePreset, setActivePreset] = useState<{
     id: string;
@@ -78,7 +80,9 @@ export function ProviderForm({
   const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
 
   // 新建供应商：收集端点测速弹窗中的"自定义端点"，提交时一次性落盘到 meta.custom_endpoints
-  const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>([]);
+  const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>(
+    []
+  );
 
   // 使用 category hook
   const { category } = useProviderCategory({
@@ -102,7 +106,7 @@ export function ProviderForm({
           ? CODEX_DEFAULT_CONFIG
           : CLAUDE_DEFAULT_CONFIG,
     }),
-    [initialData, appType],
+    [initialData, appType]
   );
 
   const form = useForm<ProviderFormData>({
@@ -112,7 +116,11 @@ export function ProviderForm({
   });
 
   // 使用 API Key hook
-  const { apiKey, handleApiKeyChange, showApiKey: shouldShowApiKey } = useApiKeyState({
+  const {
+    apiKey,
+    handleApiKeyChange,
+    showApiKey: shouldShowApiKey,
+  } = useApiKeyState({
     initialConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
     selectedPresetId,
@@ -136,10 +144,11 @@ export function ProviderForm({
   });
 
   // 使用 Model hook
-  const { claudeModel, claudeSmallFastModel, handleModelChange } = useModelState({
-    settingsConfig: form.watch("settingsConfig"),
-    onConfigChange: (config) => form.setValue("settingsConfig", config),
-  });
+  const { claudeModel, claudeSmallFastModel, handleModelChange } =
+    useModelState({
+      settingsConfig: form.watch("settingsConfig"),
+      onConfigChange: (config) => form.setValue("settingsConfig", config),
+    });
 
   // 使用 Codex 配置 hook (仅 Codex 模式)
   const {
@@ -155,7 +164,8 @@ export function ProviderForm({
     resetCodexConfig,
   } = useCodexConfigState({ initialData });
 
-  const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] = useState(false);
+  const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
+    useState(false);
 
   useEffect(() => {
     form.reset(defaultValues);
@@ -168,6 +178,55 @@ export function ProviderForm({
       ? window.document.documentElement.classList.contains("dark")
       : false;
   }, [theme]);
+
+  const presetCategoryLabels: Record<string, string> = useMemo(
+    () => ({
+      official: t("providerPreset.categoryOfficial", {
+        defaultValue: "官方",
+      }),
+      cn_official: t("providerPreset.categoryCnOfficial", {
+        defaultValue: "国内官方",
+      }),
+      aggregator: t("providerPreset.categoryAggregator", {
+        defaultValue: "聚合服务",
+      }),
+      third_party: t("providerPreset.categoryThirdParty", {
+        defaultValue: "第三方",
+      }),
+    }),
+    [t]
+  );
+
+  const presetEntries = useMemo(() => {
+    if (appType === "codex") {
+      return codexProviderPresets.map<PresetEntry>((preset, index) => ({
+        id: `codex-${index}`,
+        preset,
+      }));
+    }
+    return providerPresets.map<PresetEntry>((preset, index) => ({
+      id: `claude-${index}`,
+      preset,
+    }));
+  }, [appType]);
+
+  // 使用 Kimi 模型选择器 hook
+  const {
+    shouldShow: shouldShowKimiSelector,
+    kimiAnthropicModel,
+    kimiAnthropicSmallFastModel,
+    handleKimiModelChange,
+  } = useKimiModelSelector({
+    initialData,
+    settingsConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
+    selectedPresetId,
+    presetName:
+      selectedPresetId && selectedPresetId !== "custom"
+        ? presetEntries.find((item) => item.id === selectedPresetId)?.preset
+            .name || ""
+        : "",
+  });
 
   const handleSubmit = (values: ProviderFormData) => {
     let settingsConfig: string;
@@ -212,37 +271,6 @@ export function ProviderForm({
     onSubmit(payload);
   };
 
-  const presetCategoryLabels: Record<string, string> = useMemo(
-    () => ({
-      official: t("providerPreset.categoryOfficial", {
-        defaultValue: "官方推荐",
-      }),
-      cn_official: t("providerPreset.categoryCnOfficial", {
-        defaultValue: "国内官方",
-      }),
-      aggregator: t("providerPreset.categoryAggregator", {
-        defaultValue: "聚合服务",
-      }),
-      third_party: t("providerPreset.categoryThirdParty", {
-        defaultValue: "第三方",
-      }),
-    }),
-    [t],
-  );
-
-  const presetEntries = useMemo(() => {
-    if (appType === "codex") {
-      return codexProviderPresets.map<PresetEntry>((preset, index) => ({
-        id: `codex-${index}`,
-        preset,
-      }));
-    }
-    return providerPresets.map<PresetEntry>((preset, index) => ({
-      id: `claude-${index}`,
-      preset,
-    }));
-  }, [appType]);
-
   const groupedPresets = useMemo(() => {
     return presetEntries.reduce<Record<string, PresetEntry[]>>((acc, entry) => {
       const category = entry.preset.category ?? "others";
@@ -256,7 +284,7 @@ export function ProviderForm({
 
   const categoryKeys = useMemo(() => {
     return Object.keys(groupedPresets).filter(
-      (key) => key !== "custom" && groupedPresets[key]?.length,
+      (key) => key !== "custom" && groupedPresets[key]?.length
     );
   }, [groupedPresets]);
 
@@ -341,7 +369,7 @@ export function ProviderForm({
     const preset = entry.preset as ProviderPreset;
     const config = applyTemplateValues(
       preset.settingsConfig,
-      preset.templateValues,
+      preset.templateValues
     );
 
     form.reset({
@@ -446,34 +474,41 @@ export function ProviderForm({
         />
 
         {/* API Key 输入框（仅 Claude 且非编辑模式显示） */}
-        {appType === "claude" && shouldShowApiKey(form.watch("settingsConfig"), isEditMode) && (
-          <div className="space-y-1">
-            <ApiKeyInput
-              value={apiKey}
-              onChange={handleApiKeyChange}
-              required={category !== "official"}
-              placeholder={
-                category === "official"
-                  ? t("providerForm.officialNoApiKey", { defaultValue: "官方供应商无需 API Key" })
-                  : t("providerForm.apiKeyAutoFill", { defaultValue: "输入 API Key，将自动填充到配置" })
-              }
-              disabled={category === "official"}
-            />
-            {/* API Key 获取链接 */}
-            {shouldShowClaudeApiKeyLink && claudeWebsiteUrl && (
-              <div className="-mt-1 pl-1">
-                <a
-                  href={claudeWebsiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                >
-                  {t("providerForm.getApiKey", { defaultValue: "获取 API Key" })}
-                </a>
-              </div>
-            )}
-          </div>
-        )}
+        {appType === "claude" &&
+          shouldShowApiKey(form.watch("settingsConfig"), isEditMode) && (
+            <div className="space-y-1">
+              <ApiKeyInput
+                value={apiKey}
+                onChange={handleApiKeyChange}
+                required={category !== "official"}
+                placeholder={
+                  category === "official"
+                    ? t("providerForm.officialNoApiKey", {
+                        defaultValue: "官方供应商无需 API Key",
+                      })
+                    : t("providerForm.apiKeyAutoFill", {
+                        defaultValue: "输入 API Key，将自动填充到配置",
+                      })
+                }
+                disabled={category === "official"}
+              />
+              {/* API Key 获取链接 */}
+              {shouldShowClaudeApiKeyLink && claudeWebsiteUrl && (
+                <div className="-mt-1 pl-1">
+                  <a
+                    href={claudeWebsiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {t("providerForm.getApiKey", {
+                      defaultValue: "获取 API Key",
+                    })}
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Base URL 输入框（仅 Claude 第三方/自定义显示） */}
         {appType === "claude" && shouldShowSpeedTest && (
@@ -488,7 +523,9 @@ export function ProviderForm({
                 className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 <Zap className="h-3.5 w-3.5" />
-                {t("providerForm.manageAndTest", { defaultValue: "管理和测速" })}
+                {t("providerForm.manageAndTest", {
+                  defaultValue: "管理和测速",
+                })}
               </button>
             </div>
             <Input
@@ -496,12 +533,16 @@ export function ProviderForm({
               type="url"
               value={baseUrl}
               onChange={(e) => handleClaudeBaseUrlChange(e.target.value)}
-              placeholder={t("providerForm.apiEndpointPlaceholder", { defaultValue: "https://api.example.com" })}
+              placeholder={t("providerForm.apiEndpointPlaceholder", {
+                defaultValue: "https://api.example.com",
+              })}
               autoComplete="off"
             />
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t("providerForm.apiHint", { defaultValue: "API 端点地址用于连接服务器" })}
+                {t("providerForm.apiHint", {
+                  defaultValue: "API 端点地址用于连接服务器",
+                })}
               </p>
             </div>
           </div>
@@ -520,52 +561,75 @@ export function ProviderForm({
           />
         )}
 
-        {/* 模型选择器（仅 Claude 非官方供应商显示） */}
-        {appType === "claude" && category !== "official" && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* ANTHROPIC_MODEL */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeModel">
-                  {t("providerForm.anthropicModel", { defaultValue: "主模型" })}
-                </FormLabel>
-                <Input
-                  id="claudeModel"
-                  type="text"
-                  value={claudeModel}
-                  onChange={(e) => handleModelChange("ANTHROPIC_MODEL", e.target.value)}
-                  placeholder={t("providerForm.modelPlaceholder", {
-                    defaultValue: "claude-3-7-sonnet-20250219"
-                  })}
-                  autoComplete="off"
-                />
-              </div>
+        {/* 模型选择器（仅 Claude 非官方且非 Kimi 供应商显示） */}
+        {appType === "claude" &&
+          category !== "official" &&
+          !shouldShowKimiSelector && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ANTHROPIC_MODEL */}
+                <div className="space-y-2">
+                  <FormLabel htmlFor="claudeModel">
+                    {t("providerForm.anthropicModel", {
+                      defaultValue: "主模型",
+                    })}
+                  </FormLabel>
+                  <Input
+                    id="claudeModel"
+                    type="text"
+                    value={claudeModel}
+                    onChange={(e) =>
+                      handleModelChange("ANTHROPIC_MODEL", e.target.value)
+                    }
+                    placeholder={t("providerForm.modelPlaceholder", {
+                      defaultValue: "claude-3-7-sonnet-20250219",
+                    })}
+                    autoComplete="off"
+                  />
+                </div>
 
-              {/* ANTHROPIC_SMALL_FAST_MODEL */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeSmallFastModel">
-                  {t("providerForm.anthropicSmallFastModel", {
-                    defaultValue: "快速模型"
-                  })}
-                </FormLabel>
-                <Input
-                  id="claudeSmallFastModel"
-                  type="text"
-                  value={claudeSmallFastModel}
-                  onChange={(e) => handleModelChange("ANTHROPIC_SMALL_FAST_MODEL", e.target.value)}
-                  placeholder={t("providerForm.smallModelPlaceholder", {
-                    defaultValue: "claude-3-5-haiku-20241022"
-                  })}
-                  autoComplete="off"
-                />
+                {/* ANTHROPIC_SMALL_FAST_MODEL */}
+                <div className="space-y-2">
+                  <FormLabel htmlFor="claudeSmallFastModel">
+                    {t("providerForm.anthropicSmallFastModel", {
+                      defaultValue: "快速模型",
+                    })}
+                  </FormLabel>
+                  <Input
+                    id="claudeSmallFastModel"
+                    type="text"
+                    value={claudeSmallFastModel}
+                    onChange={(e) =>
+                      handleModelChange(
+                        "ANTHROPIC_SMALL_FAST_MODEL",
+                        e.target.value
+                      )
+                    }
+                    placeholder={t("providerForm.smallModelPlaceholder", {
+                      defaultValue: "claude-3-5-haiku-20241022",
+                    })}
+                    autoComplete="off"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                {t("providerForm.modelHelper", {
+                  defaultValue:
+                    "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
+                })}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t("providerForm.modelHelper", {
-                defaultValue: "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
-              })}
-            </p>
-          </div>
+          )}
+
+        {/* Kimi 模型选择器（仅 Claude 且是 Kimi 供应商时显示） */}
+        {appType === "claude" && shouldShowKimiSelector && (
+          <KimiModelSelector
+            apiKey={apiKey}
+            anthropicModel={kimiAnthropicModel}
+            anthropicSmallFastModel={kimiAnthropicSmallFastModel}
+            onModelChange={handleKimiModelChange}
+            disabled={category === "official"}
+          />
         )}
 
         {/* Codex API Key 输入框 */}
@@ -579,8 +643,12 @@ export function ProviderForm({
               required={category !== "official"}
               placeholder={
                 category === "official"
-                  ? t("providerForm.codexOfficialNoApiKey", { defaultValue: "官方供应商无需 API Key" })
-                  : t("providerForm.codexApiKeyAutoFill", { defaultValue: "输入 API Key，将自动填充到配置" })
+                  ? t("providerForm.codexOfficialNoApiKey", {
+                      defaultValue: "官方供应商无需 API Key",
+                    })
+                  : t("providerForm.codexApiKeyAutoFill", {
+                      defaultValue: "输入 API Key，将自动填充到配置",
+                    })
               }
               disabled={category === "official"}
             />
@@ -593,7 +661,9 @@ export function ProviderForm({
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                 >
-                  {t("providerForm.getApiKey", { defaultValue: "获取 API Key" })}
+                  {t("providerForm.getApiKey", {
+                    defaultValue: "获取 API Key",
+                  })}
                 </a>
               </div>
             )}
@@ -613,7 +683,9 @@ export function ProviderForm({
                 className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 <Zap className="h-3.5 w-3.5" />
-                {t("providerForm.manageAndTest", { defaultValue: "管理和测速" })}
+                {t("providerForm.manageAndTest", {
+                  defaultValue: "管理和测速",
+                })}
               </button>
             </div>
             <Input
@@ -621,29 +693,35 @@ export function ProviderForm({
               type="url"
               value={codexBaseUrl}
               onChange={(e) => handleCodexBaseUrlChange(e.target.value)}
-              placeholder={t("providerForm.codexApiEndpointPlaceholder", { defaultValue: "https://api.example.com/v1" })}
+              placeholder={t("providerForm.codexApiEndpointPlaceholder", {
+                defaultValue: "https://api.example.com/v1",
+              })}
               autoComplete="off"
             />
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t("providerForm.codexApiHint", { defaultValue: "Codex API 端点地址" })}
+                {t("providerForm.codexApiHint", {
+                  defaultValue: "Codex API 端点地址",
+                })}
               </p>
             </div>
           </div>
         )}
 
         {/* 端点测速弹窗 - Codex */}
-        {appType === "codex" && shouldShowSpeedTest && isCodexEndpointModalOpen && (
-          <EndpointSpeedTest
-            appType={appType}
-            value={codexBaseUrl}
-            onChange={handleCodexBaseUrlChange}
-            initialEndpoints={[{ url: codexBaseUrl }]}
-            visible={isCodexEndpointModalOpen}
-            onClose={() => setIsCodexEndpointModalOpen(false)}
-            onCustomEndpointsChange={setDraftCustomEndpoints}
-          />
-        )}
+        {appType === "codex" &&
+          shouldShowSpeedTest &&
+          isCodexEndpointModalOpen && (
+            <EndpointSpeedTest
+              appType={appType}
+              value={codexBaseUrl}
+              onChange={handleCodexBaseUrlChange}
+              initialEndpoints={[{ url: codexBaseUrl }]}
+              visible={isCodexEndpointModalOpen}
+              onClose={() => setIsCodexEndpointModalOpen(false)}
+              onCustomEndpointsChange={setDraftCustomEndpoints}
+            />
+          )}
 
         {/* 配置编辑器：Claude 使用 JSON 编辑器，Codex 使用专用编辑器 */}
         {appType === "codex" ? (
