@@ -67,7 +67,7 @@ src/
 - ✅ EditProviderModal.tsx - 编辑供应商弹窗
 - ✅ ProviderList.tsx - 供应商列表
 - ✅ LanguageSwitcher.tsx - 语言切换器
-- 🔄 SettingsModal.tsx - 设置弹窗（部分完成）
+- ✅ settings/SettingsDialog.tsx - 设置对话框
 
 ## 注意事项
 

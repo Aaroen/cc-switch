@@ -19,7 +19,7 @@ import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import SettingsModal from "@/components/SettingsModal";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { UpdateBadge } from "@/components/UpdateBadge";
 import UsageScriptModal from "@/components/UsageScriptModal";
 import McpPanel from "@/components/mcp/McpPanel";
@@ -325,13 +325,11 @@ function App() {
         onCancel={() => setConfirmDelete(null)}
       />
 
-      {isSettingsOpen && (
-        <SettingsModal
-          onClose={() => setIsSettingsOpen(false)}
-          onImportSuccess={handleImportSuccess}
-          onNotify={handleNotify}
-        />
-      )}
+      <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        onImportSuccess={handleImportSuccess}
+      />
 
       {isMcpOpen && (
         <McpPanel

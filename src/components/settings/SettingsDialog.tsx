@@ -1,0 +1,286 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { settingsApi } from "@/lib/api";
+import { LanguageSettings } from "@/components/settings/LanguageSettings";
+import { WindowSettings } from "@/components/settings/WindowSettings";
+import { ConfigPathDisplay } from "@/components/settings/ConfigPathDisplay";
+import { DirectorySettings } from "@/components/settings/DirectorySettings";
+import { ImportExportSection } from "@/components/settings/ImportExportSection";
+import { AboutSection } from "@/components/settings/AboutSection";
+import { useSettings } from "@/hooks/useSettings";
+import { useImportExport } from "@/hooks/useImportExport";
+import { useTranslation } from "react-i18next";
+
+interface SettingsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImportSuccess?: () => void | Promise<void>;
+}
+
+export function SettingsDialog({
+  open,
+  onOpenChange,
+  onImportSuccess,
+}: SettingsDialogProps) {
+  const { t } = useTranslation();
+  const {
+    settings,
+    isLoading,
+    isSaving,
+    isPortable,
+    configPath,
+    appConfigDir,
+    resolvedDirs,
+    updateSettings,
+    updateDirectory,
+    updateAppConfigDir,
+    browseDirectory,
+    browseAppConfigDir,
+    resetDirectory,
+    resetAppConfigDir,
+    openConfigFolder,
+    saveSettings,
+    resetSettings,
+    requiresRestart,
+    acknowledgeRestart,
+  } = useSettings();
+
+  const {
+    selectedFile,
+    status: importStatus,
+    errorMessage,
+    backupId,
+    isImporting,
+    selectImportFile,
+    importConfig,
+    exportConfig,
+    clearSelection,
+    resetStatus,
+  } = useImportExport({ onImportSuccess });
+
+  const [activeTab, setActiveTab] = useState<string>("general");
+  const [showRestartPrompt, setShowRestartPrompt] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab("general");
+      resetStatus();
+    }
+  }, [open, resetStatus]);
+
+  useEffect(() => {
+    if (requiresRestart) {
+      setShowRestartPrompt(true);
+    }
+  }, [requiresRestart]);
+
+  const closeDialog = useCallback(() => {
+    resetSettings();
+    acknowledgeRestart();
+    clearSelection();
+    resetStatus();
+    onOpenChange(false);
+  }, [acknowledgeRestart, clearSelection, onOpenChange, resetSettings, resetStatus]);
+
+  const handleDialogChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        closeDialog();
+      } else {
+        onOpenChange(true);
+      }
+    },
+    [closeDialog, onOpenChange],
+  );
+
+  const handleCancel = useCallback(() => {
+    closeDialog();
+  }, [closeDialog]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      const result = await saveSettings();
+      if (!result) return;
+      if (result.requiresRestart) {
+        setShowRestartPrompt(true);
+        return;
+      }
+      closeDialog();
+    } catch (error) {
+      console.error("[SettingsDialog] Failed to save settings", error);
+    }
+  }, [closeDialog, saveSettings]);
+
+  const handleRestartLater = useCallback(() => {
+    setShowRestartPrompt(false);
+    closeDialog();
+  }, [closeDialog]);
+
+  const handleRestartNow = useCallback(async () => {
+    setShowRestartPrompt(false);
+    if (import.meta.env.DEV) {
+      toast.success(
+        t("settings.devModeRestartHint", {
+          defaultValue: "开发模式下不支持自动重启，请手动重新启动应用。",
+        }),
+      );
+      closeDialog();
+      return;
+    }
+
+    try {
+      await settingsApi.restart();
+    } catch (error) {
+      console.error("[SettingsDialog] Failed to restart app", error);
+      toast.error(
+        t("settings.restartFailed", {
+          defaultValue: "应用重启失败，请手动关闭后重新打开。",
+        }),
+      );
+    } finally {
+      closeDialog();
+    }
+  }, [closeDialog, t]);
+
+  const isBusy = useMemo(() => isLoading && !settings, [isLoading, settings]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      <DialogContent className="max-w-3xl gap-6">
+        <DialogHeader>
+          <DialogTitle>{t("settings.title")}</DialogTitle>
+        </DialogHeader>
+
+        {isBusy ? (
+          <div className="flex min-h-[320px] items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="flex max-h-[70vh] flex-col gap-6 overflow-hidden">
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="flex flex-1 flex-col"
+            >
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="general">
+                  {t("settings.tabGeneral", { defaultValue: "通用" })}
+                </TabsTrigger>
+                <TabsTrigger value="advanced">
+                  {t("settings.tabAdvanced", { defaultValue: "高级" })}
+                </TabsTrigger>
+                <TabsTrigger value="about">
+                  {t("common.about")}
+                </TabsTrigger>
+              </TabsList>
+
+              <div className="flex-1 overflow-y-auto pr-1">
+                <TabsContent value="general" className="space-y-6 pt-4">
+                  {settings ? (
+                    <>
+                      <LanguageSettings
+                        value={settings.language}
+                        onChange={(lang) => updateSettings({ language: lang })}
+                      />
+                      <WindowSettings
+                        settings={settings}
+                        onChange={updateSettings}
+                      />
+                      <ConfigPathDisplay
+                        path={configPath}
+                        onOpen={openConfigFolder}
+                      />
+                    </>
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="advanced" className="space-y-6 pt-4">
+                  {settings ? (
+                    <>
+                      <DirectorySettings
+                        appConfigDir={appConfigDir}
+                        resolvedDirs={resolvedDirs}
+                        onAppConfigChange={updateAppConfigDir}
+                        onBrowseAppConfig={browseAppConfigDir}
+                        onResetAppConfig={resetAppConfigDir}
+                        claudeDir={settings.claudeConfigDir}
+                        codexDir={settings.codexConfigDir}
+                        onDirectoryChange={updateDirectory}
+                        onBrowseDirectory={browseDirectory}
+                        onResetDirectory={resetDirectory}
+                      />
+                      <ImportExportSection
+                        status={importStatus}
+                        selectedFile={selectedFile}
+                        errorMessage={errorMessage}
+                        backupId={backupId}
+                        isImporting={isImporting}
+                        onSelectFile={selectImportFile}
+                        onImport={importConfig}
+                        onExport={exportConfig}
+                        onClear={clearSelection}
+                      />
+                    </>
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="about" className="pt-4">
+                  <AboutSection isPortable={isPortable} />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving || isBusy}>
+            {isSaving ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("settings.saving", { defaultValue: "正在保存..." })}
+              </span>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                {t("common.save")}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+
+      {showRestartPrompt ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-md space-y-4 rounded-lg border border-border bg-background p-6 shadow-xl">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">
+                {t("settings.restartRequired")}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {t("settings.restartRequiredMessage", {
+                  defaultValue: "配置目录已变更，需要重启应用生效。",
+                })}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleRestartLater}>
+                {t("settings.restartLater")}
+              </Button>
+              <Button onClick={handleRestartNow}>
+                {t("settings.restartNow")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}

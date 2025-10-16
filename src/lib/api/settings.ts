@@ -2,6 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Settings } from "@/types";
 import type { AppType } from "./types";
 
+export interface ConfigTransferResult {
+  success: boolean;
+  message: string;
+  filePath?: string;
+  backupId?: string;
+}
+
 export const settingsApi = {
   async get(): Promise<Settings> {
     return await invoke("get_settings");
@@ -48,5 +55,49 @@ export const settingsApi = {
 
   async openAppConfigFolder(): Promise<void> {
     await invoke("open_app_config_folder");
+  },
+
+  async getAppConfigDirOverride(): Promise<string | null> {
+    return await invoke("get_app_config_dir_override");
+  },
+
+  async setAppConfigDirOverride(path: string | null): Promise<boolean> {
+    return await invoke("set_app_config_dir_override", { path });
+  },
+
+  async applyClaudePluginConfig(options: {
+    official: boolean;
+  }): Promise<boolean> {
+    const { official } = options;
+    return await invoke("apply_claude_plugin_config", { official });
+  },
+
+  async saveFileDialog(defaultName: string): Promise<string | null> {
+    return await invoke("save_file_dialog", {
+      default_name: defaultName,
+      defaultName,
+    });
+  },
+
+  async openFileDialog(): Promise<string | null> {
+    return await invoke("open_file_dialog");
+  },
+
+  async exportConfigToFile(filePath: string): Promise<ConfigTransferResult> {
+    return await invoke("export_config_to_file", {
+      file_path: filePath,
+      filePath,
+    });
+  },
+
+  async importConfigFromFile(filePath: string): Promise<ConfigTransferResult> {
+    return await invoke("import_config_from_file", {
+      file_path: filePath,
+      filePath,
+    });
+  },
+
+  async openExternal(url: string): Promise<void> {
+    await invoke("open_external", { url });
   },
 };

@@ -415,7 +415,7 @@ pnpm add class-variance-authority clsx tailwind-merge tailwindcss-animate
 | App.tsx | 412 | ~100 | -76% |
 | tauri-api.ts | 712 | ~50 | -93% |
 | ProviderForm.tsx | 271 | ~150 | -45% |
-| SettingsModal.tsx | 643 | ~400 (拆分) | -38% |
+| settings 模块 | 1046 | ~470 (拆分) | -55% |
 | **总计** | 2038 | ~700 | **-66%** |
 
 ---

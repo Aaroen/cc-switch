@@ -872,7 +872,7 @@ export function useDragSort(
 | **阶段 0** | 准备环境       | 1 天         | 依赖安装、配置完成           |
 | **阶段 1** | 搭建基础设施（✅ 已完成） | 2-3 天       | API 层、Query Hooks 完成     |
 | **阶段 2** | 重构核心功能（✅ 已完成） | 3-4 天       | App.tsx、ProviderList 完成   |
-| **阶段 3** | 重构设置和辅助 | 2-3 天       | SettingsDialog、通知系统完成 |
+| **阶段 3** | 重构设置和辅助（✅ 已完成） | 2-3 天       | SettingsDialog、通知系统完成 |
 | **阶段 4** | 清理和优化     | 1-2 天       | 旧代码删除、优化完成         |
 | **阶段 5** | 测试和修复     | 2-3 天       | 测试通过、Bug 修复           |
 | **总计**   | -              | **11-16 天** | v4.0.0 发布                  |
@@ -1488,15 +1488,15 @@ export const useTheme = () => {
 
 ### 阶段 3: 设置和辅助功能 (2-3天)
 
-**目标**: 重构 SettingsModal 和通知系统
+**目标**: 重构设置模块和通知系统
 
 #### 任务清单
 
-- [ ] 拆分 SettingsDialog (7个组件)
-- [ ] 创建 `useSettings` Hook
-- [ ] 创建 `useImportExport` Hook
-- [ ] 替换通知系统为 Sonner
-- [ ] 重构 ConfirmDialog
+- [x] 拆分 SettingsDialog (7个组件)
+- [x] 创建 `useSettings` Hook
+- [x] 创建 `useImportExport` Hook
+- [x] 替换通知系统为 Sonner
+- [x] 重构 ConfirmDialog
 
 #### 详细步骤
 

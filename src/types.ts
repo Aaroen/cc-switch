@@ -65,7 +65,7 @@ export interface ProviderMeta {
   usage_script?: UsageScript;
 }
 
-// 应用设置类型（用于 SettingsModal 与 Tauri API）
+// 应用设置类型（用于设置对话框与 Tauri API）
 export interface Settings {
   // 是否在系统托盘（macOS 菜单栏）显示图标
   showInTray: boolean;
