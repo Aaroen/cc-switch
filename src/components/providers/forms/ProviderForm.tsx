@@ -254,6 +254,52 @@ export function ProviderForm({
   const shouldShowSpeedTest =
     category === "third_party" || category === "custom";
 
+  // 判断是否显示 Claude API Key 获取链接
+  const shouldShowClaudeApiKeyLink =
+    appType === "claude" &&
+    category !== "official" &&
+    (category === "cn_official" ||
+      category === "aggregator" ||
+      category === "third_party");
+
+  // 获取当前 Claude 供应商的网址（用于 API Key 链接）
+  const getCurrentClaudeWebsiteUrl = (): string => {
+    if (selectedPresetId && selectedPresetId !== "custom") {
+      const entry = presetEntries.find((item) => item.id === selectedPresetId);
+      if (entry) {
+        const preset = entry.preset as ProviderPreset;
+        // 第三方供应商优先使用 apiKeyUrl
+        return preset.category === "third_party"
+          ? preset.apiKeyUrl || preset.websiteUrl || ""
+          : preset.websiteUrl || "";
+      }
+    }
+    return form.watch("websiteUrl") || "";
+  };
+
+  // 判断是否显示 Codex API Key 获取链接
+  const shouldShowCodexApiKeyLink =
+    appType === "codex" &&
+    category !== "official" &&
+    (category === "cn_official" ||
+      category === "aggregator" ||
+      category === "third_party");
+
+  // 获取当前 Codex 供应商的网址（用于 API Key 链接）
+  const getCurrentCodexWebsiteUrl = (): string => {
+    if (selectedPresetId && selectedPresetId !== "custom") {
+      const entry = presetEntries.find((item) => item.id === selectedPresetId);
+      if (entry) {
+        const preset = entry.preset as CodexProviderPreset;
+        // 第三方供应商优先使用 apiKeyUrl
+        return preset.category === "third_party"
+          ? preset.apiKeyUrl || preset.websiteUrl || ""
+          : preset.websiteUrl || "";
+      }
+    }
+    return form.watch("websiteUrl") || "";
+  };
+
   const handlePresetChange = (value: string) => {
     setSelectedPresetId(value);
     if (value === "custom") {
@@ -403,7 +449,7 @@ export function ProviderForm({
 
         {/* API Key 输入框（仅 Claude 且非编辑模式显示） */}
         {appType === "claude" && shouldShowApiKey(form.watch("settingsConfig"), isEditMode) && (
-          <div>
+          <div className="space-y-1">
             <ApiKeyInput
               value={apiKey}
               onChange={handleApiKeyChange}
@@ -415,6 +461,19 @@ export function ProviderForm({
               }
               disabled={category === "official"}
             />
+            {/* API Key 获取链接 */}
+            {shouldShowClaudeApiKeyLink && getCurrentClaudeWebsiteUrl() && (
+              <div className="-mt-1 pl-1">
+                <a
+                  href={getCurrentClaudeWebsiteUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                >
+                  {t("providerForm.getApiKey", { defaultValue: "获取 API Key" })}
+                </a>
+              </div>
+            )}
           </div>
         )}
 
@@ -512,7 +571,7 @@ export function ProviderForm({
 
         {/* Codex API Key 输入框 */}
         {appType === "codex" && !isEditMode && (
-          <div>
+          <div className="space-y-1">
             <ApiKeyInput
               id="codexApiKey"
               label="API Key"
@@ -526,6 +585,19 @@ export function ProviderForm({
               }
               disabled={category === "official"}
             />
+            {/* Codex API Key 获取链接 */}
+            {shouldShowCodexApiKeyLink && getCurrentCodexWebsiteUrl() && (
+              <div className="-mt-1 pl-1">
+                <a
+                  href={getCurrentCodexWebsiteUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                >
+                  {t("providerForm.getApiKey", { defaultValue: "获取 API Key" })}
+                </a>
+              </div>
+            )}
           </div>
         )}
 
