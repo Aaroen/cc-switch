@@ -56,7 +56,7 @@ export function AddProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{submitLabel}</DialogTitle>
           <DialogDescription>
@@ -66,12 +66,14 @@ export function AddProviderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ProviderForm
-          appType={appType}
-          submitLabel={t("common.add", { defaultValue: "添加" })}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-        />
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <ProviderForm
+            appType={appType}
+            submitLabel={t("common.add", { defaultValue: "添加" })}
+            onSubmit={handleSubmit}
+            onCancel={() => onOpenChange(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

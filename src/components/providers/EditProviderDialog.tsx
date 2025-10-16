@@ -60,7 +60,7 @@ export function EditProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {t("provider.editProvider", { defaultValue: "编辑供应商" })}
@@ -72,17 +72,19 @@ export function EditProviderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ProviderForm
-          appType={appType}
-          submitLabel={t("common.save", { defaultValue: "保存" })}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-          initialData={{
-            name: provider.name,
-            websiteUrl: provider.websiteUrl,
-            settingsConfig: provider.settingsConfig,
-          }}
-        />
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <ProviderForm
+            appType={appType}
+            submitLabel={t("common.save", { defaultValue: "保存" })}
+            onSubmit={handleSubmit}
+            onCancel={() => onOpenChange(false)}
+            initialData={{
+              name: provider.name,
+              websiteUrl: provider.websiteUrl,
+              settingsConfig: provider.settingsConfig,
+            }}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );
