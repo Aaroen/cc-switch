@@ -120,20 +120,15 @@ export function ProviderForm({
     selectedPresetId,
   });
 
-  // 使用 Base URL hook
-  const {
-    baseUrl,
-    // codexBaseUrl,  // TODO: 等 Codex 支持时使用
-    handleClaudeBaseUrlChange,
-    // handleCodexBaseUrlChange, // TODO: 等 Codex 支持时使用
-  } = useBaseUrlState({
+  // 使用 Base URL hook (仅 Claude 模式)
+  const { baseUrl, handleClaudeBaseUrlChange } = useBaseUrlState({
     appType,
     category,
     settingsConfig: form.watch("settingsConfig"),
-    codexConfig: "", // TODO: 从 settingsConfig 中提取 codex config
+    codexConfig: "",
     onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
     onCodexConfigChange: () => {
-      // TODO: 更新 codex config
+      // Codex 使用 useCodexConfigState 管理 Base URL
     },
   });
 
