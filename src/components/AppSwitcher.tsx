@@ -1,4 +1,4 @@
-import { AppType } from "../lib/tauri-api";
+import type { AppType } from "@/lib/api";
 import { ClaudeIcon, CodexIcon } from "./BrandIcons";
 
 interface AppSwitcherProps {

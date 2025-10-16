@@ -871,7 +871,7 @@ export function useDragSort(
 | ---------- | -------------- | ------------ | ---------------------------- |
 | **阶段 0** | 准备环境       | 1 天         | 依赖安装、配置完成           |
 | **阶段 1** | 搭建基础设施（✅ 已完成） | 2-3 天       | API 层、Query Hooks 完成     |
-| **阶段 2** | 重构核心功能   | 3-4 天       | App.tsx、ProviderList 完成   |
+| **阶段 2** | 重构核心功能（✅ 已完成） | 3-4 天       | App.tsx、ProviderList 完成   |
 | **阶段 3** | 重构设置和辅助 | 2-3 天       | SettingsDialog、通知系统完成 |
 | **阶段 4** | 清理和优化     | 1-2 天       | 旧代码删除、优化完成         |
 | **阶段 5** | 测试和修复     | 2-3 天       | 测试通过、Bug 修复           |
@@ -1366,13 +1366,13 @@ export type ProviderFormData = z.infer<typeof providerSchema>;
 
 #### 任务清单
 
-- [ ] 更新 `main.tsx` (添加 Providers)
-- [ ] 创建主题 Provider
-- [ ] 重构 `App.tsx` (412行 → ~100行)
-- [ ] 拆分 ProviderList (4个组件)
-- [ ] 创建 `useDragSort` Hook
-- [ ] 重构表单组件 (使用 react-hook-form)
-- [ ] 创建 AddProvider / EditProvider Dialog
+- [x] 更新 `main.tsx` (添加 Providers)
+- [x] 创建主题 Provider
+- [x] 重构 `App.tsx` (412行 → ~100行)
+- [x] 拆分 ProviderList (4个组件)
+- [x] 创建 `useDragSort` Hook
+- [x] 重构表单组件 (使用 react-hook-form)
+- [x] 创建 AddProvider / EditProvider Dialog
 
 #### 详细步骤
 
