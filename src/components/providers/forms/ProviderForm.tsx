@@ -33,6 +33,8 @@ import {
   useBaseUrlState,
   useModelState,
   useCodexConfigState,
+  useApiKeyLink,
+  useCustomEndpoints,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -202,49 +204,9 @@ export function ProviderForm({
       }
     }
 
-    // 若为"新建供应商"，将端点候选一并随提交落盘到 meta.custom_endpoints：
-    // - 用户在弹窗中新增的自定义端点（draftCustomEndpoints，已去重）
-    // - 预设中的 endpointCandidates（若存在）
-    // - 当前选中的基础 URL（baseUrl/codexBaseUrl）
-    if (!initialData) {
-      const urlSet = new Set<string>();
-      const push = (raw?: string) => {
-        const url = (raw || "").trim().replace(/\/+$/, "");
-        if (url) urlSet.add(url);
-      };
-
-      // 自定义端点（仅来自用户新增）
-      for (const u of draftCustomEndpoints) push(u);
-
-      // 预设端点候选
-      if (selectedPresetId && selectedPresetId !== "custom") {
-        const entry = presetEntries.find((item) => item.id === selectedPresetId);
-        if (entry) {
-          const preset = entry.preset as any;
-          if (Array.isArray(preset?.endpointCandidates)) {
-            for (const u of preset.endpointCandidates as string[]) push(u);
-          }
-        }
-      }
-
-      // 当前 Base URL
-      if (appType === "codex") {
-        push(codexBaseUrl);
-      } else {
-        push(baseUrl);
-      }
-
-      const urls = Array.from(urlSet.values());
-      if (urls.length > 0) {
-        const now = Date.now();
-        const customMap: Record<string, CustomEndpoint> = {};
-        for (const url of urls) {
-          if (!customMap[url]) {
-            customMap[url] = { url, addedAt: now, lastUsed: undefined };
-          }
-        }
-        payload.meta = { custom_endpoints: customMap };
-      }
+    // 新建供应商时：添加自定义端点
+    if (!initialData && customEndpointsMap) {
+      payload.meta = { custom_endpoints: customEndpointsMap };
     }
 
     onSubmit(payload);
@@ -302,51 +264,39 @@ export function ProviderForm({
   const shouldShowSpeedTest =
     category === "third_party" || category === "custom";
 
-  // 判断是否显示 Claude API Key 获取链接
-  const shouldShowClaudeApiKeyLink =
-    appType === "claude" &&
-    category !== "official" &&
-    (category === "cn_official" ||
-      category === "aggregator" ||
-      category === "third_party");
+  // 使用 API Key 链接 hook (Claude)
+  const {
+    shouldShowApiKeyLink: shouldShowClaudeApiKeyLink,
+    websiteUrl: claudeWebsiteUrl,
+  } = useApiKeyLink({
+    appType: "claude",
+    category,
+    selectedPresetId,
+    presetEntries,
+    formWebsiteUrl: form.watch("websiteUrl") || "",
+  });
 
-  // 获取当前 Claude 供应商的网址（用于 API Key 链接）
-  const getCurrentClaudeWebsiteUrl = (): string => {
-    if (selectedPresetId && selectedPresetId !== "custom") {
-      const entry = presetEntries.find((item) => item.id === selectedPresetId);
-      if (entry) {
-        const preset = entry.preset as ProviderPreset;
-        // 第三方供应商优先使用 apiKeyUrl
-        return preset.category === "third_party"
-          ? preset.apiKeyUrl || preset.websiteUrl || ""
-          : preset.websiteUrl || "";
-      }
-    }
-    return form.watch("websiteUrl") || "";
-  };
+  // 使用 API Key 链接 hook (Codex)
+  const {
+    shouldShowApiKeyLink: shouldShowCodexApiKeyLink,
+    websiteUrl: codexWebsiteUrl,
+  } = useApiKeyLink({
+    appType: "codex",
+    category,
+    selectedPresetId,
+    presetEntries,
+    formWebsiteUrl: form.watch("websiteUrl") || "",
+  });
 
-  // 判断是否显示 Codex API Key 获取链接
-  const shouldShowCodexApiKeyLink =
-    appType === "codex" &&
-    category !== "official" &&
-    (category === "cn_official" ||
-      category === "aggregator" ||
-      category === "third_party");
-
-  // 获取当前 Codex 供应商的网址（用于 API Key 链接）
-  const getCurrentCodexWebsiteUrl = (): string => {
-    if (selectedPresetId && selectedPresetId !== "custom") {
-      const entry = presetEntries.find((item) => item.id === selectedPresetId);
-      if (entry) {
-        const preset = entry.preset as CodexProviderPreset;
-        // 第三方供应商优先使用 apiKeyUrl
-        return preset.category === "third_party"
-          ? preset.apiKeyUrl || preset.websiteUrl || ""
-          : preset.websiteUrl || "";
-      }
-    }
-    return form.watch("websiteUrl") || "";
-  };
+  // 使用自定义端点 hook
+  const customEndpointsMap = useCustomEndpoints({
+    appType,
+    selectedPresetId,
+    presetEntries,
+    draftCustomEndpoints,
+    baseUrl,
+    codexBaseUrl,
+  });
 
   const handlePresetChange = (value: string) => {
     setSelectedPresetId(value);
@@ -510,10 +460,10 @@ export function ProviderForm({
               disabled={category === "official"}
             />
             {/* API Key 获取链接 */}
-            {shouldShowClaudeApiKeyLink && getCurrentClaudeWebsiteUrl() && (
+            {shouldShowClaudeApiKeyLink && claudeWebsiteUrl && (
               <div className="-mt-1 pl-1">
                 <a
-                  href={getCurrentClaudeWebsiteUrl()}
+                  href={claudeWebsiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
@@ -635,10 +585,10 @@ export function ProviderForm({
               disabled={category === "official"}
             />
             {/* Codex API Key 获取链接 */}
-            {shouldShowCodexApiKeyLink && getCurrentCodexWebsiteUrl() && (
+            {shouldShowCodexApiKeyLink && codexWebsiteUrl && (
               <div className="-mt-1 pl-1">
                 <a
-                  href={getCurrentCodexWebsiteUrl()}
+                  href={codexWebsiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
