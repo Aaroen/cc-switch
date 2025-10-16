@@ -16,7 +16,7 @@ import { useTheme } from "@/components/theme-provider";
 import JsonEditor from "@/components/JsonEditor";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppType } from "@/lib/api";
-import type { ProviderCategory } from "@/types";
+import type { ProviderCategory, CustomEndpoint } from "@/types";
 import { providerPresets, type ProviderPreset } from "@/config/providerPresets";
 import {
   codexProviderPresets,
@@ -74,6 +74,9 @@ export function ProviderForm({
     category?: ProviderCategory;
   } | null>(null);
   const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
+
+  // 新建供应商：收集端点测速弹窗中的"自定义端点"，提交时一次性落盘到 meta.custom_endpoints
+  const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>([]);
 
   // 使用 category hook
   const { category } = useProviderCategory({
@@ -196,6 +199,51 @@ export function ProviderForm({
       payload.presetId = activePreset.id;
       if (activePreset.category) {
         payload.presetCategory = activePreset.category;
+      }
+    }
+
+    // 若为"新建供应商"，将端点候选一并随提交落盘到 meta.custom_endpoints：
+    // - 用户在弹窗中新增的自定义端点（draftCustomEndpoints，已去重）
+    // - 预设中的 endpointCandidates（若存在）
+    // - 当前选中的基础 URL（baseUrl/codexBaseUrl）
+    if (!initialData) {
+      const urlSet = new Set<string>();
+      const push = (raw?: string) => {
+        const url = (raw || "").trim().replace(/\/+$/, "");
+        if (url) urlSet.add(url);
+      };
+
+      // 自定义端点（仅来自用户新增）
+      for (const u of draftCustomEndpoints) push(u);
+
+      // 预设端点候选
+      if (selectedPresetId && selectedPresetId !== "custom") {
+        const entry = presetEntries.find((item) => item.id === selectedPresetId);
+        if (entry) {
+          const preset = entry.preset as any;
+          if (Array.isArray(preset?.endpointCandidates)) {
+            for (const u of preset.endpointCandidates as string[]) push(u);
+          }
+        }
+      }
+
+      // 当前 Base URL
+      if (appType === "codex") {
+        push(codexBaseUrl);
+      } else {
+        push(baseUrl);
+      }
+
+      const urls = Array.from(urlSet.values());
+      if (urls.length > 0) {
+        const now = Date.now();
+        const customMap: Record<string, CustomEndpoint> = {};
+        for (const url of urls) {
+          if (!customMap[url]) {
+            customMap[url] = { url, addedAt: now, lastUsed: undefined };
+          }
+        }
+        payload.meta = { custom_endpoints: customMap };
       }
     }
 
@@ -518,6 +566,7 @@ export function ProviderForm({
             initialEndpoints={[{ url: baseUrl }]}
             visible={isEndpointModalOpen}
             onClose={() => setIsEndpointModalOpen(false)}
+            onCustomEndpointsChange={setDraftCustomEndpoints}
           />
         )}
 
@@ -642,6 +691,7 @@ export function ProviderForm({
             initialEndpoints={[{ url: codexBaseUrl }]}
             visible={isCodexEndpointModalOpen}
             onClose={() => setIsCodexEndpointModalOpen(false)}
+            onCustomEndpointsChange={setDraftCustomEndpoints}
           />
         )}
 
@@ -700,4 +750,7 @@ export function ProviderForm({
 export type ProviderFormValues = ProviderFormData & {
   presetId?: string;
   presetCategory?: ProviderCategory;
+  meta?: {
+    custom_endpoints?: Record<string, CustomEndpoint>;
+  };
 };
