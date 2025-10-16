@@ -48,7 +48,7 @@ export function useApiKeyState({
   const showApiKey = useCallback(
     (config: string, isEditMode: boolean) => {
       return (
-        selectedPresetId !== null || (!isEditMode && hasApiKeyField(config))
+        selectedPresetId !== null || (isEditMode && hasApiKeyField(config))
       );
     },
     [selectedPresetId],
