@@ -37,6 +37,7 @@ import {
   useApiKeyLink,
   useCustomEndpoints,
   useKimiModelSelector,
+  useTemplateValues,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -228,7 +229,36 @@ export function ProviderForm({
         : "",
   });
 
+  // 使用模板变量 hook (仅 Claude 模式)
+  const {
+    templateValues,
+    templateValueEntries,
+    selectedPreset: templatePreset,
+    handleTemplateValueChange,
+    validateTemplateValues,
+  } = useTemplateValues({
+    selectedPresetId: appType === "claude" ? selectedPresetId : null,
+    presetEntries: appType === "claude" ? presetEntries : [],
+    settingsConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
+  });
+
   const handleSubmit = (values: ProviderFormData) => {
+    // 验证模板变量（仅 Claude 模式）
+    if (appType === "claude" && templateValueEntries.length > 0) {
+      const validation = validateTemplateValues();
+      if (!validation.isValid && validation.missingField) {
+        form.setError("settingsConfig", {
+          type: "manual",
+          message: t("providerForm.fillParameter", {
+            label: validation.missingField.label,
+            defaultValue: `请填写 ${validation.missingField.label}`,
+          }),
+        });
+        return;
+      }
+    }
+
     let settingsConfig: string;
 
     // Codex: 组合 auth 和 config
@@ -509,6 +539,43 @@ export function ProviderForm({
               )}
             </div>
           )}
+
+        {/* 模板变量输入（仅 Claude 且有模板变量时显示） */}
+        {appType === "claude" && templateValueEntries.length > 0 && (
+          <div className="space-y-3">
+            <FormLabel>
+              {t("providerForm.parameterConfig", {
+                name: templatePreset?.name || "",
+                defaultValue: `${templatePreset?.name || ""} 参数配置`,
+              })}
+            </FormLabel>
+            <div className="space-y-4">
+              {templateValueEntries.map(([key, config]) => (
+                <div key={key} className="space-y-2">
+                  <FormLabel htmlFor={`template-${key}`}>
+                    {config.label}
+                  </FormLabel>
+                  <Input
+                    id={`template-${key}`}
+                    type="text"
+                    required
+                    value={
+                      templateValues[key]?.editorValue ??
+                      config.editorValue ??
+                      config.defaultValue ??
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleTemplateValueChange(key, e.target.value)
+                    }
+                    placeholder={config.placeholder || config.label}
+                    autoComplete="off"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Base URL 输入框（仅 Claude 第三方/自定义显示） */}
         {appType === "claude" && shouldShowSpeedTest && (
