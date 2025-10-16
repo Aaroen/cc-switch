@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Save } from "lucide-react";
+import { Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { McpServerSpec } from "../../types";
-import { isLinux } from "../../lib/platform";
 
 interface McpWizardModalProps {
   isOpen: boolean;
@@ -216,45 +223,17 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
     setWizardHeaders("");
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const preview = generatePreview();
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          handleClose();
-        }
-      }}
-    >
-      {/* Backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/50 dark:bg-black/70${
-          isLinux() ? "" : " backdrop-blur-sm"
-        }`}
-      />
-
-      {/* Modal */}
-      <div className="relative mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-lg dark:bg-gray-900">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-800">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            {t("mcp.wizard.title")}
-          </h2>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-            aria-label={t("common.close")}
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>{t("mcp.wizard.title")}</DialogTitle>
+        </DialogHeader>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 space-y-4 overflow-auto p-6">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
           {/* Hint */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -419,25 +398,17 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-100 p-6 dark:border-gray-800 dark:bg-gray-800">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-          >
+        <DialogFooter className="gap-3 pt-4">
+          <Button type="button" variant="ghost" onClick={handleClose}>
             {t("common.cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
-          >
+          </Button>
+          <Button type="button" variant="mcp" onClick={handleApply}>
             <Save className="h-4 w-4" />
             {t("mcp.wizard.apply")}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

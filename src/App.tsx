@@ -333,13 +333,12 @@ function App() {
         onImportSuccess={handleImportSuccess}
       />
 
-      {isMcpOpen && (
-        <McpPanel
-          appType={activeApp}
-          onClose={() => setIsMcpOpen(false)}
-          onNotify={handleNotify}
-        />
-      )}
+      <McpPanel
+        open={isMcpOpen}
+        onOpenChange={setIsMcpOpen}
+        appType={activeApp}
+        onNotify={handleNotify}
+      />
     </div>
   );
 }

@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Plus, Server, Check } from "lucide-react";
+import { Plus, Server, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { mcpApi, type AppType } from "@/lib/api";
 import { McpServer } from "../../types";
 import McpListItem from "./McpListItem";
@@ -13,7 +19,8 @@ import {
 } from "../../utils/errorUtils";
 
 interface McpPanelProps {
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onNotify?: (
     message: string,
     type: "success" | "error",
@@ -26,7 +33,12 @@ interface McpPanelProps {
  * MCP 管理面板
  * 采用与主界面一致的设计风格，右上角添加按钮，每个 MCP 占一行
  */
-const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
+const McpPanel: React.FC<McpPanelProps> = ({
+  open,
+  onOpenChange,
+  onNotify,
+  appType,
+}) => {
   const { t } = useTranslation();
   const [servers, setServers] = useState<Record<string, McpServer>>({});
   const [loading, setLoading] = useState(true);
@@ -180,97 +192,90 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
     appType === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-lg max-w-3xl w-full mx-4 overflow-hidden flex flex-col max-h-[85vh] min-h-[600px]">
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {panelTitle}
-          </h3>
-
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="mcp" size="sm" onClick={handleAdd}>
-              <Plus size={16} />
-              {t("mcp.add")}
-            </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-              <X size={18} />
-            </Button>
-          </div>
-        </div>
-
-        {/* Info Section */}
-        <div className="flex-shrink-0 px-6 pt-4 pb-2">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {t("mcp.serverCount", { count: Object.keys(servers).length })} ·{" "}
-            {t("mcp.enabledCount", { count: enabledCount })}
-          </div>
-        </div>
-
-        {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {loading ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              {t("mcp.loading")}
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-8">
+              <DialogTitle>{panelTitle}</DialogTitle>
+              <Button type="button" variant="mcp" size="sm" onClick={handleAdd}>
+                <Plus size={16} />
+                {t("mcp.add")}
+              </Button>
             </div>
-          ) : (
-            (() => {
-              const hasAny = serverEntries.length > 0;
-              if (!hasAny) {
-                return (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                      <Server
-                        size={24}
-                        className="text-gray-400 dark:text-gray-500"
-                      />
+          </DialogHeader>
+
+          {/* Info Section */}
+          <div className="flex-shrink-0 -mt-2">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {t("mcp.serverCount", { count: Object.keys(servers).length })} ·{" "}
+              {t("mcp.enabledCount", { count: enabledCount })}
+            </div>
+          </div>
+
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            {loading ? (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                {t("mcp.loading")}
+              </div>
+            ) : (
+              (() => {
+                const hasAny = serverEntries.length > 0;
+                if (!hasAny) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+                        <Server
+                          size={24}
+                          className="text-gray-400 dark:text-gray-500"
+                        />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        {t("mcp.empty")}
+                      </h3>
+                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                        {t("mcp.emptyDescription")}
+                      </p>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                      {t("mcp.empty")}
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      {t("mcp.emptyDescription")}
-                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {/* 已安装 */}
+                    {serverEntries.map(([id, server]) => (
+                      <McpListItem
+                        key={`installed-${id}`}
+                        id={id}
+                        server={server}
+                        onToggle={handleToggle}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+
+                    {/* 预设已移至"新增 MCP"面板中展示与套用 */}
                   </div>
                 );
-              }
+              })()
+            )}
+          </div>
 
-              return (
-                <div className="space-y-3">
-                  {/* 已安装 */}
-                  {serverEntries.map(([id, server]) => (
-                    <McpListItem
-                      key={`installed-${id}`}
-                      id={id}
-                      server={server}
-                      onToggle={handleToggle}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-
-                  {/* 预设已移至"新增 MCP"面板中展示与套用 */}
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex-shrink-0 flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-          <Button type="button" variant="mcp" size="sm" onClick={onClose}>
-            <Check size={16} />
-            {t("common.done")}
-          </Button>
-        </div>
-      </div>
+          {/* Footer */}
+          <div className="flex-shrink-0 flex items-center justify-end pt-4 border-t border-gray-200 dark:border-gray-800">
+            <Button
+              type="button"
+              variant="mcp"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
+              <Check size={16} />
+              {t("common.done")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Form Modal */}
       {isFormOpen && (
@@ -295,7 +300,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
           onCancel={() => setConfirmDialog(null)}
         />
       )}
-    </div>
+    </>
   );
 };
 

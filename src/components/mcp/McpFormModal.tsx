@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  X,
   Save,
   AlertCircle,
   ChevronDown,
@@ -9,6 +8,13 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { mcpApi, type AppType } from "@/lib/api";
@@ -495,267 +501,255 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <>
+      <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{getFormTitle()}</DialogTitle>
+          </DialogHeader>
 
-      {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {getFormTitle()}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* 预设选择（仅新增时展示） */}
-          {!isEditing && (
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-                {t("mcp.presets.title")}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={applyCustom}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedPreset === -1
-                      ? "bg-emerald-500 text-white dark:bg-emerald-600"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {t("presetSelector.custom")}
-                </button>
-                {mcpPresets.map((preset, idx) => {
-                  const descriptionKey = `mcp.presets.${preset.id}.description`;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => applyPreset(idx)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedPreset === idx
-                          ? "bg-emerald-500 text-white dark:bg-emerald-600"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                      }`}
-                      title={t(descriptionKey)}
-                    >
-                      {preset.id}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {/* ID (标题) */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t("mcp.form.title")} <span className="text-red-500">*</span>
-              </label>
-              {!isEditing && idError && (
-                <span className="text-xs text-red-500 dark:text-red-400">
-                  {idError}
-                </span>
-              )}
-            </div>
-            <Input
-              type="text"
-              placeholder={t("mcp.form.titlePlaceholder")}
-              value={formId}
-              onChange={(e) => handleIdChange(e.target.value)}
-              disabled={isEditing}
-            />
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t("mcp.form.name")}
-            </label>
-            <Input
-              type="text"
-              placeholder={t("mcp.form.namePlaceholder")}
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-
-          {/* 可折叠的附加信息按钮 */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowMetadata(!showMetadata)}
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-            >
-              {showMetadata ? (
-                <ChevronUp size={16} />
-              ) : (
-                <ChevronDown size={16} />
-              )}
-              {t("mcp.form.additionalInfo")}
-            </button>
-          </div>
-
-          {/* 附加信息区域（可折叠） */}
-          {showMetadata && (
-            <>
-              {/* Description (描述) */}
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
+            {/* 预设选择（仅新增时展示） */}
+            {!isEditing && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("mcp.form.description")}
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                  {t("mcp.presets.title")}
                 </label>
-                <Input
-                  type="text"
-                  placeholder={t("mcp.form.descriptionPlaceholder")}
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                />
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("mcp.form.tags")}
-                </label>
-                <Input
-                  type="text"
-                  placeholder={t("mcp.form.tagsPlaceholder")}
-                  value={formTags}
-                  onChange={(e) => setFormTags(e.target.value)}
-                />
-              </div>
-
-              {/* Homepage */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("mcp.form.homepage")}
-                </label>
-                <Input
-                  type="text"
-                  placeholder={t("mcp.form.homepagePlaceholder")}
-                  value={formHomepage}
-                  onChange={(e) => setFormHomepage(e.target.value)}
-                />
-              </div>
-
-              {/* Docs */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("mcp.form.docs")}
-                </label>
-                <Input
-                  type="text"
-                  placeholder={t("mcp.form.docsPlaceholder")}
-                  value={formDocs}
-                  onChange={(e) => setFormDocs(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          {/* 配置输入框（根据格式显示 JSON 或 TOML） */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {useToml ? t("mcp.form.tomlConfig") : t("mcp.form.jsonConfig")}
-              </label>
-              {(isEditing || selectedPreset === -1) && (
-                <button
-                  type="button"
-                  onClick={() => setIsWizardOpen(true)}
-                  className="text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
-                >
-                  {t("mcp.form.useWizard")}
-                </button>
-              )}
-            </div>
-            <Textarea
-              className="h-48 resize-none font-mono text-xs"
-              placeholder={
-                useToml
-                  ? t("mcp.form.tomlPlaceholder")
-                  : t("mcp.form.jsonPlaceholder")
-              }
-              value={formConfig}
-              onChange={(e) => handleConfigChange(e.target.value)}
-            />
-            {configError && (
-              <div className="flex items-center gap-2 mt-2 text-red-500 dark:text-red-400 text-sm">
-                <AlertCircle size={16} />
-                <span>{configError}</span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={applyCustom}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedPreset === -1
+                        ? "bg-emerald-500 text-white dark:bg-emerald-600"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {t("presetSelector.custom")}
+                  </button>
+                  {mcpPresets.map((preset, idx) => {
+                    const descriptionKey = `mcp.presets.${preset.id}.description`;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => applyPreset(idx)}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          selectedPreset === idx
+                            ? "bg-emerald-500 text-white dark:bg-emerald-600"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        }`}
+                        title={t(descriptionKey)}
+                      >
+                        {preset.id}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex-shrink-0 flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-          {/* 双端同步选项 */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <input
-                id={syncCheckboxId}
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-800"
-                checked={syncOtherSide}
-                onChange={(event) => setSyncOtherSide(event.target.checked)}
+            {/* ID (标题) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("mcp.form.title")} <span className="text-red-500">*</span>
+                </label>
+                {!isEditing && idError && (
+                  <span className="text-xs text-red-500 dark:text-red-400">
+                    {idError}
+                  </span>
+                )}
+              </div>
+              <Input
+                type="text"
+                placeholder={t("mcp.form.titlePlaceholder")}
+                value={formId}
+                onChange={(e) => handleIdChange(e.target.value)}
+                disabled={isEditing}
               />
-              <label
-                htmlFor={syncCheckboxId}
-                className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                title={t("mcp.form.syncOtherSideHint", {
-                  target: syncTargetLabel,
-                })}
-              >
-                {t("mcp.form.syncOtherSide", { target: syncTargetLabel })}
-              </label>
             </div>
-            {syncOtherSide && otherSideHasConflict && (
-              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                <AlertTriangle size={14} />
-                <span className="text-xs font-medium">
-                  {t("mcp.form.willOverwriteWarning", {
+
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t("mcp.form.name")}
+              </label>
+              <Input
+                type="text"
+                placeholder={t("mcp.form.namePlaceholder")}
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+
+            {/* 可折叠的附加信息按钮 */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowMetadata(!showMetadata)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                {showMetadata ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+                {t("mcp.form.additionalInfo")}
+              </button>
+            </div>
+
+            {/* 附加信息区域（可折叠） */}
+            {showMetadata && (
+              <>
+                {/* Description (描述) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("mcp.form.description")}
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={t("mcp.form.descriptionPlaceholder")}
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                  />
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("mcp.form.tags")}
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={t("mcp.form.tagsPlaceholder")}
+                    value={formTags}
+                    onChange={(e) => setFormTags(e.target.value)}
+                  />
+                </div>
+
+                {/* Homepage */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("mcp.form.homepage")}
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={t("mcp.form.homepagePlaceholder")}
+                    value={formHomepage}
+                    onChange={(e) => setFormHomepage(e.target.value)}
+                  />
+                </div>
+
+                {/* Docs */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("mcp.form.docs")}
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={t("mcp.form.docsPlaceholder")}
+                    value={formDocs}
+                    onChange={(e) => setFormDocs(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* 配置输入框（根据格式显示 JSON 或 TOML） */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {useToml
+                    ? t("mcp.form.tomlConfig")
+                    : t("mcp.form.jsonConfig")}
+                </label>
+                {(isEditing || selectedPreset === -1) && (
+                  <button
+                    type="button"
+                    onClick={() => setIsWizardOpen(true)}
+                    className="text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                  >
+                    {t("mcp.form.useWizard")}
+                  </button>
+                )}
+              </div>
+              <Textarea
+                className="h-48 resize-none font-mono text-xs"
+                placeholder={
+                  useToml
+                    ? t("mcp.form.tomlPlaceholder")
+                    : t("mcp.form.jsonPlaceholder")
+                }
+                value={formConfig}
+                onChange={(e) => handleConfigChange(e.target.value)}
+              />
+              {configError && (
+                <div className="flex items-center gap-2 mt-2 text-red-500 dark:text-red-400 text-sm">
+                  <AlertCircle size={16} />
+                  <span>{configError}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <DialogFooter className="flex-col sm:flex-row sm:justify-between gap-3 pt-4">
+            {/* 双端同步选项 */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <input
+                  id={syncCheckboxId}
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-800"
+                  checked={syncOtherSide}
+                  onChange={(event) => setSyncOtherSide(event.target.checked)}
+                />
+                <label
+                  htmlFor={syncCheckboxId}
+                  className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                  title={t("mcp.form.syncOtherSideHint", {
                     target: syncTargetLabel,
                   })}
-                </span>
+                >
+                  {t("mcp.form.syncOtherSide", { target: syncTargetLabel })}
+                </label>
               </div>
-            )}
-          </div>
+              {syncOtherSide && otherSideHasConflict && (
+                <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle size={14} />
+                  <span className="text-xs font-medium">
+                    {t("mcp.form.willOverwriteWarning", {
+                      target: syncTargetLabel,
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
 
-          {/* 操作按钮 */}
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSubmit}
-              disabled={saving || (!isEditing && !!idError)}
-              className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
-            >
-              <Save size={16} />
-              {saving
-                ? t("common.saving")
-                : isEditing
-                  ? t("common.save")
-                  : t("common.add")}
-            </Button>
-          </div>
-        </div>
-      </div>
+            {/* 操作按钮 */}
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={saving || (!isEditing && !!idError)}
+                variant="mcp"
+              >
+                <Save size={16} />
+                {saving
+                  ? t("common.saving")
+                  : isEditing
+                    ? t("common.save")
+                    : t("common.add")}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Wizard Modal */}
       <McpWizardModal
@@ -766,7 +760,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         initialTitle={formId}
         initialServer={wizardInitialSpec}
       />
-    </div>
+    </>
   );
 };
 
