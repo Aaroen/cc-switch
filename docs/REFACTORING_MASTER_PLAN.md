@@ -1510,13 +1510,13 @@ export const useTheme = () => {
 
 #### 任务清单
 
-- [ ] 删除 `lib/styles.ts`
-- [ ] 删除旧的 Modal 组件
-- [ ] 移除 `window.api` 全局绑定
-- [ ] 清理无用的 state 和函数
-- [ ] 更新类型定义
-- [ ] 代码格式化
-- [ ] TypeScript 检查
+- [x] 删除 `lib/styles.ts`
+- [x] 删除旧的 Modal 组件
+- [x] 移除 `window.api` 全局绑定
+- [x] 清理无用的 state 和函数
+- [x] 更新类型定义
+- [x] 代码格式化
+- [x] TypeScript 检查
 
 ---
 

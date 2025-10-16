@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, Play, Wand2 } from "lucide-react";
 import { Provider, UsageScript } from "../types";
-import { AppType } from "../lib/tauri-api";
+import { usageApi, type AppType } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";
 import * as parserBabel from "prettier/parser-babel";
@@ -15,7 +15,7 @@ interface UsageScriptModalProps {
   onNotify?: (
     message: string,
     type: "success" | "error",
-    duration?: number
+    duration?: number,
   ) => void;
 }
 
@@ -117,10 +117,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleTest = async () => {
     setTesting(true);
     try {
-      const result = await window.api.queryProviderUsage(
-        provider.id,
-        appType
-      );
+      const result = await usageApi.query(provider.id, appType);
       if (result.success && result.data && result.data.length > 0) {
         // 显示所有套餐数据
         const summary = result.data
@@ -230,7 +227,8 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 />
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                   支持变量: <code>{"{{apiKey}}"}</code>,{" "}
-                  <code>{"{{baseUrl}}"}</code> | extractor 函数接收 API 响应的 JSON 对象
+                  <code>{"{{baseUrl}}"}</code> | extractor 函数接收 API 响应的
+                  JSON 对象
                 </p>
               </div>
 
@@ -246,7 +244,10 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                     max="30"
                     value={script.timeout || 10}
                     onChange={(e) =>
-                      setScript({ ...script, timeout: parseInt(e.target.value) })
+                      setScript({
+                        ...script,
+                        timeout: parseInt(e.target.value),
+                      })
                     }
                     className="mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
@@ -260,7 +261,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   <div>
                     <strong>配置格式：</strong>
                     <pre className="mt-1 p-2 bg-white/50 dark:bg-black/20 rounded text-[10px] overflow-x-auto">
-{`({
+                      {`({
   request: {
     url: "{{baseUrl}}/api/usage",
     method: "POST",
@@ -285,23 +286,49 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   <div>
                     <strong>extractor 返回格式（所有字段均为可选）：</strong>
                     <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>• <code>isValid</code>: 布尔值，套餐是否有效</li>
-                      <li>• <code>invalidMessage</code>: 字符串，失效原因说明（当 isValid 为 false 时显示）</li>
-                      <li>• <code>remaining</code>: 数字，剩余额度</li>
-                      <li>• <code>unit</code>: 字符串，单位（如 "USD"）</li>
-                      <li>• <code>planName</code>: 字符串，套餐名称</li>
-                      <li>• <code>total</code>: 数字，总额度</li>
-                      <li>• <code>used</code>: 数字，已用额度</li>
-                      <li>• <code>extra</code>: 字符串，扩展字段，可自由补充需要展示的文本</li>
+                      <li>
+                        • <code>isValid</code>: 布尔值，套餐是否有效
+                      </li>
+                      <li>
+                        • <code>invalidMessage</code>: 字符串，失效原因说明（当
+                        isValid 为 false 时显示）
+                      </li>
+                      <li>
+                        • <code>remaining</code>: 数字，剩余额度
+                      </li>
+                      <li>
+                        • <code>unit</code>: 字符串，单位（如 "USD"）
+                      </li>
+                      <li>
+                        • <code>planName</code>: 字符串，套餐名称
+                      </li>
+                      <li>
+                        • <code>total</code>: 数字，总额度
+                      </li>
+                      <li>
+                        • <code>used</code>: 数字，已用额度
+                      </li>
+                      <li>
+                        • <code>extra</code>:
+                        字符串，扩展字段，可自由补充需要展示的文本
+                      </li>
                     </ul>
                   </div>
 
                   <div className="text-gray-600 dark:text-gray-400">
                     <strong>💡 提示：</strong>
                     <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>• 变量 <code>{"{{apiKey}}"}</code> 和 <code>{"{{baseUrl}}"}</code> 会自动替换</li>
-                      <li>• extractor 函数在沙箱环境中执行，支持 ES2020+ 语法</li>
-                      <li>• 整个配置必须用 <code>()</code> 包裹，形成对象字面量表达式</li>
+                      <li>
+                        • 变量 <code>{"{{apiKey}}"}</code> 和{" "}
+                        <code>{"{{baseUrl}}"}</code> 会自动替换
+                      </li>
+                      <li>
+                        • extractor 函数在沙箱环境中执行，支持 ES2020+ 语法
+                      </li>
+                      <li>
+                        • 整个配置必须用 <code>()</code>{" "}
+                        包裹，形成对象字面量表达式
+                      </li>
                     </ul>
                   </div>
                 </div>

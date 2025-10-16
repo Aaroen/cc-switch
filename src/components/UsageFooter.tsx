@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
-import { UsageResult, UsageData } from "../types";
-import { AppType } from "../lib/tauri-api";
 import { RefreshCw, AlertCircle } from "lucide-react";
+import { usageApi, type AppType } from "@/lib/api";
+import { UsageResult, UsageData } from "../types";
 
 interface UsageFooterProps {
   providerId: string;
@@ -18,7 +18,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   const [loading, setLoading] = useState(false);
 
   // 记录上次请求的关键参数，防止重复请求
-  const lastFetchParamsRef = useRef<string>('');
+  const lastFetchParamsRef = useRef<string>("");
 
   const fetchUsage = async () => {
     // 防止并发请求
@@ -26,10 +26,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
     setLoading(true);
     try {
-      const result = await window.api.queryProviderUsage(
-        providerId,
-        appType
-      );
+      const result = await usageApi.query(providerId, appType);
       setUsage(result);
     } catch (error: any) {
       console.error("查询用量失败:", error);
@@ -54,7 +51,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
       }
     } else {
       // 如果禁用了，清空记录和数据
-      lastFetchParamsRef.current = '';
+      lastFetchParamsRef.current = "";
       setUsage(null);
     }
   }, [providerId, usageEnabled, appType]);
@@ -120,7 +117,16 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
 // 单个套餐数据展示组件
 const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
-  const { planName, extra, isValid, invalidMessage, total, used, remaining, unit } = data;
+  const {
+    planName,
+    extra,
+    isValid,
+    invalidMessage,
+    total,
+    used,
+    remaining,
+    unit,
+  } = data;
 
   // 判断套餐是否失效（isValid 为 false 或未定义时视为有效）
   const isExpired = isValid === false;
@@ -128,7 +134,10 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
   return (
     <div className="flex items-center gap-3">
       {/* 标题部分：25% */}
-      <div className="text-xs text-gray-500 dark:text-gray-400 min-w-0" style={{ width: "25%" }}>
+      <div
+        className="text-xs text-gray-500 dark:text-gray-400 min-w-0"
+        style={{ width: "25%" }}
+      >
         {planName ? (
           <span
             className={`font-medium truncate block ${isExpired ? "text-red-500 dark:text-red-400" : ""}`}
@@ -142,7 +151,10 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
       </div>
 
       {/* 扩展字段：30% */}
-      <div className="text-xs text-gray-500 dark:text-gray-400 min-w-0 flex items-center gap-2" style={{ width: "30%" }}>
+      <div
+        className="text-xs text-gray-500 dark:text-gray-400 min-w-0 flex items-center gap-2"
+        style={{ width: "30%" }}
+      >
         {extra && (
           <span
             className={`truncate ${isExpired ? "text-red-500 dark:text-red-400" : ""}`}
@@ -159,7 +171,10 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
       </div>
 
       {/* 用量信息：45% */}
-      <div className="flex items-center justify-end gap-2 text-xs flex-shrink-0" style={{ width: "45%" }}>
+      <div
+        className="flex items-center justify-end gap-2 text-xs flex-shrink-0"
+        style={{ width: "45%" }}
+      >
         {/* 总额度 */}
         {total !== undefined && (
           <>
@@ -200,11 +215,12 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
           </>
         )}
 
-        {unit && <span className="text-gray-500 dark:text-gray-400">{unit}</span>}
+        {unit && (
+          <span className="text-gray-500 dark:text-gray-400">{unit}</span>
+        )}
       </div>
     </div>
   );
 };
-
 
 export default UsageFooter;

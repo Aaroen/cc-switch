@@ -1,18 +1,27 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Save, AlertCircle, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import {
+  X,
+  Save,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { mcpApi, type AppType } from "@/lib/api";
 import { McpServer, McpServerSpec } from "../../types";
 import {
   mcpPresets,
   getMcpPresetWithDescription,
 } from "../../config/mcpPresets";
-import { buttonStyles, inputStyles } from "../../lib/styles";
 import McpWizardModal from "./McpWizardModal";
 import {
   extractErrorMessage,
   translateMcpBackendError,
 } from "../../utils/errorUtils";
-import { AppType } from "../../lib/tauri-api";
 import {
   validateToml,
   tomlToMcpServer,
@@ -125,10 +134,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const syncTargetLabel =
     appType === "claude" ? t("apps.codex") : t("apps.claude");
   const otherAppType: AppType = appType === "claude" ? "codex" : "claude";
-  const syncCheckboxId = useMemo(
-    () => `sync-other-side-${appType}`,
-    [appType],
-  );
+  const syncCheckboxId = useMemo(() => `sync-other-side-${appType}`, [appType]);
 
   // 检测另一侧是否有同名 MCP
   useEffect(() => {
@@ -140,8 +146,10 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
 
       try {
-        const otherConfig = await window.api.getMcpConfig(otherAppType);
-        const hasConflict = Object.keys(otherConfig.servers || {}).includes(currentId);
+        const otherConfig = await mcpApi.getConfig(otherAppType);
+        const hasConflict = Object.keys(otherConfig.servers || {}).includes(
+          currentId,
+        );
         setOtherSideHasConflict(hasConflict);
       } catch (error) {
         console.error("检查另一侧 MCP 配置失败:", error);
@@ -562,8 +570,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 </span>
               )}
             </div>
-            <input
-              className={inputStyles.text}
+            <Input
+              type="text"
               placeholder={t("mcp.form.titlePlaceholder")}
               value={formId}
               onChange={(e) => handleIdChange(e.target.value)}
@@ -576,8 +584,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t("mcp.form.name")}
             </label>
-            <input
-              className={inputStyles.text}
+            <Input
+              type="text"
               placeholder={t("mcp.form.namePlaceholder")}
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
@@ -608,8 +616,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("mcp.form.description")}
                 </label>
-                <input
-                  className={inputStyles.text}
+                <Input
+                  type="text"
                   placeholder={t("mcp.form.descriptionPlaceholder")}
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
@@ -621,8 +629,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("mcp.form.tags")}
                 </label>
-                <input
-                  className={inputStyles.text}
+                <Input
+                  type="text"
                   placeholder={t("mcp.form.tagsPlaceholder")}
                   value={formTags}
                   onChange={(e) => setFormTags(e.target.value)}
@@ -634,8 +642,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("mcp.form.homepage")}
                 </label>
-                <input
-                  className={inputStyles.text}
+                <Input
+                  type="text"
                   placeholder={t("mcp.form.homepagePlaceholder")}
                   value={formHomepage}
                   onChange={(e) => setFormHomepage(e.target.value)}
@@ -647,8 +655,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("mcp.form.docs")}
                 </label>
-                <input
-                  className={inputStyles.text}
+                <Input
+                  type="text"
                   placeholder={t("mcp.form.docsPlaceholder")}
                   value={formDocs}
                   onChange={(e) => setFormDocs(e.target.value)}
@@ -673,8 +681,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 </button>
               )}
             </div>
-            <textarea
-              className={`${inputStyles.text} h-48 resize-none font-mono text-xs`}
+            <Textarea
+              className="h-48 resize-none font-mono text-xs"
               placeholder={
                 useToml
                   ? t("mcp.form.tomlPlaceholder")
@@ -707,7 +715,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
               <label
                 htmlFor={syncCheckboxId}
                 className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                title={t("mcp.form.syncOtherSideHint", { target: syncTargetLabel })}
+                title={t("mcp.form.syncOtherSideHint", {
+                  target: syncTargetLabel,
+                })}
               >
                 {t("mcp.form.syncOtherSide", { target: syncTargetLabel })}
               </label>
@@ -716,7 +726,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
               <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <AlertTriangle size={14} />
                 <span className="text-xs font-medium">
-                  {t("mcp.form.willOverwriteWarning", { target: syncTargetLabel })}
+                  {t("mcp.form.willOverwriteWarning", {
+                    target: syncTargetLabel,
+                  })}
                 </span>
               </div>
             )}
@@ -724,16 +736,15 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
           {/* 操作按钮 */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-200 rounded-lg transition-colors text-sm font-medium"
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
               {t("common.cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               onClick={handleSubmit}
               disabled={saving || (!isEditing && !!idError)}
-              className={`inline-flex items-center gap-2 ${buttonStyles.mcp}`}
+              className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
             >
               <Save size={16} />
               {saving
@@ -741,7 +752,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 : isEditing
                   ? t("common.save")
                   : t("common.add")}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

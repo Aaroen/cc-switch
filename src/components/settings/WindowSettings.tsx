@@ -13,9 +13,7 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
   return (
     <section className="space-y-4">
       <header className="space-y-1">
-        <h3 className="text-sm font-medium">
-          {t("settings.windowBehavior")}
-        </h3>
+        <h3 className="text-sm font-medium">{t("settings.windowBehavior")}</h3>
         <p className="text-xs text-muted-foreground">
           {t("settings.windowBehaviorHint", {
             defaultValue: "配置窗口最小化与 Claude 插件联动策略。",
@@ -27,9 +25,7 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
         title={t("settings.minimizeToTray")}
         description={t("settings.minimizeToTrayDescription")}
         checked={settings.minimizeToTrayOnClose}
-        onCheckedChange={(value) =>
-          onChange({ minimizeToTrayOnClose: value })
-        }
+        onCheckedChange={(value) => onChange({ minimizeToTrayOnClose: value })}
       />
 
       <ToggleRow

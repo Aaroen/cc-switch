@@ -59,8 +59,8 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       const displayVersion = targetVersion.startsWith("v")
         ? targetVersion
         : targetVersion
-        ? `v${targetVersion}`
-        : "";
+          ? `v${targetVersion}`
+          : "";
 
       if (!displayVersion) {
         await settingsApi.openExternal(
@@ -108,7 +108,10 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         try {
           await settingsApi.checkUpdates();
         } catch (fallbackError) {
-          console.error("[AboutSection] Failed to open fallback updater", fallbackError);
+          console.error(
+            "[AboutSection] Failed to open fallback updater",
+            fallbackError,
+          );
         }
       } finally {
         setIsDownloading(false);
@@ -119,9 +122,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     try {
       const available = await checkUpdate();
       if (!available) {
-        toast.success(
-          t("settings.upToDate", { defaultValue: "已是最新版本" }),
-        );
+        toast.success(t("settings.upToDate", { defaultValue: "已是最新版本" }));
       }
     } catch (error) {
       console.error("[AboutSection] Check update failed", error);
@@ -131,14 +132,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         }),
       );
     }
-  }, [
-    checkUpdate,
-    hasUpdate,
-    isPortable,
-    resetDismiss,
-    t,
-    updateHandle,
-  ]);
+  }, [checkUpdate, hasUpdate, isPortable, resetDismiss, t, updateHandle]);
 
   const displayVersion =
     version ?? t("common.unknown", { defaultValue: "未知" });

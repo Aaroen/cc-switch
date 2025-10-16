@@ -156,7 +156,9 @@ function ImportStatusMessage({
 
   if (status === "success") {
     return (
-      <div className={`${baseClass} border-green-200 bg-green-100/70 text-green-700`}>
+      <div
+        className={`${baseClass} border-green-200 bg-green-100/70 text-green-700`}
+      >
         <CheckCircle2 className="mt-0.5 h-4 w-4" />
         <div className="space-y-1">
           <p className="font-medium">{t("settings.importSuccess")}</p>

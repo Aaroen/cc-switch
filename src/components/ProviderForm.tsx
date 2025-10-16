@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Provider, ProviderCategory, CustomEndpoint } from "../types";
-import { AppType } from "../lib/tauri-api";
+import type { AppType } from "@/lib/api";
 import {
   updateCommonConfigSnippet,
   hasCommonConfigSnippet,

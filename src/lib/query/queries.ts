@@ -3,7 +3,7 @@ import { providersApi, settingsApi, type AppType } from "@/lib/api";
 import type { Provider, Settings } from "@/types";
 
 const sortProviders = (
-  providers: Record<string, Provider>
+  providers: Record<string, Provider>,
 ): Record<string, Provider> => {
   const sortedEntries = Object.values(providers)
     .sort((a, b) => {
@@ -31,7 +31,7 @@ export interface ProvidersQueryData {
 }
 
 export const useProvidersQuery = (
-  appType: AppType
+  appType: AppType,
 ): UseQueryResult<ProvidersQueryData> => {
   return useQuery({
     queryKey: ["providers", appType],

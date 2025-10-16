@@ -18,7 +18,7 @@ export const mcpApi = {
 
   async upsertServer(
     id: string,
-    spec: McpServerSpec | Record<string, any>
+    spec: McpServerSpec | Record<string, any>,
   ): Promise<boolean> {
     return await invoke("upsert_claude_mcp_server", { id, spec });
   },
@@ -35,11 +35,19 @@ export const mcpApi = {
     return await invoke("get_mcp_config", { app });
   },
 
+  async importFromClaude(): Promise<number> {
+    return await invoke("import_mcp_from_claude");
+  },
+
+  async importFromCodex(): Promise<number> {
+    return await invoke("import_mcp_from_codex");
+  },
+
   async upsertServerInConfig(
     app: AppType,
     id: string,
     spec: McpServer,
-    options?: { syncOtherSide?: boolean }
+    options?: { syncOtherSide?: boolean },
   ): Promise<boolean> {
     const payload = {
       app,
@@ -55,7 +63,7 @@ export const mcpApi = {
   async deleteServerInConfig(
     app: AppType,
     id: string,
-    options?: { syncOtherSide?: boolean }
+    options?: { syncOtherSide?: boolean },
   ): Promise<boolean> {
     const payload = {
       app,
@@ -65,5 +73,21 @@ export const mcpApi = {
         : {}),
     };
     return await invoke("delete_mcp_server_in_config", payload);
+  },
+
+  async setEnabled(
+    app: AppType,
+    id: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    return await invoke("set_mcp_enabled", { app, id, enabled });
+  },
+
+  async syncEnabledToClaude(): Promise<boolean> {
+    return await invoke("sync_enabled_mcp_to_claude");
+  },
+
+  async syncEnabledToCodex(): Promise<boolean> {
+    return await invoke("sync_enabled_mcp_to_codex");
   },
 };

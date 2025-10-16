@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { settingsApi } from "@/lib/api";
@@ -84,7 +90,13 @@ export function SettingsDialog({
     clearSelection();
     resetStatus();
     onOpenChange(false);
-  }, [acknowledgeRestart, clearSelection, onOpenChange, resetSettings, resetStatus]);
+  }, [
+    acknowledgeRestart,
+    clearSelection,
+    onOpenChange,
+    resetSettings,
+    resetStatus,
+  ]);
 
   const handleDialogChange = useCallback(
     (nextOpen: boolean) => {
@@ -173,9 +185,7 @@ export function SettingsDialog({
                 <TabsTrigger value="advanced">
                   {t("settings.tabAdvanced", { defaultValue: "高级" })}
                 </TabsTrigger>
-                <TabsTrigger value="about">
-                  {t("common.about")}
-                </TabsTrigger>
+                <TabsTrigger value="about">{t("common.about")}</TabsTrigger>
               </TabsList>
 
               <div className="flex-1 overflow-y-auto pr-1">

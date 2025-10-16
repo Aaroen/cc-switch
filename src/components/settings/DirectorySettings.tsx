@@ -106,7 +106,10 @@ function DirectoryInput({
   onReset,
 }: DirectoryInputProps) {
   const { t } = useTranslation();
-  const displayValue = useMemo(() => value ?? resolvedValue ?? "", [value, resolvedValue]);
+  const displayValue = useMemo(
+    () => value ?? resolvedValue ?? "",
+    [value, resolvedValue],
+  );
 
   return (
     <div className="space-y-1.5">

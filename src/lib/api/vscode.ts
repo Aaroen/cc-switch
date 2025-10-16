@@ -20,7 +20,7 @@ export const vscodeApi = {
 
   async testApiEndpoints(
     urls: string[],
-    options?: { timeoutSecs?: number }
+    options?: { timeoutSecs?: number },
   ): Promise<EndpointLatencyResult[]> {
     return await invoke("test_api_endpoints", {
       urls,
@@ -30,7 +30,7 @@ export const vscodeApi = {
 
   async getCustomEndpoints(
     appType: AppType,
-    providerId: string
+    providerId: string,
   ): Promise<CustomEndpoint[]> {
     return await invoke("get_custom_endpoints", {
       app_type: appType,
@@ -44,7 +44,7 @@ export const vscodeApi = {
   async addCustomEndpoint(
     appType: AppType,
     providerId: string,
-    url: string
+    url: string,
   ): Promise<void> {
     await invoke("add_custom_endpoint", {
       app_type: appType,
@@ -59,7 +59,7 @@ export const vscodeApi = {
   async removeCustomEndpoint(
     appType: AppType,
     providerId: string,
-    url: string
+    url: string,
   ): Promise<void> {
     await invoke("remove_custom_endpoint", {
       app_type: appType,
@@ -74,7 +74,7 @@ export const vscodeApi = {
   async updateEndpointLastUsed(
     appType: AppType,
     providerId: string,
-    url: string
+    url: string,
   ): Promise<void> {
     await invoke("update_endpoint_last_used", {
       app_type: appType,

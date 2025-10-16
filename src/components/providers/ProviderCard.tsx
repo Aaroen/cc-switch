@@ -92,7 +92,8 @@ export function ProviderCard({
         isCurrent
           ? "border-primary/70 bg-primary/5"
           : "border-border hover:border-primary/40",
-        dragHandleProps?.isDragging && "cursor-grabbing border-primary/60 shadow-lg",
+        dragHandleProps?.isDragging &&
+          "cursor-grabbing border-primary/60 shadow-lg",
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

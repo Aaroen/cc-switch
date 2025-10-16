@@ -21,16 +21,10 @@ export function LanguageSettings({ value, onChange }: LanguageSettingsProps) {
         </p>
       </header>
       <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">
-        <LanguageButton
-          active={value === "zh"}
-          onClick={() => onChange("zh")}
-        >
+        <LanguageButton active={value === "zh"} onClick={() => onChange("zh")}>
           {t("settings.languageOptionChinese")}
         </LanguageButton>
-        <LanguageButton
-          active={value === "en"}
-          onClick={() => onChange("en")}
-        >
+        <LanguageButton active={value === "en"} onClick={() => onChange("en")}>
           {t("settings.languageOptionEnglish")}
         </LanguageButton>
       </div>
@@ -55,7 +49,7 @@ function LanguageButton({ active, onClick, children }: LanguageButtonProps) {
         "min-w-[96px]",
         active
           ? "shadow-sm"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >
       {children}

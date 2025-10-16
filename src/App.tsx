@@ -11,7 +11,12 @@ import {
   useDeleteProviderMutation,
   useSwitchProviderMutation,
 } from "@/lib/query";
-import { providersApi, type AppType } from "@/lib/api";
+import {
+  providersApi,
+  settingsApi,
+  type AppType,
+  type ProviderSwitchEvent,
+} from "@/lib/api";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -24,11 +29,6 @@ import { UpdateBadge } from "@/components/UpdateBadge";
 import UsageScriptModal from "@/components/UsageScriptModal";
 import McpPanel from "@/components/mcp/McpPanel";
 import { Button } from "@/components/ui/button";
-
-interface ProviderSwitchEvent {
-  appType: string;
-  providerId: string;
-}
 
 function App() {
   const { t } = useTranslation();
@@ -56,7 +56,7 @@ function App() {
 
     const setupListener = async () => {
       try {
-        unsubscribe = await window.api.onProviderSwitched(
+        unsubscribe = await providersApi.onSwitched(
           async (event: ProviderSwitchEvent) => {
             if (event.appType === activeApp) {
               await refetch();
@@ -89,7 +89,7 @@ function App() {
   const handleOpenWebsite = useCallback(
     async (url: string) => {
       try {
-        await window.api.openExternal(url);
+        await settingsApi.openExternal(url);
       } catch (error) {
         const detail =
           extractErrorMessage(error) ||
@@ -127,13 +127,13 @@ function App() {
       if (activeApp !== "claude") return;
 
       try {
-        const settings = await window.api.getSettings();
+        const settings = await settingsApi.get();
         if (!settings?.enableClaudePluginIntegration) {
           return;
         }
 
         const isOfficial = provider.category === "official";
-        await window.api.applyClaudePluginConfig({ official: isOfficial });
+        await settingsApi.applyClaudePluginConfig({ official: isOfficial });
 
         toast.success(
           isOfficial
@@ -249,10 +249,7 @@ function App() {
 
           <div className="flex flex-wrap items-center gap-3">
             <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
-            <Button
-              variant="outline"
-              onClick={() => setIsMcpOpen(true)}
-            >
+            <Button variant="outline" onClick={() => setIsMcpOpen(true)}>
               MCP
             </Button>
             <Button onClick={() => setIsAddOpen(true)}>

@@ -38,10 +38,7 @@ export function ModeToggle() {
           {t("common.theme", { defaultValue: "主题" })}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup
-          value={theme}
-          onValueChange={handleChange}
-        >
+        <DropdownMenuRadioGroup value={theme} onValueChange={handleChange}>
           <DropdownMenuRadioItem value="light">
             {t("common.lightMode", { defaultValue: "浅色" })}
           </DropdownMenuRadioItem>

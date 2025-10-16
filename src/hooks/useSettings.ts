@@ -62,12 +62,17 @@ const computeDefaultAppConfigDir = async (): Promise<string | undefined> => {
     const home = await homeDir();
     return await join(home, ".cc-switch");
   } catch (error) {
-    console.error("[useSettings] Failed to resolve default app config dir", error);
+    console.error(
+      "[useSettings] Failed to resolve default app config dir",
+      error,
+    );
     return undefined;
   }
 };
 
-const computeDefaultConfigDir = async (app: AppType): Promise<string | undefined> => {
+const computeDefaultConfigDir = async (
+  app: AppType,
+): Promise<string | undefined> => {
   try {
     const home = await homeDir();
     const folder = app === "claude" ? ".claude" : ".codex";
@@ -83,8 +88,12 @@ export function useSettings(): UseSettingsResult {
   const { data, isLoading } = useSettingsQuery();
   const saveMutation = useSaveSettingsMutation();
 
-  const [settingsState, setSettingsState] = useState<SettingsFormState | null>(null);
-  const [appConfigDir, setAppConfigDir] = useState<string | undefined>(undefined);
+  const [settingsState, setSettingsState] = useState<SettingsFormState | null>(
+    null,
+  );
+  const [appConfigDir, setAppConfigDir] = useState<string | undefined>(
+    undefined,
+  );
   const [configPath, setConfigPath] = useState("");
   const [isPortable, setIsPortable] = useState(false);
   const [requiresRestart, setRequiresRestart] = useState(false);
@@ -135,7 +144,8 @@ export function useSettings(): UseSettingsResult {
       ...data,
       showInTray: data.showInTray ?? true,
       minimizeToTrayOnClose: data.minimizeToTrayOnClose ?? true,
-      enableClaudePluginIntegration: data.enableClaudePluginIntegration ?? false,
+      enableClaudePluginIntegration:
+        data.enableClaudePluginIntegration ?? false,
       claudeConfigDir: sanitizeDir(data.claudeConfigDir),
       codexConfigDir: sanitizeDir(data.codexConfigDir),
       language: normalizedLanguage,
@@ -286,8 +296,8 @@ export function useSettings(): UseSettingsResult {
       const key: DirectoryKey = app === "claude" ? "claude" : "codex";
       const currentValue =
         key === "claude"
-          ? settingsState?.claudeConfigDir ?? resolvedDirs.claude
-          : settingsState?.codexConfigDir ?? resolvedDirs.codex;
+          ? (settingsState?.claudeConfigDir ?? resolvedDirs.claude)
+          : (settingsState?.codexConfigDir ?? resolvedDirs.codex);
 
       try {
         const picked = await settingsApi.selectConfigDirectory(currentValue);
@@ -377,7 +387,8 @@ export function useSettings(): UseSettingsResult {
       ...data,
       showInTray: data.showInTray ?? true,
       minimizeToTrayOnClose: data.minimizeToTrayOnClose ?? true,
-      enableClaudePluginIntegration: data.enableClaudePluginIntegration ?? false,
+      enableClaudePluginIntegration:
+        data.enableClaudePluginIntegration ?? false,
       claudeConfigDir: sanitizeDir(data.claudeConfigDir),
       codexConfigDir: sanitizeDir(data.codexConfigDir),
       language: normalizedLanguage,
@@ -387,7 +398,8 @@ export function useSettings(): UseSettingsResult {
     syncLanguage(initialLanguageRef.current);
     setAppConfigDir(initialAppConfigDirRef.current);
     setResolvedDirs({
-      appConfig: initialAppConfigDirRef.current ?? defaultsRef.current.appConfig,
+      appConfig:
+        initialAppConfigDirRef.current ?? defaultsRef.current.appConfig,
       claude: normalized.claudeConfigDir ?? defaultsRef.current.claude,
       codex: normalized.codexConfigDir ?? defaultsRef.current.codex,
     });
@@ -423,7 +435,10 @@ export function useSettings(): UseSettingsResult {
           await settingsApi.applyClaudePluginConfig({ official: true });
         }
       } catch (error) {
-        console.warn("[useSettings] Failed to sync Claude plugin config", error);
+        console.warn(
+          "[useSettings] Failed to sync Claude plugin config",
+          error,
+        );
         toast.error(
           t("notifications.syncClaudePluginFailed", {
             defaultValue: "同步 Claude 插件失败",
@@ -436,7 +451,10 @@ export function useSettings(): UseSettingsResult {
           window.localStorage.setItem("language", payload.language as Language);
         }
       } catch (error) {
-        console.warn("[useSettings] Failed to persist language preference", error);
+        console.warn(
+          "[useSettings] Failed to persist language preference",
+          error,
+        );
       }
 
       initialLanguageRef.current = payload.language as Language;

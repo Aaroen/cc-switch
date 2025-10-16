@@ -14,10 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/theme-provider";
 import JsonEditor from "@/components/JsonEditor";
-import {
-  providerSchema,
-  type ProviderFormData,
-} from "@/lib/schemas/provider";
+import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 
 interface ProviderFormProps {
   submitLabel: string;
@@ -83,10 +80,7 @@ export function ProviderForm({
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6"
-      >
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="name"
@@ -117,10 +111,7 @@ export function ProviderForm({
                 {t("provider.websiteUrl", { defaultValue: "官网链接" })}
               </FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  placeholder="https://"
-                />
+                <Input {...field} placeholder="https://" />
               </FormControl>
               <FormMessage />
             </FormItem>

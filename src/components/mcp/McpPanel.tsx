@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Plus, Server, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { mcpApi, type AppType } from "@/lib/api";
 import { McpServer } from "../../types";
 import McpListItem from "./McpListItem";
 import McpFormModal from "./McpFormModal";
@@ -9,9 +11,6 @@ import {
   extractErrorMessage,
   translateMcpBackendError,
 } from "../../utils/errorUtils";
-// 预设相关逻辑已迁移到“新增 MCP”面板，列表此处无需引用
-import { buttonStyles } from "../../lib/styles";
-import { AppType } from "../../lib/tauri-api";
 
 interface McpPanelProps {
   onClose: () => void;
@@ -43,7 +42,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
   const reload = async () => {
     setLoading(true);
     try {
-      const cfg = await window.api.getMcpConfig(appType);
+      const cfg = await mcpApi.getConfig(appType);
       setServers(cfg.servers || {});
     } finally {
       setLoading(false);
@@ -55,9 +54,9 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
       try {
         // 初始化：仅从对应客户端导入已有 MCP，不做“预设落库”
         if (appType === "claude") {
-          await window.api.importMcpFromClaude();
+          await mcpApi.importFromClaude();
         } else if (appType === "codex") {
-          await window.api.importMcpFromCodex();
+          await mcpApi.importFromCodex();
         }
       } catch (e) {
         console.warn("MCP 初始化导入失败（忽略继续）", e);
@@ -82,7 +81,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
 
     try {
       // 后台调用 API
-      await window.api.setMcpEnabled(appType, id, enabled);
+      await mcpApi.setEnabled(appType, id, enabled);
       onNotify?.(
         enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"),
         "success",
@@ -118,7 +117,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
       message: t("mcp.confirm.deleteMessage", { id }),
       onConfirm: async () => {
         try {
-          await window.api.deleteMcpServerInConfig(appType, id);
+          await mcpApi.deleteServerInConfig(appType, id);
           await reload();
           setConfirmDialog(null);
           onNotify?.(t("mcp.msg.deleted"), "success", 1500);
@@ -142,7 +141,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
   ) => {
     try {
       const payload: McpServer = { ...server, id };
-      await window.api.upsertMcpServerInConfig(appType, id, payload, {
+      await mcpApi.upsertServerInConfig(appType, id, payload, {
         syncOtherSide: options?.syncOtherSide,
       });
       await reload();
@@ -197,19 +196,18 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
           </h3>
 
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              type="button"
+              size="sm"
               onClick={handleAdd}
-              className={`inline-flex items-center gap-2 ${buttonStyles.mcp}`}
+              className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
             >
               <Plus size={16} />
               {t("mcp.add")}
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-            >
+            </Button>
+            <Button type="button" variant="ghost" size="icon" onClick={onClose}>
               <X size={18} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -272,13 +270,15 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
 
         {/* Footer */}
         <div className="flex-shrink-0 flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-          <button
+          <Button
+            type="button"
+            size="sm"
             onClick={onClose}
-            className={`inline-flex items-center gap-2 ${buttonStyles.mcp}`}
+            className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
           >
             <Check size={16} />
             {t("common.done")}
-          </button>
+          </Button>
         </div>
       </div>
 

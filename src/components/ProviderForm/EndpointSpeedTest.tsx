@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Zap, Loader2, Plus, X, AlertCircle, Save } from "lucide-react";
+import { vscodeApi, type AppType } from "@/lib/api";
 import { isLinux } from "../../lib/platform";
-
-import type { AppType } from "../../lib/tauri-api";
 
 export interface EndpointCandidate {
   id?: string;
@@ -94,7 +93,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     const loadCustomEndpoints = async () => {
       try {
         if (!providerId) return;
-        const customEndpoints = await window.api.getCustomEndpoints(
+        const customEndpoints = await vscodeApi.getCustomEndpoints(
           appType,
           providerId,
         );
@@ -251,7 +250,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     // 保存到后端
     try {
       if (providerId) {
-        await window.api.addCustomEndpoint(appType, providerId, sanitized);
+        await vscodeApi.addCustomEndpoint(appType, providerId, sanitized);
       }
 
       // 更新本地状态
@@ -295,7 +294,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       // 如果是自定义端点，尝试从后端删除（无 providerId 则仅本地删除）
       if (entry.isCustom && providerId) {
         try {
-          await window.api.removeCustomEndpoint(appType, providerId, entry.url);
+          await vscodeApi.removeCustomEndpoint(appType, providerId, entry.url);
         } catch (error) {
           console.error(t("endpointTest.removeEndpointFailed"), error);
           return;
@@ -322,7 +321,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       return;
     }
 
-    if (typeof window === "undefined" || !window.api?.testApiEndpoints) {
+    if (typeof window === "undefined") {
       setLastError(t("endpointTest.testUnavailable"));
       return;
     }
@@ -341,7 +340,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     );
 
     try {
-      const results = await window.api.testApiEndpoints(urls, {
+      const results = await vscodeApi.testApiEndpoints(urls, {
         timeoutSecs: appType === "codex" ? 12 : 8,
       });
       const resultMap = new Map(
@@ -400,7 +399,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       // 更新最后使用时间（对自定义端点）
       const entry = entries.find((e) => e.url === url);
       if (entry?.isCustom && providerId) {
-        await window.api.updateEndpointLastUsed(appType, providerId, url);
+        await vscodeApi.updateEndpointLastUsed(appType, providerId, url);
       }
 
       onChange(url);

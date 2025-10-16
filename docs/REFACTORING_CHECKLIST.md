@@ -272,23 +272,23 @@ pnpm add class-variance-authority clsx tailwind-merge tailwindcss-animate
 
 ### 4.1 移除旧代码
 
-- [ ] 删除 `src/lib/styles.ts`
-- [ ] 从 `src/lib/tauri-api.ts` 移除 `window.api` 绑定
-- [ ] 精简 `src/lib/tauri-api.ts`，只保留事件监听相关
-- [ ] 删除或更新 `src/vite-env.d.ts` 中的过时类型
+- [x] 删除 `src/lib/styles.ts`
+- [x] 从 `src/lib/tauri-api.ts` 移除 `window.api` 绑定
+- [x] 精简 `src/lib/tauri-api.ts`，只保留事件监听相关
+- [x] 删除或更新 `src/vite-env.d.ts` 中的过时类型
 
 ### 4.2 代码审查
 
 - [ ] 检查所有 TODO 注释
-- [ ] 检查是否还有 `window.api` 调用
+- [x] 检查是否还有 `window.api` 调用
 - [ ] 检查是否还有手动状态管理
-- [ ] 统一代码风格
+- [x] 统一代码风格
 
 ### 4.3 类型检查
 
-- [ ] 运行 `pnpm typecheck` 确保无错误
-- [ ] 修复所有类型错误
-- [ ] 更新类型定义
+- [x] 运行 `pnpm typecheck` 确保无错误
+- [x] 修复所有类型错误
+- [x] 更新类型定义
 
 ### 4.4 性能优化
 

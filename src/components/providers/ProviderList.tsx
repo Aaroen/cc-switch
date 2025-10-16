@@ -1,8 +1,5 @@
 import { CSS } from "@dnd-kit/utilities";
-import {
-  DndContext,
-  closestCenter,
-} from "@dnd-kit/core";
+import { DndContext, closestCenter } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
@@ -137,9 +134,7 @@ function SortableProviderCard({
         onEdit={onEdit}
         onDelete={onDelete}
         onConfigureUsage={
-          onConfigureUsage
-            ? (item) => onConfigureUsage(item)
-            : () => undefined
+          onConfigureUsage ? (item) => onConfigureUsage(item) : () => undefined
         }
         onOpenWebsite={onOpenWebsite}
         dragHandleProps={{

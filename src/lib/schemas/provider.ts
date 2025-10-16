@@ -2,11 +2,7 @@ import { z } from "zod";
 
 export const providerSchema = z.object({
   name: z.string().min(1, "请填写供应商名称"),
-  websiteUrl: z
-    .string()
-    .url("请输入有效的网址")
-    .optional()
-    .or(z.literal("")),
+  websiteUrl: z.string().url("请输入有效的网址").optional().or(z.literal("")),
   settingsConfig: z
     .string()
     .min(1, "请填写配置内容")

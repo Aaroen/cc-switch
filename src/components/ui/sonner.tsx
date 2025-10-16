@@ -8,7 +8,8 @@ export function Toaster() {
       theme="system"
       toastOptions={{
         classNames: {
-          toast: "group rounded-md border bg-background text-foreground shadow-lg",
+          toast:
+            "group rounded-md border bg-background text-foreground shadow-lg",
           title: "text-sm font-semibold",
           description: "text-sm text-muted-foreground",
           closeButton:

@@ -1,11 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  providersApi,
-  settingsApi,
-  type AppType,
-} from "@/lib/api";
+import { providersApi, settingsApi, type AppType } from "@/lib/api";
 import type { Provider, Settings } from "@/types";
 
 export const useAddProviderMutation = (appType: AppType) => {
@@ -28,7 +24,7 @@ export const useAddProviderMutation = (appType: AppType) => {
       toast.success(
         t("notifications.providerAdded", {
           defaultValue: "供应商已添加",
-        })
+        }),
       );
     },
     onError: (error: Error) => {
@@ -36,7 +32,7 @@ export const useAddProviderMutation = (appType: AppType) => {
         t("notifications.addFailed", {
           defaultValue: "添加供应商失败: {{error}}",
           error: error.message,
-        })
+        }),
       );
     },
   });
@@ -56,7 +52,7 @@ export const useUpdateProviderMutation = (appType: AppType) => {
       toast.success(
         t("notifications.updateSuccess", {
           defaultValue: "供应商更新成功",
-        })
+        }),
       );
     },
     onError: (error: Error) => {
@@ -64,7 +60,7 @@ export const useUpdateProviderMutation = (appType: AppType) => {
         t("notifications.updateFailed", {
           defaultValue: "更新供应商失败: {{error}}",
           error: error.message,
-        })
+        }),
       );
     },
   });
@@ -84,7 +80,7 @@ export const useDeleteProviderMutation = (appType: AppType) => {
       toast.success(
         t("notifications.deleteSuccess", {
           defaultValue: "供应商已删除",
-        })
+        }),
       );
     },
     onError: (error: Error) => {
@@ -92,7 +88,7 @@ export const useDeleteProviderMutation = (appType: AppType) => {
         t("notifications.deleteFailed", {
           defaultValue: "删除供应商失败: {{error}}",
           error: error.message,
-        })
+        }),
       );
     },
   });
@@ -113,7 +109,7 @@ export const useSwitchProviderMutation = (appType: AppType) => {
         t("notifications.switchSuccess", {
           defaultValue: "切换供应商成功",
           appName: t(`apps.${appType}`, { defaultValue: appType }),
-        })
+        }),
       );
     },
     onError: (error: Error) => {
@@ -121,7 +117,7 @@ export const useSwitchProviderMutation = (appType: AppType) => {
         t("notifications.switchFailed", {
           defaultValue: "切换供应商失败: {{error}}",
           error: error.message,
-        })
+        }),
       );
     },
   });
@@ -140,7 +136,7 @@ export const useSaveSettingsMutation = () => {
       toast.success(
         t("notifications.settingsSaved", {
           defaultValue: "设置已保存",
-        })
+        }),
       );
     },
     onError: (error: Error) => {
@@ -148,7 +144,7 @@ export const useSaveSettingsMutation = () => {
         t("notifications.settingsSaveFailed", {
           defaultValue: "保存设置失败: {{error}}",
           error: error.message,
-        })
+        }),
       );
     },
   });
