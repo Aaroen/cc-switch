@@ -8,6 +8,10 @@ import { Zap } from "lucide-react";
 import type { ProviderCategory } from "@/types";
 import type { TemplateValueConfig } from "@/config/providerPresets";
 
+interface EndpointCandidate {
+  url: string;
+}
+
 interface ClaudeFormFieldsProps {
   // API Key
   shouldShowApiKey: boolean;
@@ -48,6 +52,9 @@ interface ClaudeFormFieldsProps {
     field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
     value: string
   ) => void;
+
+  // Speed Test Endpoints
+  speedTestEndpoints: EndpointCandidate[];
 }
 
 export function ClaudeFormFields({
@@ -75,6 +82,7 @@ export function ClaudeFormFields({
   kimiAnthropicModel,
   kimiAnthropicSmallFastModel,
   onKimiModelChange,
+  speedTestEndpoints,
 }: ClaudeFormFieldsProps) {
   const { t } = useTranslation();
 
@@ -195,7 +203,7 @@ export function ClaudeFormFields({
           appType="claude"
           value={baseUrl}
           onChange={onBaseUrlChange}
-          initialEndpoints={[{ url: baseUrl }]}
+          initialEndpoints={speedTestEndpoints}
           visible={isEndpointModalOpen}
           onClose={() => onEndpointModalToggle(false)}
           onCustomEndpointsChange={onCustomEndpointsChange}

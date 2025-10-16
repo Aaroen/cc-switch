@@ -9,3 +9,4 @@ export { useKimiModelSelector } from "./useKimiModelSelector";
 export { useTemplateValues } from "./useTemplateValues";
 export { useCommonConfigSnippet } from "./useCommonConfigSnippet";
 export { useCodexCommonConfig } from "./useCodexCommonConfig";
+export { useSpeedTestEndpoints } from "./useSpeedTestEndpoints";

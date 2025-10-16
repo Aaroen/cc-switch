@@ -6,6 +6,10 @@ import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
 import { Zap } from "lucide-react";
 import type { ProviderCategory } from "@/types";
 
+interface EndpointCandidate {
+  url: string;
+}
+
 interface CodexFormFieldsProps {
   // API Key
   codexApiKey: string;
@@ -21,6 +25,9 @@ interface CodexFormFieldsProps {
   isEndpointModalOpen: boolean;
   onEndpointModalToggle: (open: boolean) => void;
   onCustomEndpointsChange: (endpoints: string[]) => void;
+
+  // Speed Test Endpoints
+  speedTestEndpoints: EndpointCandidate[];
 }
 
 export function CodexFormFields({
@@ -35,6 +42,7 @@ export function CodexFormFields({
   isEndpointModalOpen,
   onEndpointModalToggle,
   onCustomEndpointsChange,
+  speedTestEndpoints,
 }: CodexFormFieldsProps) {
   const { t } = useTranslation();
 
@@ -120,7 +128,7 @@ export function CodexFormFields({
           appType="codex"
           value={codexBaseUrl}
           onChange={onBaseUrlChange}
-          initialEndpoints={[{ url: codexBaseUrl }]}
+          initialEndpoints={speedTestEndpoints}
           visible={isEndpointModalOpen}
           onClose={() => onEndpointModalToggle(false)}
           onCustomEndpointsChange={onCustomEndpointsChange}

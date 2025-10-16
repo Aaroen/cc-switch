@@ -31,6 +31,7 @@ import {
   useTemplateValues,
   useCommonConfigSnippet,
   useCodexCommonConfig,
+  useSpeedTestEndpoints,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -370,6 +371,16 @@ export function ProviderForm({
     codexBaseUrl,
   });
 
+  // 使用端点测速候选 hook
+  const speedTestEndpoints = useSpeedTestEndpoints({
+    appType,
+    selectedPresetId,
+    presetEntries,
+    baseUrl,
+    codexBaseUrl,
+    initialData,
+  });
+
   const handlePresetChange = (value: string) => {
     setSelectedPresetId(value);
     if (value === "custom") {
@@ -470,6 +481,7 @@ export function ProviderForm({
             kimiAnthropicModel={kimiAnthropicModel}
             kimiAnthropicSmallFastModel={kimiAnthropicSmallFastModel}
             onKimiModelChange={handleKimiModelChange}
+            speedTestEndpoints={speedTestEndpoints}
           />
         )}
 
@@ -487,6 +499,7 @@ export function ProviderForm({
             isEndpointModalOpen={isCodexEndpointModalOpen}
             onEndpointModalToggle={setIsCodexEndpointModalOpen}
             onCustomEndpointsChange={setDraftCustomEndpoints}
+            speedTestEndpoints={speedTestEndpoints}
           />
         )}
 
