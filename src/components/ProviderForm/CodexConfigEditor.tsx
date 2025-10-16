@@ -33,15 +33,17 @@ interface CodexConfigEditorProps {
 
   authError: string;
 
-  isCustomMode?: boolean; // 新增：是否为自定义模式
+  configError: string; // config.toml 错误提示
 
-  onWebsiteUrlChange?: (url: string) => void; // 新增：更新网址回调
+  isCustomMode?: boolean; // 是否为自定义模式
 
-  isTemplateModalOpen?: boolean; // 新增：模态框状态
+  onWebsiteUrlChange?: (url: string) => void; // 更新网址回调
 
-  setIsTemplateModalOpen?: (open: boolean) => void; // 新增：设置模态框状态
+  isTemplateModalOpen?: boolean; // 模态框状态
 
-  onNameChange?: (name: string) => void; // 新增：更新供应商名称回调
+  setIsTemplateModalOpen?: (open: boolean) => void; // 设置模态框状态
+
+  onNameChange?: (name: string) => void; // 更新供应商名称回调
 }
 
 const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
@@ -66,6 +68,8 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
   commonConfigError,
 
   authError,
+
+  configError,
 
   onWebsiteUrlChange,
 
@@ -323,6 +327,10 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
           data-gramm_editor="false"
           data-enable-grammarly="false"
         />
+
+        {configError && (
+          <p className="text-xs text-red-500 dark:text-red-400">{configError}</p>
+        )}
 
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {t("codexConfig.configTomlHint")}

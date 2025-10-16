@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
@@ -32,6 +32,7 @@ import {
   useCommonConfigSnippet,
   useCodexCommonConfig,
   useSpeedTestEndpoints,
+  useCodexTomlValidation,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -149,9 +150,18 @@ export function ProviderForm({
     setCodexAuth,
     handleCodexApiKeyChange,
     handleCodexBaseUrlChange,
-    handleCodexConfigChange,
+    handleCodexConfigChange: originalHandleCodexConfigChange,
     resetCodexConfig,
   } = useCodexConfigState({ initialData });
+
+  // 使用 Codex TOML 校验 hook (仅 Codex 模式)
+  const { configError: codexConfigError, debouncedValidate } = useCodexTomlValidation();
+
+  // 包装 handleCodexConfigChange，添加实时校验
+  const handleCodexConfigChange = useCallback((value: string) => {
+    originalHandleCodexConfigChange(value);
+    debouncedValidate(value);
+  }, [originalHandleCodexConfigChange, debouncedValidate]);
 
   const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
     useState(false);
@@ -511,6 +521,7 @@ export function ProviderForm({
             onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
             commonConfigError={codexCommonConfigError}
             authError={codexAuthError}
+            configError={codexConfigError}
             isCustomMode={selectedPresetId === "custom"}
             onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
             onNameChange={(name) => form.setValue("name", name)}
