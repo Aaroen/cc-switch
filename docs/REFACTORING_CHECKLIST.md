@@ -205,9 +205,10 @@ pnpm add class-variance-authority clsx tailwind-merge tailwindcss-animate
 
 ### 2.6 清理旧组件
 
-- [ ] 删除 `src/components/AddProviderModal.tsx`
-- [ ] 删除 `src/components/EditProviderModal.tsx`
-- [ ] 更新所有引用这些组件的地方
+- [x] 删除 `src/components/AddProviderModal.tsx`
+- [x] 删除 `src/components/EditProviderModal.tsx`
+- [x] 更新所有引用这些组件的地方
+- [x] 删除 `src/components/ProviderForm.tsx` 及 `src/components/ProviderForm/`
 
 **完成时间**: ___________
 **遇到的问题**: ___________

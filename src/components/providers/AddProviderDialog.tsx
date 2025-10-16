@@ -40,7 +40,7 @@ export function AddProviderDialog({
         name: values.name.trim(),
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
-        meta: {},
+        ...(values.presetCategory ? { category: values.presetCategory } : {}),
       };
 
       await onSubmit(providerData);
@@ -67,6 +67,7 @@ export function AddProviderDialog({
         </DialogHeader>
 
         <ProviderForm
+          appType={appType}
           submitLabel={t("common.add", { defaultValue: "添加" })}
           onSubmit={handleSubmit}
           onCancel={() => onOpenChange(false)}

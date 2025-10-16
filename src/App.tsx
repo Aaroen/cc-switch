@@ -293,6 +293,7 @@ function App() {
           }
         }}
         onSubmit={handleEditProvider}
+        appType={activeApp}
       />
 
       {usageProvider && (

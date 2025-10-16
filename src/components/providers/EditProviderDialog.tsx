@@ -12,12 +12,14 @@ import {
   ProviderForm,
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
+import type { AppType } from "@/lib/api";
 
 interface EditProviderDialogProps {
   open: boolean;
   provider: Provider | null;
   onOpenChange: (open: boolean) => void;
   onSubmit: (provider: Provider) => Promise<void> | void;
+  appType: AppType;
 }
 
 export function EditProviderDialog({
@@ -25,6 +27,7 @@ export function EditProviderDialog({
   provider,
   onOpenChange,
   onSubmit,
+  appType,
 }: EditProviderDialogProps) {
   const { t } = useTranslation();
 
@@ -42,6 +45,9 @@ export function EditProviderDialog({
         name: values.name.trim(),
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
+        ...(values.presetCategory
+          ? { category: values.presetCategory }
+          : {}),
       };
 
       await onSubmit(updatedProvider);
@@ -69,6 +75,7 @@ export function EditProviderDialog({
         </DialogHeader>
 
         <ProviderForm
+          appType={appType}
           submitLabel={t("common.save", { defaultValue: "保存" })}
           onSubmit={handleSubmit}
           onCancel={() => onOpenChange(false)}

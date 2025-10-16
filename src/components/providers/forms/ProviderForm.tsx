@@ -1,8 +1,17 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -15,10 +24,34 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/theme-provider";
 import JsonEditor from "@/components/JsonEditor";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
+import type { AppType } from "@/lib/api";
+import type { ProviderCategory } from "@/types";
+import {
+  providerPresets,
+  type ProviderPreset,
+} from "@/config/providerPresets";
+import {
+  codexProviderPresets,
+  type CodexProviderPreset,
+} from "@/config/codexProviderPresets";
+import { applyTemplateValues } from "@/utils/providerConfigUtils";
+
+const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
+const CODEX_DEFAULT_CONFIG = JSON.stringify(
+  { auth: {}, config: "" },
+  null,
+  2,
+);
+
+type PresetEntry = {
+  id: string;
+  preset: ProviderPreset | CodexProviderPreset;
+};
 
 interface ProviderFormProps {
+  appType: AppType;
   submitLabel: string;
-  onSubmit: (values: ProviderFormData) => void;
+  onSubmit: (values: ProviderFormValues) => void;
   onCancel: () => void;
   initialData?: {
     name?: string;
@@ -27,12 +60,8 @@ interface ProviderFormProps {
   };
 }
 
-const DEFAULT_CONFIG_PLACEHOLDER = `{
-  "env": {},
-  "config": {}
-}`;
-
 export function ProviderForm({
+  appType,
   submitLabel,
   onSubmit,
   onCancel,
@@ -40,6 +69,16 @@ export function ProviderForm({
 }: ProviderFormProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("custom");
+  const [activePreset, setActivePreset] = useState<{
+    id: string;
+    category?: ProviderCategory;
+  } | null>(null);
+
+  useEffect(() => {
+    setSelectedPresetId("custom");
+    setActivePreset(null);
+  }, [appType, initialData]);
 
   const defaultValues: ProviderFormData = useMemo(
     () => ({
@@ -47,9 +86,11 @@ export function ProviderForm({
       websiteUrl: initialData?.websiteUrl ?? "",
       settingsConfig: initialData?.settingsConfig
         ? JSON.stringify(initialData.settingsConfig, null, 2)
-        : DEFAULT_CONFIG_PLACEHOLDER,
+        : appType === "codex"
+          ? CODEX_DEFAULT_CONFIG
+          : CLAUDE_DEFAULT_CONFIG,
     }),
-    [initialData],
+    [initialData, appType],
   );
 
   const form = useForm<ProviderFormData>({
@@ -71,16 +112,164 @@ export function ProviderForm({
   }, [theme]);
 
   const handleSubmit = (values: ProviderFormData) => {
-    onSubmit({
+    const payload: ProviderFormValues = {
       ...values,
+      name: values.name.trim(),
       websiteUrl: values.websiteUrl?.trim() ?? "",
       settingsConfig: values.settingsConfig.trim(),
+    };
+
+    if (activePreset) {
+      payload.presetId = activePreset.id;
+      if (activePreset.category) {
+        payload.presetCategory = activePreset.category;
+      }
+    }
+
+    onSubmit(payload);
+  };
+
+  const presetCategoryLabels: Record<string, string> = useMemo(
+    () => ({
+      official: t("providerPreset.categoryOfficial", {
+        defaultValue: "官方推荐",
+      }),
+      cn_official: t("providerPreset.categoryCnOfficial", {
+        defaultValue: "国内官方",
+      }),
+      aggregator: t("providerPreset.categoryAggregator", {
+        defaultValue: "聚合服务",
+      }),
+      third_party: t("providerPreset.categoryThirdParty", {
+        defaultValue: "第三方",
+      }),
+    }),
+    [t],
+  );
+
+  const presetEntries = useMemo(() => {
+    if (appType === "codex") {
+      return codexProviderPresets.map<PresetEntry>((preset, index) => ({
+        id: `codex-${index}`,
+        preset,
+      }));
+    }
+    return providerPresets.map<PresetEntry>((preset, index) => ({
+      id: `claude-${index}`,
+      preset,
+    }));
+  }, [appType]);
+
+  const groupedPresets = useMemo(() => {
+    return presetEntries.reduce<Record<string, PresetEntry[]>>((acc, entry) => {
+      const category = entry.preset.category ?? "others";
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(entry);
+      return acc;
+    }, {});
+  }, [presetEntries]);
+
+  const categoryKeys = useMemo(() => {
+    return Object.keys(groupedPresets).filter(
+      (key) => key !== "custom" && groupedPresets[key]?.length,
+    );
+  }, [groupedPresets]);
+
+  const handlePresetChange = (value: string) => {
+    setSelectedPresetId(value);
+    if (value === "custom") {
+      setActivePreset(null);
+      return;
+    }
+
+    const entry = presetEntries.find((item) => item.id === value);
+    if (!entry) {
+      return;
+    }
+
+    setActivePreset({
+      id: value,
+      category: entry.preset.category,
+    });
+
+    if (appType === "codex") {
+      const preset = entry.preset as CodexProviderPreset;
+      const config = {
+        auth: preset.auth ?? {},
+        config: preset.config ?? "",
+      };
+
+      form.reset({
+        name: preset.name,
+        websiteUrl: preset.websiteUrl ?? "",
+        settingsConfig: JSON.stringify(config, null, 2),
+      });
+      return;
+    }
+
+    const preset = entry.preset as ProviderPreset;
+    const config = applyTemplateValues(
+      preset.settingsConfig,
+      preset.templateValues,
+    );
+
+    form.reset({
+      name: preset.name,
+      websiteUrl: preset.websiteUrl ?? "",
+      settingsConfig: JSON.stringify(config, null, 2),
     });
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        <div className="space-y-2">
+          <FormLabel>
+            {t("providerPreset.label", { defaultValue: "预设供应商" })}
+          </FormLabel>
+          <Select value={selectedPresetId} onValueChange={handlePresetChange}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder={t("providerPreset.placeholder", {
+                  defaultValue: "选择一个预设",
+                })}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="custom">
+                {t("providerPreset.custom", { defaultValue: "自定义配置" })}
+              </SelectItem>
+
+              {categoryKeys.map((category) => {
+                const entries = groupedPresets[category];
+                if (!entries || entries.length === 0) return null;
+                return (
+                  <SelectGroup key={category}>
+                    <SelectLabel>
+                      {presetCategoryLabels[category] ??
+                        t("providerPreset.categoryOther", {
+                          defaultValue: "其他",
+                        })}
+                    </SelectLabel>
+                    {entries.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {entry.preset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {t("providerPreset.helper", {
+              defaultValue: "选择预设后可继续调整下方字段。",
+            })}
+          </p>
+        </div>
+
         <FormField
           control={form.control}
           name="name"
@@ -131,7 +320,11 @@ export function ProviderForm({
                   <JsonEditor
                     value={field.value}
                     onChange={field.onChange}
-                    placeholder={DEFAULT_CONFIG_PLACEHOLDER}
+                    placeholder={
+                      appType === "codex"
+                        ? CODEX_DEFAULT_CONFIG
+                        : CLAUDE_DEFAULT_CONFIG
+                    }
                     darkMode={isDarkMode}
                     rows={14}
                     showValidation
@@ -154,4 +347,7 @@ export function ProviderForm({
   );
 }
 
-export type ProviderFormValues = ProviderFormData;
+export type ProviderFormValues = ProviderFormData & {
+  presetId?: string;
+  presetCategory?: ProviderCategory;
+};
