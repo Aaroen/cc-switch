@@ -4,15 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Form,
   FormControl,
   FormField,
@@ -62,14 +53,16 @@ export function ProviderForm({
 }: ProviderFormProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("custom");
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
+    initialData ? null : "custom",
+  );
   const [activePreset, setActivePreset] = useState<{
     id: string;
     category?: ProviderCategory;
   } | null>(null);
 
   useEffect(() => {
-    setSelectedPresetId("custom");
+    setSelectedPresetId(initialData ? null : "custom");
     setActivePreset(null);
   }, [appType, initialData]);
 
@@ -174,6 +167,7 @@ export function ProviderForm({
     setSelectedPresetId(value);
     if (value === "custom") {
       setActivePreset(null);
+      form.reset(defaultValues);
       return;
     }
 
@@ -218,50 +212,59 @@ export function ProviderForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-        <div className="space-y-2">
-          <FormLabel>
-            {t("providerPreset.label", { defaultValue: "预设供应商" })}
-          </FormLabel>
-          <Select value={selectedPresetId} onValueChange={handlePresetChange}>
-            <SelectTrigger>
-              <SelectValue
-                placeholder={t("providerPreset.placeholder", {
-                  defaultValue: "选择一个预设",
-                })}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="custom">
+        {/* 预设供应商选择（仅新增模式显示） */}
+        {!initialData && (
+          <div className="space-y-3">
+            <FormLabel>
+              {t("providerPreset.label", { defaultValue: "预设供应商" })}
+            </FormLabel>
+            <div className="flex flex-wrap gap-2">
+              {/* 自定义按钮 */}
+              <button
+                type="button"
+                onClick={() => handlePresetChange("custom")}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedPresetId === "custom"
+                    ? "bg-emerald-500 text-white dark:bg-emerald-600"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                }`}
+              >
                 {t("providerPreset.custom", { defaultValue: "自定义配置" })}
-              </SelectItem>
+              </button>
 
+              {/* 预设按钮 */}
               {categoryKeys.map((category) => {
                 const entries = groupedPresets[category];
                 if (!entries || entries.length === 0) return null;
-                return (
-                  <SelectGroup key={category}>
-                    <SelectLabel>
-                      {presetCategoryLabels[category] ??
-                        t("providerPreset.categoryOther", {
-                          defaultValue: "其他",
-                        })}
-                    </SelectLabel>
-                    {entries.map((entry) => (
-                      <SelectItem key={entry.id} value={entry.id}>
-                        {entry.preset.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                );
+                return entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => handlePresetChange(entry.id)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedPresetId === entry.id
+                        ? "bg-emerald-500 text-white dark:bg-emerald-600"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                    title={
+                      presetCategoryLabels[category] ??
+                      t("providerPreset.categoryOther", {
+                        defaultValue: "其他",
+                      })
+                    }
+                  >
+                    {entry.preset.name}
+                  </button>
+                ));
               })}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {t("providerPreset.helper", {
-              defaultValue: "选择预设后可继续调整下方字段。",
-            })}
-          </p>
-        </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("providerPreset.helper", {
+                defaultValue: "选择预设后可继续调整下方字段。",
+              })}
+            </p>
+          </div>
+        )}
 
         <FormField
           control={form.control}
