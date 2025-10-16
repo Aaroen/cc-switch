@@ -870,7 +870,7 @@ export function useDragSort(
 | 阶段       | 目标           | 工期         | 产出                         |
 | ---------- | -------------- | ------------ | ---------------------------- |
 | **阶段 0** | 准备环境       | 1 天         | 依赖安装、配置完成           |
-| **阶段 1** | 搭建基础设施   | 2-3 天       | API 层、Query Hooks 完成     |
+| **阶段 1** | 搭建基础设施（✅ 已完成） | 2-3 天       | API 层、Query Hooks 完成     |
 | **阶段 2** | 重构核心功能   | 3-4 天       | App.tsx、ProviderList 完成   |
 | **阶段 3** | 重构设置和辅助 | 2-3 天       | SettingsDialog、通知系统完成 |
 | **阶段 4** | 清理和优化     | 1-2 天       | 旧代码删除、优化完成         |
@@ -1006,12 +1006,12 @@ pnpm typecheck  # 确保类型检查通过
 
 #### 任务清单
 
-- [ ] 创建工具函数 (`lib/utils.ts`)
-- [ ] 添加基础 UI 组件 (Button, Dialog, Input, Form 等)
-- [ ] 创建 Query Client 配置
-- [ ] 封装 API 层 (providers, settings, mcp)
-- [ ] 创建 Query Hooks (queries, mutations)
-- [ ] 创建 Zod Schemas
+- [x] 创建工具函数 (`lib/utils.ts`)
+- [x] 添加基础 UI 组件 (Button, Dialog, Input, Form 等)
+- [x] 创建 Query Client 配置
+- [x] 封装 API 层 (providers, settings, mcp)
+- [x] 创建 Query Hooks (queries, mutations)
+- [x] 创建 Zod Schemas
 
 #### 详细步骤
 
