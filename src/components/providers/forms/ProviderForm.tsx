@@ -38,6 +38,7 @@ import {
   useKimiModelSelector,
   useTemplateValues,
   useCommonConfigSnippet,
+  useCodexCommonConfig,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -166,6 +167,8 @@ export function ProviderForm({
 
   const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
     useState(false);
+  const [isCodexTemplateModalOpen, setIsCodexTemplateModalOpen] =
+    useState(false);
 
   useEffect(() => {
     form.reset(defaultValues);
@@ -245,6 +248,19 @@ export function ProviderForm({
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
     initialData: appType === "claude" ? initialData : undefined,
+  });
+
+  // 使用 Codex 通用配置片段 hook (仅 Codex 模式)
+  const {
+    useCommonConfig: useCodexCommonConfigFlag,
+    commonConfigSnippet: codexCommonConfigSnippet,
+    commonConfigError: codexCommonConfigError,
+    handleCommonConfigToggle: handleCodexCommonConfigToggle,
+    handleCommonConfigSnippetChange: handleCodexCommonConfigSnippetChange,
+  } = useCodexCommonConfig({
+    codexConfig,
+    onConfigChange: handleCodexConfigChange,
+    initialData: appType === "codex" ? initialData : undefined,
   });
 
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
@@ -803,12 +819,17 @@ export function ProviderForm({
             configValue={codexConfig}
             onAuthChange={setCodexAuth}
             onConfigChange={handleCodexConfigChange}
-            useCommonConfig={false}
-            onCommonConfigToggle={() => {}}
-            commonConfigSnippet=""
-            onCommonConfigSnippetChange={() => {}}
-            commonConfigError=""
+            useCommonConfig={useCodexCommonConfigFlag}
+            onCommonConfigToggle={handleCodexCommonConfigToggle}
+            commonConfigSnippet={codexCommonConfigSnippet}
+            onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
+            commonConfigError={codexCommonConfigError}
             authError={codexAuthError}
+            isCustomMode={selectedPresetId === "custom"}
+            onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
+            onNameChange={(name) => form.setValue("name", name)}
+            isTemplateModalOpen={isCodexTemplateModalOpen}
+            setIsTemplateModalOpen={setIsCodexTemplateModalOpen}
           />
         ) : (
           <CommonConfigEditor
