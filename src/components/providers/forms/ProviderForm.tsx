@@ -25,8 +25,15 @@ import {
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
 import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
+import CodexConfigEditor from "@/components/ProviderForm/CodexConfigEditor";
 import { Zap } from "lucide-react";
-import { useProviderCategory, useApiKeyState, useBaseUrlState, useModelState } from "./hooks";
+import {
+  useProviderCategory,
+  useApiKeyState,
+  useBaseUrlState,
+  useModelState,
+  useCodexConfigState,
+} from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
@@ -129,6 +136,22 @@ export function ProviderForm({
     onConfigChange: (config) => form.setValue("settingsConfig", config),
   });
 
+  // 使用 Codex 配置 hook (仅 Codex 模式)
+  const {
+    codexAuth,
+    codexConfig,
+    codexApiKey,
+    codexBaseUrl,
+    codexAuthError,
+    setCodexAuth,
+    handleCodexApiKeyChange,
+    handleCodexBaseUrlChange,
+    handleCodexConfigChange,
+    resetCodexConfig,
+  } = useCodexConfigState({ initialData });
+
+  const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] = useState(false);
+
   useEffect(() => {
     form.reset(defaultValues);
   }, [defaultValues, form]);
@@ -142,11 +165,31 @@ export function ProviderForm({
   }, [theme]);
 
   const handleSubmit = (values: ProviderFormData) => {
+    let settingsConfig: string;
+
+    // Codex: 组合 auth 和 config
+    if (appType === "codex") {
+      try {
+        const authJson = JSON.parse(codexAuth);
+        const configObj = {
+          auth: authJson,
+          config: codexConfig ?? "",
+        };
+        settingsConfig = JSON.stringify(configObj);
+      } catch (err) {
+        // 如果解析失败，使用表单中的配置
+        settingsConfig = values.settingsConfig.trim();
+      }
+    } else {
+      // Claude: 使用表单配置
+      settingsConfig = values.settingsConfig.trim();
+    }
+
     const payload: ProviderFormValues = {
       ...values,
       name: values.name.trim(),
       websiteUrl: values.websiteUrl?.trim() ?? "",
-      settingsConfig: values.settingsConfig.trim(),
+      settingsConfig,
     };
 
     if (activePreset) {
@@ -216,6 +259,11 @@ export function ProviderForm({
     if (value === "custom") {
       setActivePreset(null);
       form.reset(defaultValues);
+
+      // Codex 自定义模式：重置为空配置
+      if (appType === "codex") {
+        resetCodexConfig({}, "");
+      }
       return;
     }
 
@@ -231,15 +279,17 @@ export function ProviderForm({
 
     if (appType === "codex") {
       const preset = entry.preset as CodexProviderPreset;
-      const config = {
-        auth: preset.auth ?? {},
-        config: preset.config ?? "",
-      };
+      const auth = preset.auth ?? {};
+      const config = preset.config ?? "";
 
+      // 重置 Codex 配置
+      resetCodexConfig(auth, config);
+
+      // 更新表单其他字段
       form.reset({
         name: preset.name,
         websiteUrl: preset.websiteUrl ?? "",
-        settingsConfig: JSON.stringify(config, null, 2),
+        settingsConfig: JSON.stringify({ auth, config }, null, 2),
       });
       return;
     }
@@ -460,34 +510,109 @@ export function ProviderForm({
           </div>
         )}
 
-        <FormField
-          control={form.control}
-          name="settingsConfig"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {t("provider.configJson", { defaultValue: "配置 JSON" })}
+        {/* Codex API Key 输入框 */}
+        {appType === "codex" && !isEditMode && (
+          <div>
+            <ApiKeyInput
+              id="codexApiKey"
+              label="API Key"
+              value={codexApiKey}
+              onChange={handleCodexApiKeyChange}
+              required={category !== "official"}
+              placeholder={
+                category === "official"
+                  ? t("providerForm.codexOfficialNoApiKey", { defaultValue: "官方供应商无需 API Key" })
+                  : t("providerForm.codexApiKeyAutoFill", { defaultValue: "输入 API Key，将自动填充到配置" })
+              }
+              disabled={category === "official"}
+            />
+          </div>
+        )}
+
+        {/* Codex Base URL 输入框 */}
+        {appType === "codex" && shouldShowSpeedTest && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <FormLabel htmlFor="codexBaseUrl">
+                {t("codexConfig.apiUrlLabel", { defaultValue: "API 端点" })}
               </FormLabel>
-              <FormControl>
-                <div className="rounded-md border">
-                  <JsonEditor
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder={
-                      appType === "codex"
-                        ? CODEX_DEFAULT_CONFIG
-                        : CLAUDE_DEFAULT_CONFIG
-                    }
-                    darkMode={isDarkMode}
-                    rows={14}
-                    showValidation
-                  />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              <button
+                type="button"
+                onClick={() => setIsCodexEndpointModalOpen(true)}
+                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {t("providerForm.manageAndTest", { defaultValue: "管理和测速" })}
+              </button>
+            </div>
+            <Input
+              id="codexBaseUrl"
+              type="url"
+              value={codexBaseUrl}
+              onChange={(e) => handleCodexBaseUrlChange(e.target.value)}
+              placeholder={t("providerForm.codexApiEndpointPlaceholder", { defaultValue: "https://api.example.com/v1" })}
+              autoComplete="off"
+            />
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("providerForm.codexApiHint", { defaultValue: "Codex API 端点地址" })}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 端点测速弹窗 - Codex */}
+        {appType === "codex" && shouldShowSpeedTest && isCodexEndpointModalOpen && (
+          <EndpointSpeedTest
+            appType={appType}
+            value={codexBaseUrl}
+            onChange={handleCodexBaseUrlChange}
+            initialEndpoints={[{ url: codexBaseUrl }]}
+            visible={isCodexEndpointModalOpen}
+            onClose={() => setIsCodexEndpointModalOpen(false)}
+          />
+        )}
+
+        {/* 配置编辑器：Claude 使用 JSON 编辑器，Codex 使用专用编辑器 */}
+        {appType === "codex" ? (
+          <CodexConfigEditor
+            authValue={codexAuth}
+            configValue={codexConfig}
+            onAuthChange={setCodexAuth}
+            onConfigChange={handleCodexConfigChange}
+            useCommonConfig={false}
+            onCommonConfigToggle={() => {}}
+            commonConfigSnippet=""
+            onCommonConfigSnippetChange={() => {}}
+            commonConfigError=""
+            authError={codexAuthError}
+          />
+        ) : (
+          <FormField
+            control={form.control}
+            name="settingsConfig"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {t("provider.configJson", { defaultValue: "配置 JSON" })}
+                </FormLabel>
+                <FormControl>
+                  <div className="rounded-md border">
+                    <JsonEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder={CLAUDE_DEFAULT_CONFIG}
+                      darkMode={isDarkMode}
+                      rows={14}
+                      showValidation
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" type="button" onClick={onCancel}>
