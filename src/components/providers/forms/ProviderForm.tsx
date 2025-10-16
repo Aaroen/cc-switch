@@ -474,7 +474,7 @@ export function ProviderForm({
         )}
 
         {/* Codex 专属字段 */}
-        {appType === "codex" && !isEditMode && (
+        {appType === "codex" && (
           <CodexFormFields
             codexApiKey={codexApiKey}
             onApiKeyChange={handleCodexApiKeyChange}
