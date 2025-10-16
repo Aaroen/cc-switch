@@ -24,7 +24,9 @@ import {
 } from "@/config/codexProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
-import { useProviderCategory, useApiKeyState } from "./hooks";
+import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
+import { Zap } from "lucide-react";
+import { useProviderCategory, useApiKeyState, useBaseUrlState } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
@@ -64,6 +66,7 @@ export function ProviderForm({
     id: string;
     category?: ProviderCategory;
   } | null>(null);
+  const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
 
   // 使用 category hook
   const { category } = useProviderCategory({
@@ -101,6 +104,23 @@ export function ProviderForm({
     initialConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
     selectedPresetId,
+  });
+
+  // 使用 Base URL hook
+  const {
+    baseUrl,
+    // codexBaseUrl,  // TODO: 等 Codex 支持时使用
+    handleClaudeBaseUrlChange,
+    // handleCodexBaseUrlChange, // TODO: 等 Codex 支持时使用
+  } = useBaseUrlState({
+    appType,
+    category,
+    settingsConfig: form.watch("settingsConfig"),
+    codexConfig: "", // TODO: 从 settingsConfig 中提取 codex config
+    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
+    onCodexConfigChange: () => {
+      // TODO: 更新 codex config
+    },
   });
 
   useEffect(() => {
@@ -180,6 +200,10 @@ export function ProviderForm({
       (key) => key !== "custom" && groupedPresets[key]?.length,
     );
   }, [groupedPresets]);
+
+  // 判断是否显示端点测速（仅第三方和自定义类别）
+  const shouldShowSpeedTest =
+    category === "third_party" || category === "custom";
 
   const handlePresetChange = (value: string) => {
     setSelectedPresetId(value);
@@ -336,6 +360,50 @@ export function ProviderForm({
               disabled={category === "official"}
             />
           </div>
+        )}
+
+        {/* Base URL 输入框（仅 Claude 第三方/自定义显示） */}
+        {appType === "claude" && shouldShowSpeedTest && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <FormLabel htmlFor="baseUrl">
+                {t("providerForm.apiEndpoint", { defaultValue: "API 端点" })}
+              </FormLabel>
+              <button
+                type="button"
+                onClick={() => setIsEndpointModalOpen(true)}
+                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {t("providerForm.manageAndTest", { defaultValue: "管理和测速" })}
+              </button>
+            </div>
+            <Input
+              id="baseUrl"
+              type="url"
+              value={baseUrl}
+              onChange={(e) => handleClaudeBaseUrlChange(e.target.value)}
+              placeholder={t("providerForm.apiEndpointPlaceholder", { defaultValue: "https://api.example.com" })}
+              autoComplete="off"
+            />
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("providerForm.apiHint", { defaultValue: "API 端点地址用于连接服务器" })}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 端点测速弹窗 - Claude */}
+        {appType === "claude" && shouldShowSpeedTest && isEndpointModalOpen && (
+          <EndpointSpeedTest
+            appType={appType}
+            value={baseUrl}
+            onChange={handleClaudeBaseUrlChange}
+            initialEndpoints={[{ url: baseUrl }]}
+            visible={isEndpointModalOpen}
+            onClose={() => setIsEndpointModalOpen(false)}
+          />
         )}
 
         <FormField
