@@ -26,7 +26,7 @@ import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
 import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
 import { Zap } from "lucide-react";
-import { useProviderCategory, useApiKeyState, useBaseUrlState } from "./hooks";
+import { useProviderCategory, useApiKeyState, useBaseUrlState, useModelState } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
@@ -121,6 +121,12 @@ export function ProviderForm({
     onCodexConfigChange: () => {
       // TODO: 更新 codex config
     },
+  });
+
+  // 使用 Model hook
+  const { claudeModel, claudeSmallFastModel, handleModelChange } = useModelState({
+    settingsConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
   });
 
   useEffect(() => {
@@ -404,6 +410,54 @@ export function ProviderForm({
             visible={isEndpointModalOpen}
             onClose={() => setIsEndpointModalOpen(false)}
           />
+        )}
+
+        {/* 模型选择器（仅 Claude 非官方供应商显示） */}
+        {appType === "claude" && category !== "official" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ANTHROPIC_MODEL */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeModel">
+                  {t("providerForm.anthropicModel", { defaultValue: "主模型" })}
+                </FormLabel>
+                <Input
+                  id="claudeModel"
+                  type="text"
+                  value={claudeModel}
+                  onChange={(e) => handleModelChange("ANTHROPIC_MODEL", e.target.value)}
+                  placeholder={t("providerForm.modelPlaceholder", {
+                    defaultValue: "claude-3-7-sonnet-20250219"
+                  })}
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* ANTHROPIC_SMALL_FAST_MODEL */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeSmallFastModel">
+                  {t("providerForm.anthropicSmallFastModel", {
+                    defaultValue: "快速模型"
+                  })}
+                </FormLabel>
+                <Input
+                  id="claudeSmallFastModel"
+                  type="text"
+                  value={claudeSmallFastModel}
+                  onChange={(e) => handleModelChange("ANTHROPIC_SMALL_FAST_MODEL", e.target.value)}
+                  placeholder={t("providerForm.smallModelPlaceholder", {
+                    defaultValue: "claude-3-5-haiku-20241022"
+                  })}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("providerForm.modelHelper", {
+                defaultValue: "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
+              })}
+            </p>
+          </div>
         )}
 
         <FormField
