@@ -7,3 +7,4 @@ export { useApiKeyLink } from "./useApiKeyLink";
 export { useCustomEndpoints } from "./useCustomEndpoints";
 export { useKimiModelSelector } from "./useKimiModelSelector";
 export { useTemplateValues } from "./useTemplateValues";
+export { useCommonConfigSnippet } from "./useCommonConfigSnippet";

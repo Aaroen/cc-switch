@@ -12,8 +12,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useTheme } from "@/components/theme-provider";
-import JsonEditor from "@/components/JsonEditor";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppType } from "@/lib/api";
 import type { ProviderCategory, CustomEndpoint } from "@/types";
@@ -27,6 +25,7 @@ import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
 import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
 import CodexConfigEditor from "@/components/ProviderForm/CodexConfigEditor";
 import KimiModelSelector from "@/components/ProviderForm/KimiModelSelector";
+import { CommonConfigEditor } from "./CommonConfigEditor";
 import { Zap } from "lucide-react";
 import {
   useProviderCategory,
@@ -38,6 +37,7 @@ import {
   useCustomEndpoints,
   useKimiModelSelector,
   useTemplateValues,
+  useCommonConfigSnippet,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
@@ -68,7 +68,6 @@ export function ProviderForm({
   initialData,
 }: ProviderFormProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const isEditMode = Boolean(initialData);
 
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
@@ -172,14 +171,6 @@ export function ProviderForm({
     form.reset(defaultValues);
   }, [defaultValues, form]);
 
-  const isDarkMode = useMemo(() => {
-    if (theme === "dark") return true;
-    if (theme === "light") return false;
-    return typeof window !== "undefined"
-      ? window.document.documentElement.classList.contains("dark")
-      : false;
-  }, [theme]);
-
   const presetCategoryLabels: Record<string, string> = useMemo(
     () => ({
       official: t("providerPreset.categoryOfficial", {
@@ -242,6 +233,21 @@ export function ProviderForm({
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
   });
+
+  // 使用通用配置片段 hook (仅 Claude 模式)
+  const {
+    useCommonConfig,
+    commonConfigSnippet,
+    commonConfigError,
+    handleCommonConfigToggle,
+    handleCommonConfigSnippetChange,
+  } = useCommonConfigSnippet({
+    settingsConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
+    initialData: appType === "claude" ? initialData : undefined,
+  });
+
+  const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
   const handleSubmit = (values: ProviderFormData) => {
     // 验证模板变量（仅 Claude 模式）
@@ -790,7 +796,7 @@ export function ProviderForm({
             />
           )}
 
-        {/* 配置编辑器：Claude 使用 JSON 编辑器，Codex 使用专用编辑器 */}
+        {/* 配置编辑器：Claude 使用通用配置编辑器，Codex 使用专用编辑器 */}
         {appType === "codex" ? (
           <CodexConfigEditor
             authValue={codexAuth}
@@ -805,29 +811,17 @@ export function ProviderForm({
             authError={codexAuthError}
           />
         ) : (
-          <FormField
-            control={form.control}
-            name="settingsConfig"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {t("provider.configJson", { defaultValue: "配置 JSON" })}
-                </FormLabel>
-                <FormControl>
-                  <div className="rounded-md border">
-                    <JsonEditor
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder={CLAUDE_DEFAULT_CONFIG}
-                      darkMode={isDarkMode}
-                      rows={14}
-                      showValidation
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+          <CommonConfigEditor
+            value={form.watch("settingsConfig")}
+            onChange={(value) => form.setValue("settingsConfig", value)}
+            useCommonConfig={useCommonConfig}
+            onCommonConfigToggle={handleCommonConfigToggle}
+            commonConfigSnippet={commonConfigSnippet}
+            onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
+            commonConfigError={commonConfigError}
+            onEditClick={() => setIsCommonConfigModalOpen(true)}
+            isModalOpen={isCommonConfigModalOpen}
+            onModalClose={() => setIsCommonConfigModalOpen(false)}
           />
         )}
 
