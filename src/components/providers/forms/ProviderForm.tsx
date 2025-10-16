@@ -26,10 +26,7 @@ import JsonEditor from "@/components/JsonEditor";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppType } from "@/lib/api";
 import type { ProviderCategory } from "@/types";
-import {
-  providerPresets,
-  type ProviderPreset,
-} from "@/config/providerPresets";
+import { providerPresets, type ProviderPreset } from "@/config/providerPresets";
 import {
   codexProviderPresets,
   type CodexProviderPreset,
@@ -37,11 +34,7 @@ import {
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
-const CODEX_DEFAULT_CONFIG = JSON.stringify(
-  { auth: {}, config: "" },
-  null,
-  2,
-);
+const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
 
 type PresetEntry = {
   id: string;

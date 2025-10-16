@@ -249,7 +249,11 @@ function App() {
 
           <div className="flex flex-wrap items-center gap-3">
             <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
-            <Button variant="outline" onClick={() => setIsMcpOpen(true)}>
+            <Button
+              variant="mcp"
+              onClick={() => setIsMcpOpen(true)}
+              className="min-w-[80px]"
+            >
               MCP
             </Button>
             <Button onClick={() => setIsAddOpen(true)}>

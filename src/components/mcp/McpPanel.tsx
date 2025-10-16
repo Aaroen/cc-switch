@@ -196,12 +196,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
           </h3>
 
           <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleAdd}
-              className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
-            >
+            <Button type="button" variant="mcp" size="sm" onClick={handleAdd}>
               <Plus size={16} />
               {t("mcp.add")}
             </Button>
@@ -270,12 +265,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ onClose, onNotify, appType }) => {
 
         {/* Footer */}
         <div className="flex-shrink-0 flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-          <Button
-            type="button"
-            size="sm"
-            onClick={onClose}
-            className="bg-emerald-500 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
-          >
+          <Button type="button" variant="mcp" size="sm" onClick={onClose}>
             <Check size={16} />
             {t("common.done")}
           </Button>

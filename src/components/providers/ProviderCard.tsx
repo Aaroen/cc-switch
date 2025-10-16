@@ -117,7 +117,7 @@ export function ProviderCard({
                 {provider.name}
               </h3>
               {isCurrent && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400">
                   {t("provider.currentlyUsing", { defaultValue: "当前使用" })}
                 </span>
               )}

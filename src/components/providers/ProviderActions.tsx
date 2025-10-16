@@ -64,8 +64,9 @@ export function ProviderActions({
         onClick={onDelete}
         disabled={isCurrent}
         className={cn(
-          "text-destructive hover:text-destructive",
-          isCurrent && "text-muted-foreground hover:text-muted-foreground",
+          "hover:text-red-500 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-red-500/10",
+          isCurrent &&
+            "text-muted-foreground hover:text-muted-foreground hover:bg-transparent",
         )}
       >
         <Trash2 className="h-4 w-4" />

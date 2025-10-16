@@ -45,9 +45,7 @@ export function EditProviderDialog({
         name: values.name.trim(),
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
-        ...(values.presetCategory
-          ? { category: values.presetCategory }
-          : {}),
+        ...(values.presetCategory ? { category: values.presetCategory } : {}),
       };
 
       await onSubmit(updatedProvider);
