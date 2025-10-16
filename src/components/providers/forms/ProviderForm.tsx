@@ -23,6 +23,8 @@ import {
   type CodexProviderPreset,
 } from "@/config/codexProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
+import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
+import { useProviderCategory, useApiKeyState } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
@@ -53,6 +55,8 @@ export function ProviderForm({
 }: ProviderFormProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const isEditMode = Boolean(initialData);
+
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
     initialData ? null : "custom",
   );
@@ -60,6 +64,13 @@ export function ProviderForm({
     id: string;
     category?: ProviderCategory;
   } | null>(null);
+
+  // 使用 category hook
+  const { category } = useProviderCategory({
+    appType,
+    selectedPresetId,
+    isEditMode,
+  });
 
   useEffect(() => {
     setSelectedPresetId(initialData ? null : "custom");
@@ -83,6 +94,13 @@ export function ProviderForm({
     resolver: zodResolver(providerSchema),
     defaultValues,
     mode: "onSubmit",
+  });
+
+  // 使用 API Key hook
+  const { apiKey, handleApiKeyChange, showApiKey: shouldShowApiKey } = useApiKeyState({
+    initialConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
+    selectedPresetId,
   });
 
   useEffect(() => {
@@ -302,6 +320,23 @@ export function ProviderForm({
             </FormItem>
           )}
         />
+
+        {/* API Key 输入框（仅 Claude 且非编辑模式显示） */}
+        {appType === "claude" && shouldShowApiKey(form.watch("settingsConfig"), isEditMode) && (
+          <div>
+            <ApiKeyInput
+              value={apiKey}
+              onChange={handleApiKeyChange}
+              required={category !== "official"}
+              placeholder={
+                category === "official"
+                  ? t("providerForm.officialNoApiKey", { defaultValue: "官方供应商无需 API Key" })
+                  : t("providerForm.apiKeyAutoFill", { defaultValue: "输入 API Key，将自动填充到配置" })
+              }
+              disabled={category === "official"}
+            />
+          </div>
+        )}
 
         <FormField
           control={form.control}
