@@ -304,6 +304,7 @@ function App() {
         <UsageScriptModal
           provider={usageProvider}
           appType={activeApp}
+          isOpen={Boolean(usageProvider)}
           onClose={() => setUsageProvider(null)}
           onSave={(script) => {
             void handleSaveUsageScript(usageProvider, script);

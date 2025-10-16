@@ -1,15 +1,24 @@
 import React, { useState } from "react";
-import { X, Play, Wand2 } from "lucide-react";
+import { Play, Wand2 } from "lucide-react";
 import { Provider, UsageScript } from "../types";
 import { usageApi, type AppType } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";
 import * as parserBabel from "prettier/parser-babel";
 import * as pluginEstree from "prettier/plugins/estree";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface UsageScriptModalProps {
   provider: Provider;
   appType: AppType;
+  isOpen: boolean;
   onClose: () => void;
   onSave: (script: UsageScript) => void;
   onNotify?: (
@@ -79,6 +88,7 @@ const PRESET_TEMPLATES: Record<string, string> = {
 const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   provider,
   appType,
+  isOpen,
   onClose,
   onSave,
   onNotify,
@@ -162,23 +172,14 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            配置用量查询 - {provider.name}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>配置用量查询 - {provider.name}</DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
           {/* 启用开关 */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -338,44 +339,42 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+        <DialogFooter className="flex-col sm:flex-row sm:justify-between gap-3 pt-4">
+          {/* Left side - Test and Format buttons */}
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleTest}
               disabled={!script.enabled || testing}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play size={14} />
               {testing ? "测试中..." : "测试脚本"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleFormat}
               disabled={!script.enabled}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="格式化代码 (Prettier)"
             >
               <Wand2 size={14} />
               格式化
-            </button>
+            </Button>
           </div>
 
+          {/* Right side - Cancel and Save buttons */}
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
+            <Button variant="ghost" size="sm" onClick={onClose}>
               取消
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-            >
+            </Button>
+            <Button variant="default" size="sm" onClick={handleSave}>
               保存配置
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
