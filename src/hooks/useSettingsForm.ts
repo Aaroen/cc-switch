@@ -56,7 +56,7 @@ export function useSettingsForm(): UseSettingsFormResult {
       }
     }
     return normalizeLanguage(i18n.language);
-  }, [i18n.language]);
+  }, [i18n]);
 
   const syncLanguage = useCallback(
     (lang: Language) => {
