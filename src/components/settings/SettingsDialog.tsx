@@ -181,7 +181,7 @@ export function SettingsDialog({
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-scroll px-6 pb-4">
+          <div className="flex-1 overflow-y-scroll px-6 py-4">
             <Tabs
               value={activeTab}
               onValueChange={setActiveTab}
