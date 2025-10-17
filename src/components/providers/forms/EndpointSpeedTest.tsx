@@ -1,11 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Zap, Loader2, Plus, X, AlertCircle, Save } from "lucide-react";
-import { isLinux } from "@/lib/platform";
 import type { AppType } from "@/lib/api";
 import { vscodeApi } from "@/lib/api/vscode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 
 // 临时类型定义，待后端 API 实现后替换
@@ -422,53 +428,12 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     [normalizedSelected, onChange, appType, entries, providerId],
   );
 
-  // 支持按下 ESC 关闭弹窗
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  if (!visible) {
-    return null;
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      {/* Backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/50 dark:bg-black/70${
-          isLinux() ? "" : " backdrop-blur-sm"
-        }`}
-      />
-
-      {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-lg w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-          <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
-            {t("endpointTest.title")}
-          </h3>
-          <Button
-            type="button"
-            onClick={onClose}
-            variant="ghost"
-            size="icon"
-            aria-label={t("common.close")}
-          >
-            <X size={16} />
-          </Button>
-        </div>
+    <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent zIndex="nested" className="max-w-2xl max-h-[80vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-0">
+          <DialogTitle>{t("endpointTest.title")}</DialogTitle>
+        </DialogHeader>
 
         {/* Content */}
         <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
@@ -635,15 +600,14 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+        <DialogFooter className="px-6 pb-6 pt-4 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 m-0">
           <Button type="button" onClick={onClose} className="gap-2">
             <Save className="w-4 h-4" />
             {t("common.save")}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

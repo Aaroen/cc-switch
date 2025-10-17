@@ -275,31 +275,26 @@ export function SettingsDialog({
         </DialogFooter>
       </DialogContent>
 
-      {showRestartPrompt ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-md space-y-4 rounded-lg border border-border bg-background p-6 shadow-xl">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">
-                {t("settings.restartRequired")}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t("settings.restartRequiredMessage", {
-                  defaultValue: "配置目录已变更，需要重启应用生效。",
-                })}
-              </p>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handleRestartLater}>
-                {t("settings.restartLater")}
-              </Button>
-              <Button onClick={handleRestartNow}>
-                {t("settings.restartNow")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={showRestartPrompt} onOpenChange={(open) => !open && handleRestartLater()}>
+        <DialogContent zIndex="alert" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("settings.restartRequired")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.restartRequiredMessage", {
+              defaultValue: "配置目录已变更，需要重启应用生效。",
+            })}
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleRestartLater}>
+              {t("settings.restartLater")}
+            </Button>
+            <Button onClick={handleRestartNow}>
+              {t("settings.restartNow")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
