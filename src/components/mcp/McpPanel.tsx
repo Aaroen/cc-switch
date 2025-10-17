@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Plus, Server, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,15 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { mcpApi, type AppType } from "@/lib/api";
+import { type AppType } from "@/lib/api";
 import { McpServer } from "@/types";
+import { useMcpActions } from "@/hooks/useMcpActions";
 import McpListItem from "./McpListItem";
 import McpFormModal from "./McpFormModal";
 import { ConfirmDialog } from "../ConfirmDialog";
-import {
-  extractErrorMessage,
-  translateMcpBackendError,
-} from "@/utils/errorUtils";
 
 interface McpPanelProps {
   open: boolean;
@@ -35,8 +31,6 @@ const McpPanel: React.FC<McpPanelProps> = ({
   appType,
 }) => {
   const { t } = useTranslation();
-  const [servers, setServers] = useState<Record<string, McpServer>>({});
-  const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -46,64 +40,30 @@ const McpPanel: React.FC<McpPanelProps> = ({
     onConfirm: () => void;
   } | null>(null);
 
-  const reload = async () => {
-    setLoading(true);
-    try {
-      const cfg = await mcpApi.getConfig(appType);
-      setServers(cfg.servers || {});
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use MCP actions hook
+  const { servers, loading, reload, toggleEnabled, saveServer, deleteServer } =
+    useMcpActions(appType);
 
   useEffect(() => {
     const setup = async () => {
       try {
-        // 初始化：仅从对应客户端导入已有 MCP，不做“预设落库”
+        // Initialize: only import existing MCPs from corresponding client
         if (appType === "claude") {
+          const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
           await mcpApi.importFromClaude();
         } else if (appType === "codex") {
+          const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
           await mcpApi.importFromCodex();
         }
       } catch (e) {
-        console.warn("MCP 初始化导入失败（忽略继续）", e);
+        console.warn("MCP initialization import failed (ignored)", e);
       } finally {
         await reload();
       }
     };
     setup();
-    // appType 改变时重新初始化
-  }, [appType]);
-
-  const handleToggle = async (id: string, enabled: boolean) => {
-    // 乐观更新：立即更新 UI
-    const previousServers = servers;
-    setServers((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        enabled,
-      },
-    }));
-
-    try {
-      // 后台调用 API
-      await mcpApi.setEnabled(appType, id, enabled);
-      toast.success(
-        enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"),
-        { duration: 1500 },
-      );
-    } catch (e: any) {
-      // 失败时回滚
-      setServers(previousServers);
-      const detail = extractErrorMessage(e);
-      const mapped = translateMcpBackendError(detail, t);
-      toast.error(
-        mapped || detail || t("mcp.error.saveFailed"),
-        { duration: mapped || detail ? 6000 : 5000 },
-      );
-    }
-  };
+    // Re-initialize when appType changes
+  }, [appType, reload]);
 
   const handleEdit = (id: string) => {
     setEditingId(id);
@@ -122,17 +82,10 @@ const McpPanel: React.FC<McpPanelProps> = ({
       message: t("mcp.confirm.deleteMessage", { id }),
       onConfirm: async () => {
         try {
-          await mcpApi.deleteServerInConfig(appType, id);
-          await reload();
+          await deleteServer(id);
           setConfirmDialog(null);
-          toast.success(t("mcp.msg.deleted"), { duration: 1500 });
-        } catch (e: any) {
-          const detail = extractErrorMessage(e);
-          const mapped = translateMcpBackendError(detail, t);
-          toast.error(
-            mapped || detail || t("mcp.error.deleteFailed"),
-            { duration: mapped || detail ? 6000 : 5000 },
-          );
+        } catch (e) {
+          // Error already handled by useMcpActions
         }
       },
     });
@@ -143,25 +96,9 @@ const McpPanel: React.FC<McpPanelProps> = ({
     server: McpServer,
     options?: { syncOtherSide?: boolean },
   ) => {
-    try {
-      const payload: McpServer = { ...server, id };
-      await mcpApi.upsertServerInConfig(appType, id, payload, {
-        syncOtherSide: options?.syncOtherSide,
-      });
-      await reload();
-      setIsFormOpen(false);
-      setEditingId(null);
-      toast.success(t("mcp.msg.saved"), { duration: 1500 });
-    } catch (e: any) {
-      const detail = extractErrorMessage(e);
-      const mapped = translateMcpBackendError(detail, t);
-      toast.error(
-        mapped || detail || t("mcp.error.saveFailed"),
-        { duration: mapped || detail ? 6000 : 5000 },
-      );
-      // 继续抛出错误，让表单层可以给到直观反馈（避免被更高层遮挡）
-      throw e;
-    }
+    await saveServer(id, server, options);
+    setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const handleCloseForm = () => {
@@ -240,7 +177,7 @@ const McpPanel: React.FC<McpPanelProps> = ({
                         key={`installed-${id}`}
                         id={id}
                         server={server}
-                        onToggle={handleToggle}
+                        onToggle={toggleEnabled}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                       />
