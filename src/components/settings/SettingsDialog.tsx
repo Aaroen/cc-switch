@@ -85,6 +85,7 @@ export function SettingsDialog({
   }, [requiresRestart]);
 
   const closeDialog = useCallback(() => {
+    // 取消/直接关闭：恢复到初始设置（包括语言回滚）
     resetSettings();
     acknowledgeRestart();
     clearSelection();
@@ -97,6 +98,14 @@ export function SettingsDialog({
     resetSettings,
     resetStatus,
   ]);
+
+  const closeAfterSave = useCallback(() => {
+    // 保存成功后关闭：不再重置语言，避免需要“保存两次”才生效
+    acknowledgeRestart();
+    clearSelection();
+    resetStatus();
+    onOpenChange(false);
+  }, [acknowledgeRestart, clearSelection, onOpenChange, resetStatus]);
 
   const handleDialogChange = useCallback(
     (nextOpen: boolean) => {
@@ -121,7 +130,7 @@ export function SettingsDialog({
         setShowRestartPrompt(true);
         return;
       }
-      closeDialog();
+      closeAfterSave();
     } catch (error) {
       console.error("[SettingsDialog] Failed to save settings", error);
     }
@@ -129,8 +138,8 @@ export function SettingsDialog({
 
   const handleRestartLater = useCallback(() => {
     setShowRestartPrompt(false);
-    closeDialog();
-  }, [closeDialog]);
+    closeAfterSave();
+  }, [closeAfterSave]);
 
   const handleRestartNow = useCallback(async () => {
     setShowRestartPrompt(false);
@@ -140,7 +149,7 @@ export function SettingsDialog({
           defaultValue: "开发模式下不支持自动重启，请手动重新启动应用。",
         }),
       );
-      closeDialog();
+      closeAfterSave();
       return;
     }
 
@@ -154,9 +163,9 @@ export function SettingsDialog({
         }),
       );
     } finally {
-      closeDialog();
+      closeAfterSave();
     }
-  }, [closeDialog, t]);
+  }, [closeAfterSave, t]);
 
   const isBusy = useMemo(() => isLoading && !settings, [isLoading, settings]);
 
