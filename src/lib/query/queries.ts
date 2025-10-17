@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { providersApi, settingsApi, type AppType } from "@/lib/api";
-import type { Provider, Settings } from "@/types";
+import { providersApi, settingsApi, usageApi, type AppType } from "@/lib/api";
+import type { Provider, Settings, UsageResult } from "@/types";
 
 const sortProviders = (
   providers: Record<string, Provider>,
@@ -75,5 +75,19 @@ export const useSettingsQuery = (): UseQueryResult<Settings> => {
   return useQuery({
     queryKey: ["settings"],
     queryFn: async () => settingsApi.get(),
+  });
+};
+
+export const useUsageQuery = (
+  providerId: string,
+  appType: AppType,
+  enabled: boolean = true,
+): UseQueryResult<UsageResult> => {
+  return useQuery({
+    queryKey: ["usage", providerId, appType],
+    queryFn: async () => usageApi.query(providerId, appType),
+    enabled: enabled && !!providerId,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5分钟
   });
 };

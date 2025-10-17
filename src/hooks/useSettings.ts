@@ -69,7 +69,6 @@ export function useSettings(): UseSettingsResult {
     initialLanguage,
     updateSettings,
     resetSettings: resetForm,
-    readPersistedLanguage,
     syncLanguage,
   } = useSettingsForm();
 

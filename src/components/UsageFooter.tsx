@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+import React from "react";
 import { RefreshCw, AlertCircle } from "lucide-react";
-import { usageApi, type AppType } from "@/lib/api";
-import { UsageResult, UsageData } from "../types";
+import { type AppType } from "@/lib/api";
+import { useUsageQuery } from "@/lib/query/queries";
+import { UsageData } from "../types";
 
 interface UsageFooterProps {
   providerId: string;
@@ -14,47 +15,11 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   appType,
   usageEnabled,
 }) => {
-  const [usage, setUsage] = useState<UsageResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // 记录上次请求的关键参数，防止重复请求
-  const lastFetchParamsRef = useRef<string>("");
-
-  const fetchUsage = async () => {
-    // 防止并发请求
-    if (loading) return;
-
-    setLoading(true);
-    try {
-      const result = await usageApi.query(providerId, appType);
-      setUsage(result);
-    } catch (error: any) {
-      console.error("查询用量失败:", error);
-      setUsage({
-        success: false,
-        error: error?.message || "查询失败",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (usageEnabled) {
-      // 生成当前参数的唯一标识(包含 usageEnabled 状态)
-      const currentParams = `${providerId}-${appType}-${usageEnabled}`;
-
-      // 只有参数真正变化时才发起请求
-      if (currentParams !== lastFetchParamsRef.current) {
-        lastFetchParamsRef.current = currentParams;
-        fetchUsage();
-      }
-    } else {
-      // 如果禁用了，清空记录和数据
-      lastFetchParamsRef.current = "";
-      setUsage(null);
-    }
-  }, [providerId, usageEnabled, appType]);
+  const { data: usage, isLoading: loading, refetch } = useUsageQuery(
+    providerId,
+    appType,
+    usageEnabled,
+  );
 
   // 只在启用用量查询且有数据时显示
   if (!usageEnabled || !usage) return null;
@@ -71,7 +36,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
           {/* 刷新按钮 */}
           <button
-            onClick={() => fetchUsage()}
+            onClick={() => refetch()}
             disabled={loading}
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex-shrink-0"
             title="刷新用量"
@@ -96,7 +61,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
           套餐用量
         </span>
         <button
-          onClick={() => fetchUsage()}
+          onClick={() => refetch()}
           disabled={loading}
           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
           title="刷新用量"
