@@ -13,7 +13,7 @@ import {
   type CodexProviderPreset,
 } from "@/config/codexProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
-import CodexConfigEditor from "@/components/ProviderForm/CodexConfigEditor";
+import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import { ProviderPresetSelector } from "./ProviderPresetSelector";
 import { BasicFormFields } from "./BasicFormFields";

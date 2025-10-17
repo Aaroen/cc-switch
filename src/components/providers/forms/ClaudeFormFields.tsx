@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import ApiKeyInput from "@/components/ProviderForm/ApiKeyInput";
-import EndpointSpeedTest from "@/components/ProviderForm/EndpointSpeedTest";
-import KimiModelSelector from "@/components/ProviderForm/KimiModelSelector";
-import { Zap } from "lucide-react";
+import EndpointSpeedTest from "./EndpointSpeedTest";
+import KimiModelSelector from "./KimiModelSelector";
+import { ApiKeySection, EndpointField } from "./shared";
 import type { ProviderCategory } from "@/types";
 import type { TemplateValueConfig } from "@/config/providerPresets";
 
@@ -90,38 +89,13 @@ export function ClaudeFormFields({
     <>
       {/* API Key 输入框 */}
       {shouldShowApiKey && (
-        <div className="space-y-1">
-          <ApiKeyInput
-            value={apiKey}
-            onChange={onApiKeyChange}
-            required={category !== "official"}
-            placeholder={
-              category === "official"
-                ? t("providerForm.officialNoApiKey", {
-                    defaultValue: "官方供应商无需 API Key",
-                  })
-                : t("providerForm.apiKeyAutoFill", {
-                    defaultValue: "输入 API Key，将自动填充到配置",
-                  })
-            }
-            disabled={category === "official"}
-          />
-          {/* API Key 获取链接 */}
-          {shouldShowApiKeyLink && websiteUrl && (
-            <div className="-mt-1 pl-1">
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-              >
-                {t("providerForm.getApiKey", {
-                  defaultValue: "获取 API Key",
-                })}
-              </a>
-            </div>
-          )}
-        </div>
+        <ApiKeySection
+          value={apiKey}
+          onChange={onApiKeyChange}
+          category={category}
+          shouldShowLink={shouldShowApiKeyLink}
+          websiteUrl={websiteUrl}
+        />
       )}
 
       {/* 模板变量输入 */}
@@ -161,40 +135,19 @@ export function ClaudeFormFields({
 
       {/* Base URL 输入框 */}
       {shouldShowSpeedTest && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <FormLabel htmlFor="baseUrl">
-              {t("providerForm.apiEndpoint", { defaultValue: "API 端点" })}
-            </FormLabel>
-            <button
-              type="button"
-              onClick={() => onEndpointModalToggle(true)}
-              className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {t("providerForm.manageAndTest", {
-                defaultValue: "管理和测速",
-              })}
-            </button>
-          </div>
-          <Input
-            id="baseUrl"
-            type="url"
-            value={baseUrl}
-            onChange={(e) => onBaseUrlChange(e.target.value)}
-            placeholder={t("providerForm.apiEndpointPlaceholder", {
-              defaultValue: "https://api.example.com",
-            })}
-            autoComplete="off"
-          />
-          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              {t("providerForm.apiHint", {
-                defaultValue: "API 端点地址用于连接服务器",
-              })}
-            </p>
-          </div>
-        </div>
+        <EndpointField
+          id="baseUrl"
+          label={t("providerForm.apiEndpoint", { defaultValue: "API 端点" })}
+          value={baseUrl}
+          onChange={onBaseUrlChange}
+          placeholder={t("providerForm.apiEndpointPlaceholder", {
+            defaultValue: "https://api.example.com",
+          })}
+          hint={t("providerForm.apiHint", {
+            defaultValue: "API 端点地址用于连接服务器",
+          })}
+          onManageClick={() => onEndpointModalToggle(true)}
+        />
       )}
 
       {/* 端点测速弹窗 */}

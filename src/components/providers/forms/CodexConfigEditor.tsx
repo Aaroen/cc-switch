@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 
 import { X, Save } from "lucide-react";
 
-import { isLinux } from "../../lib/platform";
+import { isLinux } from "@/lib/platform";
 import { useTranslation } from "react-i18next";
 
 import {
   generateThirdPartyAuth,
   generateThirdPartyConfig,
-} from "../../config/codexProviderPresets";
+} from "@/config/codexProviderPresets";
 
 interface CodexConfigEditorProps {
   authValue: string;

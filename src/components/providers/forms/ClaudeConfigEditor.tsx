@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import JsonEditor from "../JsonEditor";
+import JsonEditor from "@/components/JsonEditor";
 import { X, Save } from "lucide-react";
-import { isLinux } from "../../lib/platform";
+import { isLinux } from "@/lib/platform";
 import { useTranslation } from "react-i18next";
 
 interface ClaudeConfigEditorProps {
