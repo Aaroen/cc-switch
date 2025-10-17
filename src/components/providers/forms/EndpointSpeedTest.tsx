@@ -551,7 +551,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                     className={`group flex cursor-pointer items-center justify-between px-3 py-2.5 rounded-lg border transition ${
                       isSelected
                         ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
-                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-850"
+                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
                     }`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3">

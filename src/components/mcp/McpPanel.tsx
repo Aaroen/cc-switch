@@ -9,14 +9,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { mcpApi, type AppType } from "@/lib/api";
-import { McpServer } from "../../types";
+import { McpServer } from "@/types";
 import McpListItem from "./McpListItem";
 import McpFormModal from "./McpFormModal";
 import { ConfirmDialog } from "../ConfirmDialog";
-import {
-  extractErrorMessage,
-  translateMcpBackendError,
-} from "../../utils/errorUtils";
+import { extractErrorMessage, translateMcpBackendError } from "@/utils/errorUtils";
 
 interface McpPanelProps {
   open: boolean;

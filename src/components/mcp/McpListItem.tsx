@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Edit3, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { settingsApi } from "@/lib/api";
-import { McpServer } from "../../types";
-import { mcpPresets } from "../../config/mcpPresets";
+import { McpServer } from "@/types";
+import { mcpPresets } from "@/config/mcpPresets";
 import McpToggle from "./McpToggle";
 
 interface McpListItemProps {

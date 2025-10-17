@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { McpServerSpec } from "../../types";
+import { McpServerSpec } from "@/types";
 
 interface McpWizardModalProps {
   isOpen: boolean;

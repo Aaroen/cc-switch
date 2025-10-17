@@ -1,5 +1,5 @@
 import { X, Download } from "lucide-react";
-import { useUpdate } from "../contexts/UpdateContext";
+import { useUpdate } from "@/contexts/UpdateContext";
 import { useTranslation } from "react-i18next";
 
 interface UpdateBadgeProps {

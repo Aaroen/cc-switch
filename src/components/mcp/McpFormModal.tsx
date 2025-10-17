@@ -18,21 +18,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { mcpApi, type AppType } from "@/lib/api";
-import { McpServer, McpServerSpec } from "../../types";
-import {
-  mcpPresets,
-  getMcpPresetWithDescription,
-} from "../../config/mcpPresets";
+import { McpServer, McpServerSpec } from "@/types";
+import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import McpWizardModal from "./McpWizardModal";
-import {
-  extractErrorMessage,
-  translateMcpBackendError,
-} from "../../utils/errorUtils";
-import {
-  tomlToMcpServer,
-  extractIdFromToml,
-  mcpServerToToml,
-} from "../../utils/tomlUtils";
+import { extractErrorMessage, translateMcpBackendError } from "@/utils/errorUtils";
+import { tomlToMcpServer, extractIdFromToml, mcpServerToToml } from "@/utils/tomlUtils";
 import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
