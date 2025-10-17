@@ -8,7 +8,6 @@ import { providersApi, settingsApi, type AppType, type ProviderSwitchEvent } fro
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { AppSwitcher } from "@/components/AppSwitcher";
-import { ModeToggle } from "@/components/mode-toggle";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
@@ -117,7 +116,6 @@ function App() {
             >
               CC Switch
             </a>
-            <ModeToggle />
             <Button
               variant="ghost"
               size="icon"
