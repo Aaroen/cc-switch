@@ -25,7 +25,6 @@ export interface UseSettingsResult {
   isLoading: boolean;
   isSaving: boolean;
   isPortable: boolean;
-  configPath: string;
   appConfigDir?: string;
   resolvedDirs: ResolvedDirectories;
   requiresRestart: boolean;
@@ -36,7 +35,6 @@ export interface UseSettingsResult {
   browseAppConfigDir: () => Promise<void>;
   resetDirectory: (app: AppType) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
-  openConfigFolder: () => Promise<void>;
   saveSettings: () => Promise<SaveResult | null>;
   resetSettings: () => void;
   acknowledgeRestart: () => void;
@@ -92,11 +90,9 @@ export function useSettings(): UseSettingsResult {
 
   // 3️⃣ 元数据管理
   const {
-    configPath,
     isPortable,
     requiresRestart,
     isLoading: isMetadataLoading,
-    openConfigFolder,
     acknowledgeRestart,
     setRequiresRestart,
   } = useSettingsMetadata();
@@ -195,7 +191,6 @@ export function useSettings(): UseSettingsResult {
     isLoading,
     isSaving: saveMutation.isPending,
     isPortable,
-    configPath,
     appConfigDir,
     resolvedDirs,
     requiresRestart,
@@ -206,7 +201,6 @@ export function useSettings(): UseSettingsResult {
     browseAppConfigDir,
     resetDirectory,
     resetAppConfigDir,
-    openConfigFolder,
     saveSettings,
     resetSettings,
     acknowledgeRestart,

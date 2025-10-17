@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { settingsApi } from "@/lib/api";
 import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { WindowSettings } from "@/components/settings/WindowSettings";
-import { ConfigPathDisplay } from "@/components/settings/ConfigPathDisplay";
 import { DirectorySettings } from "@/components/settings/DirectorySettings";
 import { ImportExportSection } from "@/components/settings/ImportExportSection";
 import { AboutSection } from "@/components/settings/AboutSection";
@@ -38,7 +37,6 @@ export function SettingsDialog({
     isLoading,
     isSaving,
     isPortable,
-    configPath,
     appConfigDir,
     resolvedDirs,
     updateSettings,
@@ -48,7 +46,6 @@ export function SettingsDialog({
     browseAppConfigDir,
     resetDirectory,
     resetAppConfigDir,
-    openConfigFolder,
     saveSettings,
     resetSettings,
     requiresRestart,
@@ -207,10 +204,6 @@ export function SettingsDialog({
                     <WindowSettings
                       settings={settings}
                       onChange={updateSettings}
-                    />
-                    <ConfigPathDisplay
-                      path={configPath}
-                      onOpen={openConfigFolder}
                     />
                   </>
                 ) : null}
