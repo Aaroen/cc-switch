@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,11 +16,6 @@ interface McpWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (title: string, json: string) => void;
-  onNotify?: (
-    message: string,
-    type: "success" | "error",
-    duration?: number,
-  ) => void;
   initialTitle?: string;
   initialServer?: McpServerSpec;
 }
@@ -80,7 +76,6 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
   isOpen,
   onClose,
   onApply,
-  onNotify,
   initialTitle,
   initialServer,
 }) => {
@@ -137,15 +132,15 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
 
   const handleApply = () => {
     if (!wizardTitle.trim()) {
-      onNotify?.(t("mcp.error.idRequired"), "error", 3000);
+      toast.error(t("mcp.error.idRequired"), { duration: 3000 });
       return;
     }
     if (wizardType === "stdio" && !wizardCommand.trim()) {
-      onNotify?.(t("mcp.error.commandRequired"), "error", 3000);
+      toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
       return;
     }
     if (wizardType === "http" && !wizardUrl.trim()) {
-      onNotify?.(t("mcp.wizard.urlRequired"), "error", 3000);
+      toast.error(t("mcp.wizard.urlRequired"), { duration: 3000 });
       return;
     }
 

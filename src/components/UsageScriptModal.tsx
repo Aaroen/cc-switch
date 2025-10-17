@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Play, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import { Provider, UsageScript } from "../types";
 import { usageApi, type AppType } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
@@ -21,11 +22,6 @@ interface UsageScriptModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (script: UsageScript) => void;
-  onNotify?: (
-    message: string,
-    type: "success" | "error",
-    duration?: number,
-  ) => void;
 }
 
 // 预设模板（JS 对象字面量格式）
@@ -91,7 +87,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  onNotify,
 }) => {
   const [script, setScript] = useState<UsageScript>(() => {
     return (
@@ -109,19 +104,18 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleSave = () => {
     // 验证脚本格式
     if (script.enabled && !script.code.trim()) {
-      onNotify?.("脚本配置不能为空", "error");
+      toast.error("脚本配置不能为空");
       return;
     }
 
     // 基本的 JS 语法检查（检查是否包含 return 语句）
     if (script.enabled && !script.code.includes("return")) {
-      onNotify?.("脚本必须包含 return 语句", "error", 5000);
+      toast.error("脚本必须包含 return 语句", { duration: 5000 });
       return;
     }
 
     onSave(script);
     onClose();
-    onNotify?.("用量查询配置已保存", "success", 2000);
   };
 
   const handleTest = async () => {
@@ -136,12 +130,16 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
             return `${planInfo} 剩余: ${plan.remaining} ${plan.unit}`;
           })
           .join(", ");
-        onNotify?.(`测试成功！${summary}`, "success", 3000);
+        toast.success(`测试成功！${summary}`, { duration: 3000 });
       } else {
-        onNotify?.(`测试失败: ${result.error || "无数据返回"}`, "error", 5000);
+        toast.error(`测试失败: ${result.error || "无数据返回"}`, {
+          duration: 5000,
+        });
       }
     } catch (error: any) {
-      onNotify?.(`测试失败: ${error?.message || "未知错误"}`, "error", 5000);
+      toast.error(`测试失败: ${error?.message || "未知错误"}`, {
+        duration: 5000,
+      });
     } finally {
       setTesting(false);
     }
@@ -158,9 +156,11 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         printWidth: 80,
       });
       setScript({ ...script, code: formatted.trim() });
-      onNotify?.("格式化成功", "success", 1000);
+      toast.success("格式化成功", { duration: 1000 });
     } catch (error: any) {
-      onNotify?.(`格式化失败: ${error?.message || "语法错误"}`, "error", 3000);
+      toast.error(`格式化失败: ${error?.message || "语法错误"}`, {
+        duration: 3000,
+      });
     }
   };
 

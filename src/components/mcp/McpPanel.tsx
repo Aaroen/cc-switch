@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Plus, Server, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,16 +14,14 @@ import { McpServer } from "@/types";
 import McpListItem from "./McpListItem";
 import McpFormModal from "./McpFormModal";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { extractErrorMessage, translateMcpBackendError } from "@/utils/errorUtils";
+import {
+  extractErrorMessage,
+  translateMcpBackendError,
+} from "@/utils/errorUtils";
 
 interface McpPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onNotify?: (
-    message: string,
-    type: "success" | "error",
-    duration?: number,
-  ) => void;
   appType: AppType;
 }
 
@@ -33,7 +32,6 @@ interface McpPanelProps {
 const McpPanel: React.FC<McpPanelProps> = ({
   open,
   onOpenChange,
-  onNotify,
   appType,
 }) => {
   const { t } = useTranslation();
@@ -91,20 +89,18 @@ const McpPanel: React.FC<McpPanelProps> = ({
     try {
       // 后台调用 API
       await mcpApi.setEnabled(appType, id, enabled);
-      onNotify?.(
+      toast.success(
         enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"),
-        "success",
-        1500,
+        { duration: 1500 },
       );
     } catch (e: any) {
       // 失败时回滚
       setServers(previousServers);
       const detail = extractErrorMessage(e);
       const mapped = translateMcpBackendError(detail, t);
-      onNotify?.(
+      toast.error(
         mapped || detail || t("mcp.error.saveFailed"),
-        "error",
-        mapped || detail ? 6000 : 5000,
+        { duration: mapped || detail ? 6000 : 5000 },
       );
     }
   };
@@ -129,14 +125,13 @@ const McpPanel: React.FC<McpPanelProps> = ({
           await mcpApi.deleteServerInConfig(appType, id);
           await reload();
           setConfirmDialog(null);
-          onNotify?.(t("mcp.msg.deleted"), "success", 1500);
+          toast.success(t("mcp.msg.deleted"), { duration: 1500 });
         } catch (e: any) {
           const detail = extractErrorMessage(e);
           const mapped = translateMcpBackendError(detail, t);
-          onNotify?.(
+          toast.error(
             mapped || detail || t("mcp.error.deleteFailed"),
-            "error",
-            mapped || detail ? 6000 : 5000,
+            { duration: mapped || detail ? 6000 : 5000 },
           );
         }
       },
@@ -156,14 +151,13 @@ const McpPanel: React.FC<McpPanelProps> = ({
       await reload();
       setIsFormOpen(false);
       setEditingId(null);
-      onNotify?.(t("mcp.msg.saved"), "success", 1500);
+      toast.success(t("mcp.msg.saved"), { duration: 1500 });
     } catch (e: any) {
       const detail = extractErrorMessage(e);
       const mapped = translateMcpBackendError(detail, t);
-      onNotify?.(
+      toast.error(
         mapped || detail || t("mcp.error.saveFailed"),
-        "error",
-        mapped || detail ? 6000 : 5000,
+        { duration: mapped || detail ? 6000 : 5000 },
       );
       // 继续抛出错误，让表单层可以给到直观反馈（避免被更高层遮挡）
       throw e;
@@ -283,7 +277,6 @@ const McpPanel: React.FC<McpPanelProps> = ({
           existingIds={Object.keys(servers)}
           onSave={handleSave}
           onClose={handleCloseForm}
-          onNotify={onNotify}
         />
       )}
 

@@ -1,22 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Settings } from "lucide-react";
-import type { Provider, UsageScript } from "@/types";
-import {
-  useProvidersQuery,
-  useAddProviderMutation,
-  useUpdateProviderMutation,
-  useDeleteProviderMutation,
-  useSwitchProviderMutation,
-} from "@/lib/query";
-import {
-  providersApi,
-  settingsApi,
-  type AppType,
-  type ProviderSwitchEvent,
-} from "@/lib/api";
+import type { Provider } from "@/types";
+import { useProvidersQuery } from "@/lib/query";
+import { providersApi, settingsApi, type AppType, type ProviderSwitchEvent } from "@/lib/api";
+import { useProviderActions } from "@/hooks/useProviderActions";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -32,7 +21,6 @@ import { Button } from "@/components/ui/button";
 
 function App() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
 
   const [activeApp, setActiveApp] = useState<AppType>("claude");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -46,11 +34,16 @@ function App() {
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
 
-  const addProviderMutation = useAddProviderMutation(activeApp);
-  const updateProviderMutation = useUpdateProviderMutation(activeApp);
-  const deleteProviderMutation = useDeleteProviderMutation(activeApp);
-  const switchProviderMutation = useSwitchProviderMutation(activeApp);
+  // 🎯 使用 useProviderActions Hook 统一管理所有 Provider 操作
+  const {
+    addProvider,
+    updateProvider,
+    switchProvider,
+    deleteProvider,
+    saveUsageScript,
+  } = useProviderActions(activeApp);
 
+  // 监听来自托盘菜单的切换事件
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 
@@ -74,154 +67,42 @@ function App() {
     };
   }, [activeApp, refetch]);
 
-  const handleNotify = useCallback(
-    (message: string, type: "success" | "error", duration?: number) => {
-      const options = duration ? { duration } : undefined;
-      if (type === "error") {
-        toast.error(message, options);
-      } else {
-        toast.success(message, options);
-      }
-    },
-    [],
-  );
-
-  const handleOpenWebsite = useCallback(
-    async (url: string) => {
-      try {
-        await settingsApi.openExternal(url);
-      } catch (error) {
-        const detail =
-          extractErrorMessage(error) ||
-          t("notifications.openLinkFailed", {
-            defaultValue: "链接打开失败",
-          });
-        toast.error(detail);
-      }
-    },
-    [t],
-  );
-
-  const handleAddProvider = useCallback(
-    async (provider: Omit<Provider, "id">) => {
-      await addProviderMutation.mutateAsync(provider);
-    },
-    [addProviderMutation],
-  );
-
-  const handleEditProvider = useCallback(
-    async (provider: Provider) => {
-      try {
-        await updateProviderMutation.mutateAsync(provider);
-        await providersApi.updateTrayMenu();
-        setEditingProvider(null);
-      } catch {
-        // 错误提示由 mutation 统一处理
-      }
-    },
-    [updateProviderMutation],
-  );
-
-  const handleSyncClaudePlugin = useCallback(
-    async (provider: Provider) => {
-      if (activeApp !== "claude") return;
-
-      try {
-        const settings = await settingsApi.get();
-        if (!settings?.enableClaudePluginIntegration) {
-          return;
-        }
-
-        const isOfficial = provider.category === "official";
-        await settingsApi.applyClaudePluginConfig({ official: isOfficial });
-
-        toast.success(
-          isOfficial
-            ? t("notifications.appliedToClaudePlugin", {
-                defaultValue: "已同步为官方配置",
-              })
-            : t("notifications.removedFromClaudePlugin", {
-                defaultValue: "已移除 Claude 插件配置",
-              }),
-          { duration: 2200 },
-        );
-      } catch (error) {
-        const detail =
-          extractErrorMessage(error) ||
-          t("notifications.syncClaudePluginFailed", {
-            defaultValue: "同步 Claude 插件失败",
-          });
-        toast.error(detail, { duration: 4200 });
-      }
-    },
-    [activeApp, t],
-  );
-
-  const handleSwitchProvider = useCallback(
-    async (provider: Provider) => {
-      try {
-        await switchProviderMutation.mutateAsync(provider.id);
-        await handleSyncClaudePlugin(provider);
-      } catch {
-        // 错误提示由 mutation 与同步函数处理
-      }
-    },
-    [switchProviderMutation, handleSyncClaudePlugin],
-  );
-
-  const handleRequestDelete = useCallback((provider: Provider) => {
-    setConfirmDelete(provider);
-  }, []);
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!confirmDelete) return;
+  // 打开网站链接
+  const handleOpenWebsite = async (url: string) => {
     try {
-      await deleteProviderMutation.mutateAsync(confirmDelete.id);
-    } finally {
-      setConfirmDelete(null);
+      await settingsApi.openExternal(url);
+    } catch (error) {
+      const detail =
+        extractErrorMessage(error) ||
+        t("notifications.openLinkFailed", {
+          defaultValue: "链接打开失败",
+        });
+      toast.error(detail);
     }
-  }, [confirmDelete, deleteProviderMutation]);
+  };
 
-  const handleImportSuccess = useCallback(async () => {
+  // 编辑供应商
+  const handleEditProvider = async (provider: Provider) => {
+    await updateProvider(provider);
+    setEditingProvider(null);
+  };
+
+  // 确认删除供应商
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    await deleteProvider(confirmDelete.id);
+    setConfirmDelete(null);
+  };
+
+  // 导入配置成功后刷新
+  const handleImportSuccess = async () => {
     await refetch();
     try {
       await providersApi.updateTrayMenu();
     } catch (error) {
       console.error("[App] Failed to refresh tray menu", error);
     }
-  }, [refetch]);
-
-  const handleSaveUsageScript = useCallback(
-    async (provider: Provider, script: UsageScript) => {
-      try {
-        const updatedProvider: Provider = {
-          ...provider,
-          meta: {
-            ...provider.meta,
-            usage_script: script,
-          },
-        };
-
-        await providersApi.update(updatedProvider, activeApp);
-        await queryClient.invalidateQueries({
-          queryKey: ["providers", activeApp],
-        });
-        toast.success(
-          t("provider.usageSaved", {
-            defaultValue: "用量查询配置已保存",
-          }),
-        );
-      } catch (error) {
-        const detail =
-          extractErrorMessage(error) ||
-          t("provider.usageSaveFailed", {
-            defaultValue: "用量查询配置保存失败",
-          });
-        toast.error(detail);
-      }
-    },
-    [activeApp, queryClient, t],
-  );
+  };
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
@@ -271,9 +152,9 @@ function App() {
             currentProviderId={currentProviderId}
             appType={activeApp}
             isLoading={isLoading}
-            onSwitch={handleSwitchProvider}
+            onSwitch={switchProvider}
             onEdit={setEditingProvider}
-            onDelete={handleRequestDelete}
+            onDelete={setConfirmDelete}
             onConfigureUsage={setUsageProvider}
             onOpenWebsite={handleOpenWebsite}
             onCreate={() => setIsAddOpen(true)}
@@ -285,7 +166,7 @@ function App() {
         open={isAddOpen}
         onOpenChange={setIsAddOpen}
         appType={activeApp}
-        onSubmit={handleAddProvider}
+        onSubmit={addProvider}
       />
 
       <EditProviderDialog
@@ -307,9 +188,8 @@ function App() {
           isOpen={Boolean(usageProvider)}
           onClose={() => setUsageProvider(null)}
           onSave={(script) => {
-            void handleSaveUsageScript(usageProvider, script);
+            void saveUsageScript(usageProvider, script);
           }}
-          onNotify={handleNotify}
         />
       )}
 
@@ -338,7 +218,6 @@ function App() {
         open={isMcpOpen}
         onOpenChange={setIsMcpOpen}
         appType={activeApp}
-        onNotify={handleNotify}
       />
     </div>
   );

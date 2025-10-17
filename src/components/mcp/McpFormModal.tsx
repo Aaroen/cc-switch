@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Save,
   AlertCircle,
@@ -36,11 +37,6 @@ interface McpFormModalProps {
   ) => Promise<void>;
   onClose: () => void;
   existingIds?: string[];
-  onNotify?: (
-    message: string,
-    type: "success" | "error",
-    duration?: number,
-  ) => void;
 }
 
 /**
@@ -55,7 +51,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onSave,
   onClose,
   existingIds = [],
-  onNotify,
 }) => {
   const { t } = useTranslation();
   const { formatTomlError, validateTomlConfig, validateJsonConfig } =
@@ -278,7 +273,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const handleSubmit = async () => {
     const trimmedId = formId.trim();
     if (!trimmedId) {
-      onNotify?.(t("mcp.error.idRequired"), "error", 3000);
+      toast.error(t("mcp.error.idRequired"), { duration: 3000 });
       return;
     }
 
@@ -296,7 +291,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       const tomlError = validateTomlConfig(formConfig);
       setConfigError(tomlError);
       if (tomlError) {
-        onNotify?.(t("mcp.error.tomlInvalid"), "error", 3000);
+        toast.error(t("mcp.error.tomlInvalid"), { duration: 3000 });
         return;
       }
 
@@ -313,7 +308,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         } catch (e: any) {
           const msg = e?.message || String(e);
           setConfigError(formatTomlError(msg));
-          onNotify?.(t("mcp.error.tomlInvalid"), "error", 4000);
+          toast.error(t("mcp.error.tomlInvalid"), { duration: 4000 });
           return;
         }
       }
@@ -322,7 +317,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       const jsonError = validateJsonConfig(formConfig);
       setConfigError(jsonError);
       if (jsonError) {
-        onNotify?.(t("mcp.error.jsonInvalid"), "error", 3000);
+        toast.error(t("mcp.error.jsonInvalid"), { duration: 3000 });
         return;
       }
 
@@ -338,7 +333,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
           serverSpec = JSON.parse(formConfig) as McpServerSpec;
         } catch (e: any) {
           setConfigError(t("mcp.error.jsonInvalid"));
-          onNotify?.(t("mcp.error.jsonInvalid"), "error", 4000);
+          toast.error(t("mcp.error.jsonInvalid"), { duration: 4000 });
           return;
         }
       }
@@ -346,11 +341,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
     // 前置必填校验
     if (serverSpec?.type === "stdio" && !serverSpec?.command?.trim()) {
-      onNotify?.(t("mcp.error.commandRequired"), "error", 3000);
+      toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
       return;
     }
     if (serverSpec?.type === "http" && !serverSpec?.url?.trim()) {
-      onNotify?.(t("mcp.wizard.urlRequired"), "error", 3000);
+      toast.error(t("mcp.wizard.urlRequired"), { duration: 3000 });
       return;
     }
 
@@ -408,7 +403,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       const detail = extractErrorMessage(error);
       const mapped = translateMcpBackendError(detail, t);
       const msg = mapped || detail || t("mcp.error.saveFailed");
-      onNotify?.(msg, "error", mapped || detail ? 6000 : 4000);
+      toast.error(msg, { duration: mapped || detail ? 6000 : 4000 });
     } finally {
       setSaving(false);
     }
@@ -678,7 +673,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
         onApply={handleWizardApply}
-        onNotify={onNotify}
         initialTitle={formId}
         initialServer={wizardInitialSpec}
       />
