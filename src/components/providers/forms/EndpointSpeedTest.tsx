@@ -4,6 +4,8 @@ import { Zap, Loader2, Plus, X, AlertCircle, Save } from "lucide-react";
 import { isLinux } from "@/lib/platform";
 import type { AppType } from "@/lib/api";
 import { vscodeApi } from "@/lib/api/vscode";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 
 // 临时类型定义，待后端 API 实现后替换
@@ -457,14 +459,15 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
             {t("endpointTest.title")}
           </h3>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+            variant="ghost"
+            size="icon"
             aria-label={t("common.close")}
           >
             <X size={16} />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -484,11 +487,12 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                 />
                 {t("endpointTest.autoSelect")}
               </label>
-              <button
+              <Button
                 type="button"
                 onClick={runSpeedTest}
                 disabled={isTesting || !hasEndpoints}
-                className="flex h-7 w-20 items-center justify-center gap-1.5 rounded-md bg-blue-500 px-2.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-blue-600 dark:hover:bg-blue-700"
+                size="sm"
+                className="h-7 w-20 gap-1.5 text-xs"
               >
                 {isTesting ? (
                   <>
@@ -501,14 +505,14 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                     {t("endpointTest.testSpeed")}
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* 添加输入 */}
           <div className="space-y-1.5">
             <div className="flex gap-2">
-              <input
+              <Input
                 type="url"
                 value={customUrl}
                 placeholder={t("endpointTest.addEndpointPlaceholder")}
@@ -519,15 +523,16 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                     handleAddEndpoint();
                   }
                 }}
-                className="flex-1 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 transition focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-gray-600"
+                className="flex-1"
               />
-              <button
+              <Button
                 type="button"
                 onClick={handleAddEndpoint}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+                variant="outline"
+                size="icon"
               >
-                <Plus className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              </button>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
             {addError && (
               <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
@@ -632,14 +637,10 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-2"
-          >
+          <Button type="button" onClick={onClose} className="gap-2">
             <Save className="w-4 h-4" />
             {t("common.save")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
