@@ -171,21 +171,21 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="max-w-3xl gap-6">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("settings.title")}</DialogTitle>
         </DialogHeader>
 
         {isBusy ? (
-          <div className="flex min-h-[320px] items-center justify-center">
+          <div className="flex min-h-[320px] items-center justify-center px-6">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex max-h-[70vh] flex-col gap-6 overflow-hidden">
+          <div className="flex-1 overflow-y-scroll px-6 min-h-[480px]">
             <Tabs
               value={activeTab}
               onValueChange={setActiveTab}
-              className="flex flex-1 flex-col"
+              className="flex flex-col h-full"
             >
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="general">
@@ -197,65 +197,63 @@ export function SettingsDialog({
                 <TabsTrigger value="about">{t("common.about")}</TabsTrigger>
               </TabsList>
 
-              <div className="flex-1 overflow-y-auto pr-1">
-                <TabsContent value="general" className="space-y-6 pt-4">
-                  {settings ? (
-                    <>
-                      <LanguageSettings
-                        value={settings.language}
-                        onChange={(lang) => updateSettings({ language: lang })}
-                      />
-                      <WindowSettings
-                        settings={settings}
-                        onChange={updateSettings}
-                      />
-                      <ConfigPathDisplay
-                        path={configPath}
-                        onOpen={openConfigFolder}
-                      />
-                    </>
-                  ) : null}
-                </TabsContent>
+              <TabsContent value="general" className="space-y-6 mt-6 min-h-[400px]">
+                {settings ? (
+                  <>
+                    <LanguageSettings
+                      value={settings.language}
+                      onChange={(lang) => updateSettings({ language: lang })}
+                    />
+                    <WindowSettings
+                      settings={settings}
+                      onChange={updateSettings}
+                    />
+                    <ConfigPathDisplay
+                      path={configPath}
+                      onOpen={openConfigFolder}
+                    />
+                  </>
+                ) : null}
+              </TabsContent>
 
-                <TabsContent value="advanced" className="space-y-6 pt-4">
-                  {settings ? (
-                    <>
-                      <DirectorySettings
-                        appConfigDir={appConfigDir}
-                        resolvedDirs={resolvedDirs}
-                        onAppConfigChange={updateAppConfigDir}
-                        onBrowseAppConfig={browseAppConfigDir}
-                        onResetAppConfig={resetAppConfigDir}
-                        claudeDir={settings.claudeConfigDir}
-                        codexDir={settings.codexConfigDir}
-                        onDirectoryChange={updateDirectory}
-                        onBrowseDirectory={browseDirectory}
-                        onResetDirectory={resetDirectory}
-                      />
-                      <ImportExportSection
-                        status={importStatus}
-                        selectedFile={selectedFile}
-                        errorMessage={errorMessage}
-                        backupId={backupId}
-                        isImporting={isImporting}
-                        onSelectFile={selectImportFile}
-                        onImport={importConfig}
-                        onExport={exportConfig}
-                        onClear={clearSelection}
-                      />
-                    </>
-                  ) : null}
-                </TabsContent>
+              <TabsContent value="advanced" className="space-y-6 mt-6 min-h-[400px]">
+                {settings ? (
+                  <>
+                    <DirectorySettings
+                      appConfigDir={appConfigDir}
+                      resolvedDirs={resolvedDirs}
+                      onAppConfigChange={updateAppConfigDir}
+                      onBrowseAppConfig={browseAppConfigDir}
+                      onResetAppConfig={resetAppConfigDir}
+                      claudeDir={settings.claudeConfigDir}
+                      codexDir={settings.codexConfigDir}
+                      onDirectoryChange={updateDirectory}
+                      onBrowseDirectory={browseDirectory}
+                      onResetDirectory={resetDirectory}
+                    />
+                    <ImportExportSection
+                      status={importStatus}
+                      selectedFile={selectedFile}
+                      errorMessage={errorMessage}
+                      backupId={backupId}
+                      isImporting={isImporting}
+                      onSelectFile={selectImportFile}
+                      onImport={importConfig}
+                      onExport={exportConfig}
+                      onClear={clearSelection}
+                    />
+                  </>
+                ) : null}
+              </TabsContent>
 
-                <TabsContent value="about" className="pt-4">
-                  <AboutSection isPortable={isPortable} />
-                </TabsContent>
-              </div>
+              <TabsContent value="about" className="mt-6 min-h-[400px]">
+                <AboutSection isPortable={isPortable} />
+              </TabsContent>
             </Tabs>
           </div>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
             {t("common.cancel")}
           </Button>
@@ -280,12 +278,14 @@ export function SettingsDialog({
           <DialogHeader>
             <DialogTitle>{t("settings.restartRequired")}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {t("settings.restartRequiredMessage", {
-              defaultValue: "配置目录已变更，需要重启应用生效。",
-            })}
-          </p>
-          <DialogFooter className="gap-2">
+          <div className="px-6">
+            <p className="text-sm text-muted-foreground">
+              {t("settings.restartRequiredMessage", {
+                defaultValue: "配置目录已变更，需要重启应用生效。",
+              })}
+            </p>
+          </div>
+          <DialogFooter>
             <Button variant="outline" onClick={handleRestartLater}>
               {t("settings.restartLater")}
             </Button>
