@@ -29,11 +29,11 @@ import {
   translateMcpBackendError,
 } from "../../utils/errorUtils";
 import {
-  validateToml,
   tomlToMcpServer,
   extractIdFromToml,
   mcpServerToToml,
 } from "../../utils/tomlUtils";
+import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
   appType: AppType;
@@ -68,29 +68,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onNotify,
 }) => {
   const { t } = useTranslation();
+  const { formatTomlError, validateTomlConfig, validateJsonConfig } =
+    useMcpValidation();
 
-  // JSON 基本校验（返回 i18n 文案）
-  const validateJson = (text: string): string => {
-    if (!text.trim()) return "";
-    try {
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return t("mcp.error.jsonInvalid");
-      }
-      return "";
-    } catch {
-      return t("mcp.error.jsonInvalid");
-    }
-  };
-
-  // 统一格式化 TOML 错误（本地化 + 详情）
-  const formatTomlError = (err: string): string => {
-    if (!err) return "";
-    if (err === "mustBeObject" || err === "parseError") {
-      return t("mcp.error.tomlInvalid");
-    }
-    return `${t("mcp.error.tomlInvalid")}: ${err}`;
-  };
   const [formId, setFormId] = useState(
     () => editingId || initialData?.id || "",
   );
@@ -231,14 +211,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     if (useToml) {
       const toml = mcpServerToToml(presetWithDesc.server);
       setFormConfig(toml);
-      {
-        const err = validateToml(toml);
-        setConfigError(formatTomlError(err));
-      }
+      setConfigError(validateTomlConfig(toml));
     } else {
       const json = JSON.stringify(presetWithDesc.server, null, 2);
       setFormConfig(json);
-      setConfigError(validateJson(json));
+      setConfigError(validateJsonConfig(json));
     }
     setSelectedPreset(index);
   };
@@ -261,70 +238,26 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     setFormConfig(value);
 
     if (useToml) {
-      // TOML 校验
-      const err = validateToml(value);
+      // TOML validation (use hook's complete validation)
+      const err = validateTomlConfig(value);
       if (err) {
-        setConfigError(formatTomlError(err));
+        setConfigError(err);
         return;
       }
 
-      // 尝试解析并做必填字段提示
-      if (value.trim()) {
-        try {
-          const server = tomlToMcpServer(value);
-          if (server.type === "stdio" && !server.command?.trim()) {
-            setConfigError(t("mcp.error.commandRequired"));
-            return;
-          }
-          if (server.type === "http" && !server.url?.trim()) {
-            setConfigError(t("mcp.wizard.urlRequired"));
-            return;
-          }
-
-          // 尝试提取 ID（如果用户还没有填写）
-          if (!formId.trim()) {
-            const extractedId = extractIdFromToml(value);
-            if (extractedId) {
-              setFormId(extractedId);
-            }
-          }
-        } catch (e: any) {
-          const msg = e?.message || String(e);
-          setConfigError(formatTomlError(msg));
-          return;
+      // Try to extract ID (if user hasn't filled it yet)
+      if (value.trim() && !formId.trim()) {
+        const extractedId = extractIdFromToml(value);
+        if (extractedId) {
+          setFormId(extractedId);
         }
       }
     } else {
-      // JSON 校验
-      const baseErr = validateJson(value);
-      if (baseErr) {
-        setConfigError(baseErr);
+      // JSON validation (use hook's complete validation)
+      const err = validateJsonConfig(value);
+      if (err) {
+        setConfigError(err);
         return;
-      }
-
-      // 进一步结构校验
-      if (value.trim()) {
-        try {
-          const obj = JSON.parse(value);
-          if (obj && typeof obj === "object") {
-            if (Object.prototype.hasOwnProperty.call(obj, "mcpServers")) {
-              setConfigError(t("mcp.error.singleServerObjectRequired"));
-              return;
-            }
-
-            const typ = (obj as any)?.type;
-            if (typ === "stdio" && !(obj as any)?.command?.trim()) {
-              setConfigError(t("mcp.error.commandRequired"));
-              return;
-            }
-            if (typ === "http" && !(obj as any)?.url?.trim()) {
-              setConfigError(t("mcp.wizard.urlRequired"));
-              return;
-            }
-          }
-        } catch {
-          // 解析异常已在基础校验覆盖
-        }
       }
     }
 
@@ -336,20 +269,19 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     if (!formName.trim()) {
       setFormName(title);
     }
-    // Wizard 返回的是 JSON，根据格式决定是否需要转换
+    // Wizard returns JSON, convert based on format if needed
     if (useToml) {
       try {
         const server = JSON.parse(json) as McpServerSpec;
         const toml = mcpServerToToml(server);
         setFormConfig(toml);
-        const err = validateToml(toml);
-        setConfigError(formatTomlError(err));
+        setConfigError(validateTomlConfig(toml));
       } catch (e: any) {
         setConfigError(t("mcp.error.jsonInvalid"));
       }
     } else {
       setFormConfig(json);
-      setConfigError(validateJson(json));
+      setConfigError(validateJsonConfig(json));
     }
   };
 
@@ -366,20 +298,20 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       return;
     }
 
-    // 验证配置格式
+    // Validate configuration format
     let serverSpec: McpServerSpec;
 
     if (useToml) {
-      // TOML 模式
-      const tomlError = validateToml(formConfig);
-      setConfigError(formatTomlError(tomlError));
+      // TOML mode
+      const tomlError = validateTomlConfig(formConfig);
+      setConfigError(tomlError);
       if (tomlError) {
         onNotify?.(t("mcp.error.tomlInvalid"), "error", 3000);
         return;
       }
 
       if (!formConfig.trim()) {
-        // 空配置
+        // Empty configuration
         serverSpec = {
           type: "stdio",
           command: "",
@@ -396,8 +328,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         }
       }
     } else {
-      // JSON 模式
-      const jsonError = validateJson(formConfig);
+      // JSON mode
+      const jsonError = validateJsonConfig(formConfig);
       setConfigError(jsonError);
       if (jsonError) {
         onNotify?.(t("mcp.error.jsonInvalid"), "error", 3000);
@@ -405,7 +337,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
 
       if (!formConfig.trim()) {
-        // 空配置
+        // Empty configuration
         serverSpec = {
           type: "stdio",
           command: "",
