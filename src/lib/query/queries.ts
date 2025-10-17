@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult, keepPreviousData } from "@tanstack/react-query";
 import { providersApi, settingsApi, usageApi, type AppType } from "@/lib/api";
 import type { Provider, Settings, UsageResult } from "@/types";
 
@@ -35,6 +35,7 @@ export const useProvidersQuery = (
 ): UseQueryResult<ProvidersQueryData> => {
   return useQuery({
     queryKey: ["providers", appType],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let providers: Record<string, Provider> = {};
       let currentProviderId = "";

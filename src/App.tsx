@@ -145,7 +145,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-scroll">
         <div className="mx-auto max-w-4xl px-6 py-6">
           <ProviderList
             providers={providers}
