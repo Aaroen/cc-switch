@@ -609,7 +609,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           )}
         </div>
 
-        <DialogFooter className="px-6 pb-6 pt-4 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 m-0">
+        <DialogFooter>
           <Button type="button" onClick={onClose} className="gap-2">
             <Save className="w-4 h-4" />
             {t("common.save")}

@@ -70,7 +70,7 @@ export const CodexCommonConfigModal: React.FC<CodexCommonConfigModalProps> = ({
           )}
         </div>
 
-        <DialogFooter className="px-6 pb-6 pt-4 border-t border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 m-0">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             {t("common.cancel")}
           </Button>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -130,7 +131,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
           </DialogHeader>
 
           {/* Info Section */}
-          <div className="flex-shrink-0 -mt-2">
+          <div className="flex-shrink-0 px-6">
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {t("mcp.serverCount", { count: Object.keys(servers).length })} ·{" "}
               {t("mcp.enabledCount", { count: enabledCount })}
@@ -186,8 +187,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex-shrink-0 flex items-center justify-end pt-4 border-t border-gray-200 dark:border-gray-800">
+          <DialogFooter>
             <Button
               type="button"
               variant="mcp"
@@ -197,7 +197,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
               <Check size={16} />
               {t("common.done")}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

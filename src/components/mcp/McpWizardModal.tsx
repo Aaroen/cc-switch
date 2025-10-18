@@ -228,7 +228,7 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Hint */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="text-sm text-blue-800 dark:text-blue-200">
