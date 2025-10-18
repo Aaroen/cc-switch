@@ -185,6 +185,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               size="sm"
               onClick={handleCheckUpdate}
               disabled={isChecking || isDownloading}
+              className="min-w-[140px]"
             >
               {isDownloading ? (
                 <span className="inline-flex items-center gap-2">
