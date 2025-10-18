@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Save } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,7 @@ export function EditProviderDialog({
             {t("common.cancel", { defaultValue: "取消" })}
           </Button>
           <Button type="submit" form="provider-form">
+            <Save className="h-4 w-4" />
             {t("common.save", { defaultValue: "保存" })}
           </Button>
         </DialogFooter>

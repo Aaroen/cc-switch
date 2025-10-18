@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -164,6 +165,7 @@ export function AddProviderDialog({
             {t("common.cancel", { defaultValue: "取消" })}
           </Button>
           <Button type="submit" form="provider-form">
+            <Plus className="h-4 w-4" />
             {t("common.add", { defaultValue: "添加" })}
           </Button>
         </DialogFooter>
