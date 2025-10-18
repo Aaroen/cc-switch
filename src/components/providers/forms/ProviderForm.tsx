@@ -53,6 +53,7 @@ interface ProviderFormProps {
     websiteUrl?: string;
     settingsConfig?: Record<string, unknown>;
   };
+  showButtons?: boolean;
 }
 
 export function ProviderForm({
@@ -61,6 +62,7 @@ export function ProviderForm({
   onSubmit,
   onCancel,
   initialData,
+  showButtons = true,
 }: ProviderFormProps) {
   const { t } = useTranslation();
   const isEditMode = Boolean(initialData);
@@ -445,7 +447,7 @@ export function ProviderForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <form id="provider-form" onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         {/* 预设供应商选择（仅新增模式显示） */}
         {!initialData && (
           <ProviderPresetSelector
@@ -549,12 +551,14 @@ export function ProviderForm({
           />
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" type="button" onClick={onCancel}>
-            {t("common.cancel", { defaultValue: "取消" })}
-          </Button>
-          <Button type="submit">{submitLabel}</Button>
-        </div>
+        {showButtons && (
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" type="button" onClick={onCancel}>
+              {t("common.cancel", { defaultValue: "取消" })}
+            </Button>
+            <Button type="submit">{submitLabel}</Button>
+          </div>
+        )}
       </form>
     </Form>
   );

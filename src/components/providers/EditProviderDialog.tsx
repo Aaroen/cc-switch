@@ -4,9 +4,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { Provider } from "@/types";
 import {
   ProviderForm,
@@ -83,8 +85,18 @@ export function EditProviderDialog({
               websiteUrl: provider.websiteUrl,
               settingsConfig: provider.settingsConfig,
             }}
+            showButtons={false}
           />
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.cancel", { defaultValue: "取消" })}
+          </Button>
+          <Button type="submit" form="provider-form">
+            {t("common.save", { defaultValue: "保存" })}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

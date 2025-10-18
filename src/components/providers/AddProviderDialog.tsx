@@ -4,9 +4,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { Provider, CustomEndpoint } from "@/types";
 import type { AppType } from "@/lib/api";
 import {
@@ -153,8 +155,18 @@ export function AddProviderDialog({
             submitLabel={t("common.add", { defaultValue: "添加" })}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}
+            showButtons={false}
           />
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.cancel", { defaultValue: "取消" })}
+          </Button>
+          <Button type="submit" form="provider-form">
+            {t("common.add", { defaultValue: "添加" })}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
