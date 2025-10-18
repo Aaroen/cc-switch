@@ -41,7 +41,7 @@ interface ClaudeFormFieldsProps {
   claudeSmallFastModel: string;
   onModelChange: (
     field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
-    value: string
+    value: string,
   ) => void;
 
   // Kimi Model Selector
@@ -49,7 +49,7 @@ interface ClaudeFormFieldsProps {
   kimiAnthropicSmallFastModel: string;
   onKimiModelChange: (
     field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
-    value: string
+    value: string,
   ) => void;
 
   // Speed Test Endpoints

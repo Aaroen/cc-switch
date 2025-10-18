@@ -22,8 +22,15 @@ import { mcpApi, type AppType } from "@/lib/api";
 import { McpServer, McpServerSpec } from "@/types";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import McpWizardModal from "./McpWizardModal";
-import { extractErrorMessage, translateMcpBackendError } from "@/utils/errorUtils";
-import { tomlToMcpServer, extractIdFromToml, mcpServerToToml } from "@/utils/tomlUtils";
+import {
+  extractErrorMessage,
+  translateMcpBackendError,
+} from "@/utils/errorUtils";
+import {
+  tomlToMcpServer,
+  extractIdFromToml,
+  mcpServerToToml,
+} from "@/utils/tomlUtils";
 import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
@@ -426,7 +433,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
           </DialogHeader>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             {/* 预设选择（仅新增时展示） */}
             {!isEditing && (
               <div>

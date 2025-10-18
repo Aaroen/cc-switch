@@ -66,10 +66,9 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
 
       try {
         await mcpApi.setEnabled(appType, id, enabled);
-        toast.success(
-          enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"),
-          { duration: 1500 },
-        );
+        toast.success(enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"), {
+          duration: 1500,
+        });
       } catch (error) {
         // Rollback on failure
         setServers(previousServers);

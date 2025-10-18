@@ -21,7 +21,8 @@ export function useKimiModelSelector({
   presetName = "",
 }: UseKimiModelSelectorProps) {
   const [kimiAnthropicModel, setKimiAnthropicModel] = useState("");
-  const [kimiAnthropicSmallFastModel, setKimiAnthropicSmallFastModel] = useState("");
+  const [kimiAnthropicSmallFastModel, setKimiAnthropicSmallFastModel] =
+    useState("");
 
   // 判断是否显示 Kimi 模型选择器
   const shouldShowKimiSelector =
@@ -32,23 +33,30 @@ export function useKimiModelSelector({
   // 判断是否正在编辑 Kimi 供应商
   const isEditingKimi = Boolean(
     initialData &&
-    (settingsConfig.includes("api.moonshot.cn") &&
-      settingsConfig.includes("ANTHROPIC_MODEL"))
+      settingsConfig.includes("api.moonshot.cn") &&
+      settingsConfig.includes("ANTHROPIC_MODEL"),
   );
 
   const shouldShow = shouldShowKimiSelector || isEditingKimi;
 
   // 初始化 Kimi 模型选择（编辑模式）
   useEffect(() => {
-    if (initialData?.settingsConfig && typeof initialData.settingsConfig === "object") {
-      const config = initialData.settingsConfig as { env?: Record<string, unknown> };
+    if (
+      initialData?.settingsConfig &&
+      typeof initialData.settingsConfig === "object"
+    ) {
+      const config = initialData.settingsConfig as {
+        env?: Record<string, unknown>;
+      };
       if (config.env) {
-        const model = typeof config.env.ANTHROPIC_MODEL === "string"
-          ? config.env.ANTHROPIC_MODEL
-          : "";
-        const smallFastModel = typeof config.env.ANTHROPIC_SMALL_FAST_MODEL === "string"
-          ? config.env.ANTHROPIC_SMALL_FAST_MODEL
-          : "";
+        const model =
+          typeof config.env.ANTHROPIC_MODEL === "string"
+            ? config.env.ANTHROPIC_MODEL
+            : "";
+        const smallFastModel =
+          typeof config.env.ANTHROPIC_SMALL_FAST_MODEL === "string"
+            ? config.env.ANTHROPIC_SMALL_FAST_MODEL
+            : "";
         setKimiAnthropicModel(model);
         setKimiAnthropicSmallFastModel(smallFastModel);
       }
@@ -57,7 +65,10 @@ export function useKimiModelSelector({
 
   // 处理 Kimi 模型变化
   const handleKimiModelChange = useCallback(
-    (field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL", value: string) => {
+    (
+      field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
+      value: string,
+    ) => {
       if (field === "ANTHROPIC_MODEL") {
         setKimiAnthropicModel(value);
       } else {

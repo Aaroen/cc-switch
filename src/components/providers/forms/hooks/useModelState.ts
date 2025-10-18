@@ -17,7 +17,10 @@ export function useModelState({
   const [claudeSmallFastModel, setClaudeSmallFastModel] = useState("");
 
   const handleModelChange = useCallback(
-    (field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL", value: string) => {
+    (
+      field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
+      value: string,
+    ) => {
       if (field === "ANTHROPIC_MODEL") {
         setClaudeModel(value);
       } else {

@@ -4,10 +4,7 @@ import { toast } from "sonner";
 import { settingsApi, type AppType } from "@/lib/api";
 import { useSettingsQuery, useSaveSettingsMutation } from "@/lib/query";
 import type { Settings } from "@/types";
-import {
-  useSettingsForm,
-  type SettingsFormState,
-} from "./useSettingsForm";
+import { useSettingsForm, type SettingsFormState } from "./useSettingsForm";
 import {
   useDirectorySettings,
   type ResolvedDirectories,

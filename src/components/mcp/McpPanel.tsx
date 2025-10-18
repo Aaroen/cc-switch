@@ -25,11 +25,7 @@ interface McpPanelProps {
  * MCP 管理面板
  * 采用与主界面一致的设计风格，右上角添加按钮，每个 MCP 占一行
  */
-const McpPanel: React.FC<McpPanelProps> = ({
-  open,
-  onOpenChange,
-  appType,
-}) => {
+const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -142,7 +138,7 @@ const McpPanel: React.FC<McpPanelProps> = ({
           </div>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             {loading ? (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 {t("mcp.loading")}

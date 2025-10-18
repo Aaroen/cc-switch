@@ -15,11 +15,11 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   appType,
   usageEnabled,
 }) => {
-  const { data: usage, isLoading: loading, refetch } = useUsageQuery(
-    providerId,
-    appType,
-    usageEnabled,
-  );
+  const {
+    data: usage,
+    isLoading: loading,
+    refetch,
+  } = useUsageQuery(providerId, appType, usageEnabled);
 
   // 只在启用用量查询且有数据时显示
   if (!usageEnabled || !usage) return null;

@@ -66,7 +66,7 @@ export function ProviderForm({
   const isEditMode = Boolean(initialData);
 
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
-    initialData ? null : "custom"
+    initialData ? null : "custom",
   );
   const [activePreset, setActivePreset] = useState<{
     id: string;
@@ -76,7 +76,7 @@ export function ProviderForm({
 
   // 新建供应商：收集端点测速弹窗中的"自定义端点"，提交时一次性落盘到 meta.custom_endpoints
   const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>(
-    []
+    [],
   );
 
   // 使用 category hook
@@ -101,7 +101,7 @@ export function ProviderForm({
           ? CODEX_DEFAULT_CONFIG
           : CLAUDE_DEFAULT_CONFIG,
     }),
-    [initialData, appType]
+    [initialData, appType],
   );
 
   const form = useForm<ProviderFormData>({
@@ -155,13 +155,17 @@ export function ProviderForm({
   } = useCodexConfigState({ initialData });
 
   // 使用 Codex TOML 校验 hook (仅 Codex 模式)
-  const { configError: codexConfigError, debouncedValidate } = useCodexTomlValidation();
+  const { configError: codexConfigError, debouncedValidate } =
+    useCodexTomlValidation();
 
   // 包装 handleCodexConfigChange，添加实时校验
-  const handleCodexConfigChange = useCallback((value: string) => {
-    originalHandleCodexConfigChange(value);
-    debouncedValidate(value);
-  }, [originalHandleCodexConfigChange, debouncedValidate]);
+  const handleCodexConfigChange = useCallback(
+    (value: string) => {
+      originalHandleCodexConfigChange(value);
+      debouncedValidate(value);
+    },
+    [originalHandleCodexConfigChange, debouncedValidate],
+  );
 
   const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
     useState(false);
@@ -187,7 +191,7 @@ export function ProviderForm({
         defaultValue: "第三方",
       }),
     }),
-    [t]
+    [t],
   );
 
   const presetEntries = useMemo(() => {
@@ -334,7 +338,7 @@ export function ProviderForm({
 
   const categoryKeys = useMemo(() => {
     return Object.keys(groupedPresets).filter(
-      (key) => key !== "custom" && groupedPresets[key]?.length
+      (key) => key !== "custom" && groupedPresets[key]?.length,
     );
   }, [groupedPresets]);
 
@@ -429,7 +433,7 @@ export function ProviderForm({
     const preset = entry.preset as ProviderPreset;
     const config = applyTemplateValues(
       preset.settingsConfig,
-      preset.templateValues
+      preset.templateValues,
     );
 
     form.reset({
@@ -461,7 +465,7 @@ export function ProviderForm({
           <ClaudeFormFields
             shouldShowApiKey={shouldShowApiKey(
               form.watch("settingsConfig"),
-              isEditMode
+              isEditMode,
             )}
             apiKey={apiKey}
             onApiKeyChange={handleApiKeyChange}
@@ -479,7 +483,9 @@ export function ProviderForm({
             onEndpointModalToggle={setIsEndpointModalOpen}
             onCustomEndpointsChange={setDraftCustomEndpoints}
             shouldShowKimiSelector={shouldShowKimiSelector}
-            shouldShowModelSelector={category !== "official" && !shouldShowKimiSelector}
+            shouldShowModelSelector={
+              category !== "official" && !shouldShowKimiSelector
+            }
             claudeModel={claudeModel}
             claudeSmallFastModel={claudeSmallFastModel}
             onModelChange={handleModelChange}

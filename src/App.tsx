@@ -4,7 +4,12 @@ import { toast } from "sonner";
 import { Plus, Settings } from "lucide-react";
 import type { Provider } from "@/types";
 import { useProvidersQuery } from "@/lib/query";
-import { providersApi, settingsApi, type AppType, type ProviderSwitchEvent } from "@/lib/api";
+import {
+  providersApi,
+  settingsApi,
+  type AppType,
+  type ProviderSwitchEvent,
+} from "@/lib/api";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { AppSwitcher } from "@/components/AppSwitcher";

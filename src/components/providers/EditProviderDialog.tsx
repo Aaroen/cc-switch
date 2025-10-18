@@ -72,7 +72,7 @@ export function EditProviderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
             appType={appType}
             submitLabel={t("common.save", { defaultValue: "保存" })}

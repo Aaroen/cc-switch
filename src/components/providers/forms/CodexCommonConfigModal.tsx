@@ -33,7 +33,10 @@ export const CodexCommonConfigModal: React.FC<CodexCommonConfigModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent zIndex="nested" className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent
+        zIndex="nested"
+        className="max-w-2xl max-h-[90vh] flex flex-col p-0"
+      >
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle>{t("codexConfig.editCommonConfigTitle")}</DialogTitle>
         </DialogHeader>

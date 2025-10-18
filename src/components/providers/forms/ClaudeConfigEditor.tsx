@@ -122,8 +122,14 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
         {t("claudeConfig.fullSettingsHint")}
       </p>
 
-      <Dialog open={isCommonConfigModalOpen} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent zIndex="nested" className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+      <Dialog
+        open={isCommonConfigModalOpen}
+        onOpenChange={(open) => !open && closeModal()}
+      >
+        <DialogContent
+          zIndex="nested"
+          className="max-w-2xl max-h-[90vh] flex flex-col p-0"
+        >
           <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>{t("claudeConfig.editCommonConfigTitle")}</DialogTitle>
           </DialogHeader>

@@ -52,7 +52,12 @@ interface ThemeButtonProps {
   children: React.ReactNode;
 }
 
-function ThemeButton({ active, onClick, icon: Icon, children }: ThemeButtonProps) {
+function ThemeButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: ThemeButtonProps) {
   return (
     <Button
       type="button"

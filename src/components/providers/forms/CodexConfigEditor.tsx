@@ -60,9 +60,12 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
   // Use internal state or external state
-  const [internalTemplateModalOpen, setInternalTemplateModalOpen] = useState(false);
-  const isTemplateModalOpen = externalTemplateModalOpen ?? internalTemplateModalOpen;
-  const setIsTemplateModalOpen = externalSetTemplateModalOpen ?? setInternalTemplateModalOpen;
+  const [internalTemplateModalOpen, setInternalTemplateModalOpen] =
+    useState(false);
+  const isTemplateModalOpen =
+    externalTemplateModalOpen ?? internalTemplateModalOpen;
+  const setIsTemplateModalOpen =
+    externalSetTemplateModalOpen ?? setInternalTemplateModalOpen;
 
   // Auto-open common config modal if there's an error
   useEffect(() => {
@@ -74,7 +77,7 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
   const handleQuickWizardApply = (
     auth: string,
     config: string,
-    extras: { websiteUrl?: string; displayName?: string }
+    extras: { websiteUrl?: string; displayName?: string },
   ) => {
     onAuthChange(auth);
     onConfigChange(config);

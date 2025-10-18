@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { extractCodexBaseUrl, setCodexBaseUrl as setCodexBaseUrlInConfig } from "@/utils/providerConfigUtils";
+import {
+  extractCodexBaseUrl,
+  setCodexBaseUrl as setCodexBaseUrlInConfig,
+} from "@/utils/providerConfigUtils";
 
 interface UseCodexConfigStateProps {
   initialData?: {
@@ -31,7 +34,10 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
       setCodexAuthState(JSON.stringify(auth, null, 2));
 
       // 设置 config.toml
-      const configStr = typeof (config as any).config === "string" ? (config as any).config : "";
+      const configStr =
+        typeof (config as any).config === "string"
+          ? (config as any).config
+          : "";
       setCodexConfigState(configStr);
 
       // 提取 Base URL
@@ -77,82 +83,100 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
   }, []);
 
   // 设置 auth 并验证
-  const setCodexAuth = useCallback((value: string) => {
-    setCodexAuthState(value);
-    setCodexAuthError(validateCodexAuth(value));
-  }, [validateCodexAuth]);
+  const setCodexAuth = useCallback(
+    (value: string) => {
+      setCodexAuthState(value);
+      setCodexAuthError(validateCodexAuth(value));
+    },
+    [validateCodexAuth],
+  );
 
   // 设置 config (支持函数更新)
-  const setCodexConfig = useCallback((value: string | ((prev: string) => string)) => {
-    setCodexConfigState((prev) =>
-      typeof value === "function"
-        ? (value as (input: string) => string)(prev)
-        : value,
-    );
-  }, []);
+  const setCodexConfig = useCallback(
+    (value: string | ((prev: string) => string)) => {
+      setCodexConfigState((prev) =>
+        typeof value === "function"
+          ? (value as (input: string) => string)(prev)
+          : value,
+      );
+    },
+    [],
+  );
 
   // 处理 Codex API Key 输入并写回 auth.json
-  const handleCodexApiKeyChange = useCallback((key: string) => {
-    setCodexApiKey(key);
-    try {
-      const auth = JSON.parse(codexAuth || "{}");
-      auth.OPENAI_API_KEY = key.trim();
-      setCodexAuth(JSON.stringify(auth, null, 2));
-    } catch {
-      // ignore
-    }
-  }, [codexAuth, setCodexAuth]);
+  const handleCodexApiKeyChange = useCallback(
+    (key: string) => {
+      setCodexApiKey(key);
+      try {
+        const auth = JSON.parse(codexAuth || "{}");
+        auth.OPENAI_API_KEY = key.trim();
+        setCodexAuth(JSON.stringify(auth, null, 2));
+      } catch {
+        // ignore
+      }
+    },
+    [codexAuth, setCodexAuth],
+  );
 
   // 处理 Codex Base URL 变化
-  const handleCodexBaseUrlChange = useCallback((url: string) => {
-    const sanitized = url.trim().replace(/\/+$/, "");
-    setCodexBaseUrl(sanitized);
+  const handleCodexBaseUrlChange = useCallback(
+    (url: string) => {
+      const sanitized = url.trim().replace(/\/+$/, "");
+      setCodexBaseUrl(sanitized);
 
-    if (!sanitized) {
-      return;
-    }
+      if (!sanitized) {
+        return;
+      }
 
-    isUpdatingCodexBaseUrlRef.current = true;
-    setCodexConfig((prev) => setCodexBaseUrlInConfig(prev, sanitized));
-    setTimeout(() => {
-      isUpdatingCodexBaseUrlRef.current = false;
-    }, 0);
-  }, [setCodexConfig]);
+      isUpdatingCodexBaseUrlRef.current = true;
+      setCodexConfig((prev) => setCodexBaseUrlInConfig(prev, sanitized));
+      setTimeout(() => {
+        isUpdatingCodexBaseUrlRef.current = false;
+      }, 0);
+    },
+    [setCodexConfig],
+  );
 
   // 处理 config 变化（同步 Base URL）
-  const handleCodexConfigChange = useCallback((value: string) => {
-    setCodexConfig(value);
+  const handleCodexConfigChange = useCallback(
+    (value: string) => {
+      setCodexConfig(value);
 
-    if (!isUpdatingCodexBaseUrlRef.current) {
-      const extracted = extractCodexBaseUrl(value) || "";
-      if (extracted !== codexBaseUrl) {
-        setCodexBaseUrl(extracted);
+      if (!isUpdatingCodexBaseUrlRef.current) {
+        const extracted = extractCodexBaseUrl(value) || "";
+        if (extracted !== codexBaseUrl) {
+          setCodexBaseUrl(extracted);
+        }
       }
-    }
-  }, [setCodexConfig, codexBaseUrl]);
+    },
+    [setCodexConfig, codexBaseUrl],
+  );
 
   // 重置配置（用于预设切换）
-  const resetCodexConfig = useCallback((auth: Record<string, unknown>, config: string) => {
-    const authString = JSON.stringify(auth, null, 2);
-    setCodexAuth(authString);
-    setCodexConfig(config);
+  const resetCodexConfig = useCallback(
+    (auth: Record<string, unknown>, config: string) => {
+      const authString = JSON.stringify(auth, null, 2);
+      setCodexAuth(authString);
+      setCodexConfig(config);
 
-    const baseUrl = extractCodexBaseUrl(config);
-    if (baseUrl) {
-      setCodexBaseUrl(baseUrl);
-    }
+      const baseUrl = extractCodexBaseUrl(config);
+      if (baseUrl) {
+        setCodexBaseUrl(baseUrl);
+      }
 
-    // 提取 API Key
-    try {
-      if (auth && typeof auth.OPENAI_API_KEY === "string") {
-        setCodexApiKey(auth.OPENAI_API_KEY);
-      } else {
+      // 提取 API Key
+      try {
+        if (auth && typeof auth.OPENAI_API_KEY === "string") {
+          setCodexApiKey(auth.OPENAI_API_KEY);
+        } else {
+          setCodexApiKey("");
+        }
+      } catch {
         setCodexApiKey("");
       }
-    } catch {
-      setCodexApiKey("");
-    }
-  }, [setCodexAuth, setCodexConfig]);
+    },
+    [setCodexAuth, setCodexConfig],
+  );
 
   // 获取 API Key（从 auth JSON）
   const getCodexAuthApiKey = useCallback((authString: string): string => {

@@ -63,7 +63,11 @@ export function AddProviderDialog({
         if (appType === "claude") {
           const presets = providerPresets;
           const presetIndex = parseInt(values.presetId.replace("claude-", ""));
-          if (!isNaN(presetIndex) && presetIndex >= 0 && presetIndex < presets.length) {
+          if (
+            !isNaN(presetIndex) &&
+            presetIndex >= 0 &&
+            presetIndex < presets.length
+          ) {
             const preset = presets[presetIndex];
             if (preset?.endpointCandidates) {
               preset.endpointCandidates.forEach(addUrl);
@@ -72,7 +76,11 @@ export function AddProviderDialog({
         } else if (appType === "codex") {
           const presets = codexProviderPresets;
           const presetIndex = parseInt(values.presetId.replace("codex-", ""));
-          if (!isNaN(presetIndex) && presetIndex >= 0 && presetIndex < presets.length) {
+          if (
+            !isNaN(presetIndex) &&
+            presetIndex >= 0 &&
+            presetIndex < presets.length
+          ) {
             const preset = presets[presetIndex];
             if ((preset as any).endpointCandidates) {
               (preset as any).endpointCandidates.forEach(addUrl);
@@ -139,7 +147,7 @@ export function AddProviderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
             appType={appType}
             submitLabel={t("common.add", { defaultValue: "添加" })}

@@ -51,11 +51,7 @@ export function useCommonConfigSnippet({
   // 初始化时检查通用配置片段（编辑模式）
   useEffect(() => {
     if (initialData) {
-      const configString = JSON.stringify(
-        initialData.settingsConfig,
-        null,
-        2,
-      );
+      const configString = JSON.stringify(initialData.settingsConfig, null, 2);
       const hasCommon = hasCommonConfigSnippet(
         configString,
         commonConfigSnippet,
@@ -168,12 +164,7 @@ export function useCommonConfigSnippet({
         }, 0);
       }
     },
-    [
-      commonConfigSnippet,
-      settingsConfig,
-      useCommonConfig,
-      onConfigChange,
-    ],
+    [commonConfigSnippet, settingsConfig, useCommonConfig, onConfigChange],
   );
 
   // 当配置变化时检查是否包含通用配置（但避免在通过通用配置更新时检查）

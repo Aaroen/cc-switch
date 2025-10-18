@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { extractCodexBaseUrl, setCodexBaseUrl as setCodexBaseUrlInConfig } from "@/utils/providerConfigUtils";
+import {
+  extractCodexBaseUrl,
+  setCodexBaseUrl as setCodexBaseUrlInConfig,
+} from "@/utils/providerConfigUtils";
 import type { ProviderCategory } from "@/types";
 
 interface UseBaseUrlStateProps {
@@ -93,7 +96,10 @@ export function useBaseUrlState({
       }
 
       isUpdatingRef.current = true;
-      const updatedConfig = setCodexBaseUrlInConfig(codexConfig || "", sanitized);
+      const updatedConfig = setCodexBaseUrlInConfig(
+        codexConfig || "",
+        sanitized,
+      );
       onCodexConfigChange(updatedConfig);
 
       setTimeout(() => {

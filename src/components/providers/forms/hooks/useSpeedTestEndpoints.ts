@@ -122,7 +122,7 @@ export function useSpeedTestEndpoints({
         // 添加预设自己的 baseUrl
         const presetConfig = preset.config || "";
         const presetMatch = /base_url\s*=\s*["']([^"']+)["']/i.exec(
-          presetConfig
+          presetConfig,
         );
         if (presetMatch?.[1]) {
           add(presetMatch[1]);

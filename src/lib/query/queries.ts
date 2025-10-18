@@ -1,4 +1,8 @@
-import { useQuery, type UseQueryResult, keepPreviousData } from "@tanstack/react-query";
+import {
+  useQuery,
+  type UseQueryResult,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { providersApi, settingsApi, usageApi, type AppType } from "@/lib/api";
 import type { Provider, Settings, UsageResult } from "@/types";
 

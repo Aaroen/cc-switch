@@ -108,7 +108,10 @@ export function CommonConfigEditor({
         </p>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={(open) => !open && onModalClose()}>
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => !open && onModalClose()}
+      >
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>
@@ -120,8 +123,7 @@ export function CommonConfigEditor({
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
               {t("claudeConfig.commonConfigHint", {
-                defaultValue:
-                  "通用配置片段将合并到所有启用它的供应商配置中",
+                defaultValue: "通用配置片段将合并到所有启用它的供应商配置中",
               })}
             </p>
             <div className="rounded-md border">

@@ -18,10 +18,14 @@ import { Input } from "@/components/ui/input";
 interface CodexQuickWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: (auth: string, config: string, extras: {
-    websiteUrl?: string;
-    displayName?: string;
-  }) => void;
+  onApply: (
+    auth: string,
+    config: string,
+    extras: {
+      websiteUrl?: string;
+      displayName?: string;
+    },
+  ) => void;
 }
 
 /**
@@ -88,14 +92,10 @@ export const CodexQuickWizardModal: React.FC<CodexQuickWizardModalProps> = ({
       trimmedModel,
     );
 
-    onApply(
-      JSON.stringify(auth, null, 2),
-      config,
-      {
-        websiteUrl: templateWebsiteUrl.trim(),
-        displayName: templateDisplayName.trim(),
-      }
-    );
+    onApply(JSON.stringify(auth, null, 2), config, {
+      websiteUrl: templateWebsiteUrl.trim(),
+      displayName: templateDisplayName.trim(),
+    });
 
     resetForm();
     onClose();
@@ -111,7 +111,10 @@ export const CodexQuickWizardModal: React.FC<CodexQuickWizardModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent zIndex="nested" className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent
+        zIndex="nested"
+        className="max-w-2xl max-h-[90vh] flex flex-col p-0"
+      >
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle>{t("codexConfig.quickWizard")}</DialogTitle>
         </DialogHeader>

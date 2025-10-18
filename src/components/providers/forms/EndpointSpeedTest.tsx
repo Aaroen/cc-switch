@@ -13,7 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-
 // 临时类型定义，待后端 API 实现后替换
 interface CustomEndpoint {
   url: string;
@@ -118,12 +117,17 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       try {
         if (!providerId) return;
 
-        const customEndpoints = await vscodeApi.getCustomEndpoints(appType, providerId);
+        const customEndpoints = await vscodeApi.getCustomEndpoints(
+          appType,
+          providerId,
+        );
 
-        const candidates: EndpointCandidate[] = customEndpoints.map((ep: CustomEndpoint) => ({
-          url: ep.url,
-          isCustom: true,
-        }));
+        const candidates: EndpointCandidate[] = customEndpoints.map(
+          (ep: CustomEndpoint) => ({
+            url: ep.url,
+            isCustom: true,
+          }),
+        );
 
         setEntries((prev) => {
           const map = new Map<string, EndpointEntry>();
@@ -391,7 +395,9 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
       if (autoSelect) {
         const successful = results
-          .filter((item) => typeof item.latency === "number" && item.latency !== null)
+          .filter(
+            (item) => typeof item.latency === "number" && item.latency !== null,
+          )
           .sort((a, b) => (a.latency! || 0) - (b.latency! || 0));
         const best = successful[0];
         if (best && best.url && best.url !== normalizedSelected) {
@@ -430,7 +436,10 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent zIndex="nested" className="max-w-2xl max-h-[80vh] flex flex-col p-0">
+      <DialogContent
+        zIndex="nested"
+        className="max-w-2xl max-h-[80vh] flex flex-col p-0"
+      >
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle>{t("endpointTest.title")}</DialogTitle>
         </DialogHeader>

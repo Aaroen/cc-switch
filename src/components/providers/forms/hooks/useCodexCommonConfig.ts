@@ -31,7 +31,9 @@ export function useCodexCommonConfig({
         return DEFAULT_CODEX_COMMON_CONFIG_SNIPPET;
       }
       try {
-        const stored = window.localStorage.getItem(CODEX_COMMON_CONFIG_STORAGE_KEY);
+        const stored = window.localStorage.getItem(
+          CODEX_COMMON_CONFIG_STORAGE_KEY,
+        );
         if (stored && stored.trim()) {
           return stored;
         }
@@ -78,11 +80,12 @@ export function useCodexCommonConfig({
   // 处理通用配置开关
   const handleCommonConfigToggle = useCallback(
     (checked: boolean) => {
-      const { updatedConfig, error: snippetError } = updateTomlCommonConfigSnippet(
-        codexConfig,
-        commonConfigSnippet,
-        checked,
-      );
+      const { updatedConfig, error: snippetError } =
+        updateTomlCommonConfigSnippet(
+          codexConfig,
+          commonConfigSnippet,
+          checked,
+        );
 
       if (snippetError) {
         setCommonConfigError(snippetError);
@@ -157,12 +160,7 @@ export function useCodexCommonConfig({
         }, 0);
       }
     },
-    [
-      commonConfigSnippet,
-      codexConfig,
-      useCommonConfig,
-      onConfigChange,
-    ],
+    [commonConfigSnippet, codexConfig, useCommonConfig, onConfigChange],
   );
 
   // 当配置变化时检查是否包含通用配置（但避免在通过通用配置更新时检查）

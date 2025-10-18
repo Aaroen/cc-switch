@@ -169,13 +169,13 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t("settings.title")}</DialogTitle>
         </DialogHeader>
 
         {isBusy ? (
-          <div className="flex min-h-[320px] items-center justify-center px-6">
+          <div className="flex min-h-[320px] items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
@@ -195,7 +195,10 @@ export function SettingsDialog({
                 <TabsTrigger value="about">{t("common.about")}</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="general" className="space-y-6 mt-6 min-h-[400px]">
+              <TabsContent
+                value="general"
+                className="space-y-6 mt-6 min-h-[400px]"
+              >
                 {settings ? (
                   <>
                     <LanguageSettings
@@ -211,7 +214,10 @@ export function SettingsDialog({
                 ) : null}
               </TabsContent>
 
-              <TabsContent value="advanced" className="space-y-6 mt-6 min-h-[400px]">
+              <TabsContent
+                value="advanced"
+                className="space-y-6 mt-6 min-h-[400px]"
+              >
                 {settings ? (
                   <>
                     <DirectorySettings
@@ -268,7 +274,10 @@ export function SettingsDialog({
         </DialogFooter>
       </DialogContent>
 
-      <Dialog open={showRestartPrompt} onOpenChange={(open) => !open && handleRestartLater()}>
+      <Dialog
+        open={showRestartPrompt}
+        onOpenChange={(open) => !open && handleRestartLater()}
+      >
         <DialogContent zIndex="alert" className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t("settings.restartRequired")}</DialogTitle>
