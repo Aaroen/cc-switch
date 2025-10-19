@@ -29,7 +29,7 @@ export function ProviderActions({
         disabled={isCurrent}
         className={cn(
           "w-20",
-          isCurrent && "text-muted-foreground hover:text-muted-foreground",
+          isCurrent && "bg-gray-200 text-muted-foreground hover:bg-gray-200 hover:text-muted-foreground dark:bg-gray-700 dark:hover:bg-gray-700",
         )}
       >
         {isCurrent ? (
@@ -69,12 +69,12 @@ export function ProviderActions({
         <Button
           size="sm"
           variant="ghost"
-          onClick={onDelete}
-          disabled={isCurrent}
+          onClick={isCurrent ? undefined : onDelete}
           title={t("common.delete")}
           className={cn(
-            "px-2 hover:bg-muted hover:text-red-500 dark:hover:text-red-400",
-            isCurrent && "text-muted-foreground hover:text-muted-foreground hover:bg-transparent",
+            "px-2",
+            !isCurrent && "hover:bg-muted hover:text-red-500 dark:hover:text-red-400",
+            isCurrent && "opacity-40 cursor-not-allowed text-muted-foreground",
           )}
         >
           <Trash2 className="h-4 w-4" />
