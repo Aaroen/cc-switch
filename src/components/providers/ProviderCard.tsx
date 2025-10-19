@@ -96,7 +96,7 @@ export function ProviderCard({
           "cursor-grabbing border-primary/60 shadow-lg",
       )}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-start gap-3">
           <button
             type="button"
@@ -127,10 +127,9 @@ export function ProviderCard({
               <button
                 type="button"
                 onClick={handleOpenWebsite}
-                className="inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
+                className="inline-flex items-center text-sm text-blue-400 transition-colors hover:underline dark:text-blue-300"
                 title={displayUrl}
               >
-                <Link className="h-3.5 w-3.5" />
                 <span className="truncate">{displayUrl}</span>
               </button>
             )}
