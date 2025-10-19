@@ -654,12 +654,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
             {/* 操作按钮 */}
             <div className="flex items-center gap-3">
-              <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              <Button type="button" variant="ghost" onClick={onClose}>
                 {t("common.cancel")}
               </Button>
               <Button
                 type="button"
-                size="sm"
                 onClick={handleSubmit}
                 disabled={saving || (!isEditing && !!idError)}
                 variant="mcp"

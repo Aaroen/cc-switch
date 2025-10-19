@@ -123,7 +123,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <DialogTitle>{panelTitle}</DialogTitle>
-              <Button type="button" variant="mcp" size="sm" onClick={handleAdd}>
+              <Button type="button" variant="mcp" onClick={handleAdd}>
                 <Plus size={16} />
                 {t("mcp.add")}
               </Button>
@@ -191,7 +191,6 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
             <Button
               type="button"
               variant="mcp"
-              size="sm"
               onClick={() => onOpenChange(false)}
             >
               <Check size={16} />
