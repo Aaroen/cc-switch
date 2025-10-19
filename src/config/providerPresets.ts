@@ -10,6 +10,18 @@ export interface TemplateValueConfig {
   editorValue: string;
 }
 
+/**
+ * 预设供应商的视觉主题配置
+ */
+export interface PresetTheme {
+  /** 图标类型：'claude' | 'codex' | 'generic' */
+  icon?: "claude" | "codex" | "generic";
+  /** 背景色（选中状态），支持 Tailwind 类名或 hex 颜色 */
+  backgroundColor?: string;
+  /** 文字色（选中状态），支持 Tailwind 类名或 hex 颜色 */
+  textColor?: string;
+}
+
 export interface ProviderPreset {
   name: string;
   websiteUrl: string;
@@ -22,6 +34,8 @@ export interface ProviderPreset {
   templateValues?: Record<string, TemplateValueConfig>; // editorValue 存储编辑器中的实时输入值
   // 新增：请求地址候选列表（用于地址管理/测速）
   endpointCandidates?: string[];
+  // 新增：视觉主题配置
+  theme?: PresetTheme;
 }
 
 export const providerPresets: ProviderPreset[] = [
@@ -33,6 +47,11 @@ export const providerPresets: ProviderPreset[] = [
     },
     isOfficial: true, // 明确标识为官方预设
     category: "official",
+    theme: {
+      icon: "claude",
+      backgroundColor: "#D97757",
+      textColor: "#FFFFFF",
+    },
   },
   {
     name: "DeepSeek",

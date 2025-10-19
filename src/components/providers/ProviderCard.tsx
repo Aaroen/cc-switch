@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { GripVertical, Link } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   DraggableAttributes,

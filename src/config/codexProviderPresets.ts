@@ -2,6 +2,7 @@
  * Codex 预设供应商配置模板
  */
 import { ProviderCategory } from "../types";
+import type { PresetTheme } from "./providerPresets";
 
 export interface CodexProviderPreset {
   name: string;
@@ -15,6 +16,8 @@ export interface CodexProviderPreset {
   isCustomTemplate?: boolean; // 标识是否为自定义模板
   // 新增：请求地址候选列表（用于地址管理/测速）
   endpointCandidates?: string[];
+  // 新增：视觉主题配置
+  theme?: PresetTheme;
 }
 
 /**
@@ -63,6 +66,11 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       OPENAI_API_KEY: null,
     },
     config: ``,
+    theme: {
+      icon: "codex",
+      backgroundColor: "#1F2937", // gray-800
+      textColor: "#FFFFFF",
+    },
   },
   {
     name: "PackyCode",

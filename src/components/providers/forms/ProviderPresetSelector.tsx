@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
+import { ClaudeIcon, CodexIcon } from "@/components/BrandIcons";
+import { Zap } from "lucide-react";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { ProviderCategory } from "@/types";
@@ -58,6 +60,58 @@ export function ProviderPresetSelector({
     }
   };
 
+  // 渲染预设按钮的图标
+  const renderPresetIcon = (preset: ProviderPreset | CodexProviderPreset) => {
+    const iconType = preset.theme?.icon;
+    if (!iconType) return null;
+
+    switch (iconType) {
+      case "claude":
+        return <ClaudeIcon size={14} />;
+      case "codex":
+        return <CodexIcon size={14} />;
+      case "generic":
+        return <Zap size={14} />;
+      default:
+        return null;
+    }
+  };
+
+  // 获取预设按钮的样式类名
+  const getPresetButtonClass = (
+    isSelected: boolean,
+    preset: ProviderPreset | CodexProviderPreset,
+  ) => {
+    const baseClass =
+      "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors";
+
+    if (isSelected) {
+      // 如果有自定义主题，使用自定义颜色
+      if (preset.theme?.backgroundColor) {
+        return `${baseClass} text-white`;
+      }
+      // 默认使用主题蓝色
+      return `${baseClass} bg-blue-500 text-white dark:bg-blue-600`;
+    }
+
+    return `${baseClass} bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700`;
+  };
+
+  // 获取预设按钮的内联样式（用于自定义背景色）
+  const getPresetButtonStyle = (
+    isSelected: boolean,
+    preset: ProviderPreset | CodexProviderPreset,
+  ) => {
+    if (!isSelected || !preset.theme?.backgroundColor) {
+      return undefined;
+    }
+
+    return {
+      backgroundColor: preset.theme.backgroundColor,
+      color: preset.theme.textColor || "#FFFFFF",
+    };
+  };
+
   return (
     <div className="space-y-3">
       <FormLabel>
@@ -70,7 +124,7 @@ export function ProviderPresetSelector({
           onClick={() => onPresetChange("custom")}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedPresetId === "custom"
-              ? "bg-emerald-500 text-white dark:bg-emerald-600"
+              ? "bg-blue-500 text-white dark:bg-blue-600"
               : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           }`}
         >
@@ -81,26 +135,27 @@ export function ProviderPresetSelector({
         {categoryKeys.map((category) => {
           const entries = groupedPresets[category];
           if (!entries || entries.length === 0) return null;
-          return entries.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => onPresetChange(entry.id)}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedPresetId === entry.id
-                  ? "bg-emerald-500 text-white dark:bg-emerald-600"
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-              }`}
-              title={
-                presetCategoryLabels[category] ??
-                t("providerPreset.categoryOther", {
-                  defaultValue: "其他",
-                })
-              }
-            >
-              {entry.preset.name}
-            </button>
-          ));
+          return entries.map((entry) => {
+            const isSelected = selectedPresetId === entry.id;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => onPresetChange(entry.id)}
+                className={getPresetButtonClass(isSelected, entry.preset)}
+                style={getPresetButtonStyle(isSelected, entry.preset)}
+                title={
+                  presetCategoryLabels[category] ??
+                  t("providerPreset.categoryOther", {
+                    defaultValue: "其他",
+                  })
+                }
+              >
+                {renderPresetIcon(entry.preset)}
+                {entry.preset.name}
+              </button>
+            );
+          });
         })}
       </div>
       <p className="text-xs text-muted-foreground">
