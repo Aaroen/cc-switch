@@ -45,35 +45,32 @@ export function ProviderActions({
         )}
       </Button>
 
-      <div className="flex items-center gap-0">
+      <div className="flex items-center gap-1">
         <Button
-          size="sm"
+          size="icon"
           variant="ghost"
           onClick={onEdit}
           title={t("common.edit")}
-          className="px-2 hover:bg-muted"
         >
           <Edit className="h-4 w-4" />
         </Button>
 
         <Button
-          size="sm"
+          size="icon"
           variant="ghost"
           onClick={onConfigureUsage}
           title={t("provider.configureUsage")}
-          className="px-2 hover:bg-muted"
         >
           <BarChart3 className="h-4 w-4" />
         </Button>
 
         <Button
-          size="sm"
+          size="icon"
           variant="ghost"
           onClick={isCurrent ? undefined : onDelete}
           title={t("common.delete")}
           className={cn(
-            "px-2",
-            !isCurrent && "hover:bg-muted hover:text-red-500 dark:hover:text-red-400",
+            !isCurrent && "hover:text-red-500 dark:hover:text-red-400",
             isCurrent && "opacity-40 cursor-not-allowed text-muted-foreground",
           )}
         >

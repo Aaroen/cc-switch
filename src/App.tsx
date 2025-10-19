@@ -112,8 +112,8 @@ function App() {
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       <header className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
             <a
               href="https://github.com/farion1231/cc-switch"
               target="_blank"
@@ -149,7 +149,7 @@ function App() {
             <UpdateBadge onClick={() => setIsSettingsOpen(true)} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
             <Button
               variant="mcp"

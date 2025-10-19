@@ -132,7 +132,7 @@ export function ProviderCard({
               <button
                 type="button"
                 onClick={handleOpenWebsite}
-                className="inline-flex items-center text-sm text-blue-400 transition-colors hover:underline dark:text-blue-300"
+                className="inline-flex items-center text-sm text-blue-500 transition-colors hover:underline dark:text-blue-400"
                 title={displayUrl}
               >
                 <span className="truncate">{displayUrl}</span>
