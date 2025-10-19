@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Save,
+  Plus,
   AlertCircle,
   ChevronDown,
   ChevronUp,
@@ -663,7 +664,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 disabled={saving || (!isEditing && !!idError)}
                 variant="mcp"
               >
-                <Save size={16} />
+                {isEditing ? <Save size={16} /> : <Plus size={16} />}
                 {saving
                   ? t("common.saving")
                   : isEditing
