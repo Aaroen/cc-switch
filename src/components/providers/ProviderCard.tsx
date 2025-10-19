@@ -99,14 +99,14 @@ export function ProviderCard({
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-start gap-3">
+        <div className="flex flex-1 items-start">
           <button
             type="button"
             className={cn(
-              "mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-all duration-200",
+              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200",
               isEditMode
-                ? "border-muted hover:border-primary hover:text-foreground opacity-100"
-                : "border-transparent opacity-0 pointer-events-none",
+                ? "w-8 mr-3 border-muted hover:border-primary hover:text-foreground opacity-100"
+                : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
               dragHandleProps?.isDragging && "border-primary text-primary",
             )}
             aria-label={t("provider.dragHandle")}
