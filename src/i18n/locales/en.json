@@ -47,7 +47,9 @@
     "toggleLightMode": "Switch to Light Mode",
     "addProvider": "Add Provider",
     "switchToChinese": "Switch to Chinese",
-    "switchToEnglish": "Switch to English"
+    "switchToEnglish": "Switch to English",
+    "enterEditMode": "Enter Edit Mode",
+    "exitEditMode": "Exit Edit Mode"
   },
   "provider": {
     "noProviders": "No providers added yet",

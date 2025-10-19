@@ -16,6 +16,7 @@ interface ProviderListProps {
   providers: Record<string, Provider>;
   currentProviderId: string;
   appType: AppType;
+  isEditMode?: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
   onDelete: (provider: Provider) => void;
@@ -29,6 +30,7 @@ export function ProviderList({
   providers,
   currentProviderId,
   appType,
+  isEditMode = false,
   onSwitch,
   onEdit,
   onDelete,
@@ -76,6 +78,7 @@ export function ProviderList({
               provider={provider}
               isCurrent={provider.id === currentProviderId}
               appType={appType}
+              isEditMode={isEditMode}
               onSwitch={onSwitch}
               onEdit={onEdit}
               onDelete={onDelete}
@@ -93,6 +96,7 @@ interface SortableProviderCardProps {
   provider: Provider;
   isCurrent: boolean;
   appType: AppType;
+  isEditMode: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
   onDelete: (provider: Provider) => void;
@@ -104,6 +108,7 @@ function SortableProviderCard({
   provider,
   isCurrent,
   appType,
+  isEditMode,
   onSwitch,
   onEdit,
   onDelete,
@@ -130,6 +135,7 @@ function SortableProviderCard({
         provider={provider}
         isCurrent={isCurrent}
         appType={appType}
+        isEditMode={isEditMode}
         onSwitch={onSwitch}
         onEdit={onEdit}
         onDelete={onDelete}

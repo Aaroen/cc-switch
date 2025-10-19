@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Settings } from "lucide-react";
+import { Plus, Settings, Edit3 } from "lucide-react";
 import type { Provider } from "@/types";
 import { useProvidersQuery } from "@/lib/query";
 import {
@@ -27,6 +27,7 @@ function App() {
   const { t } = useTranslation();
 
   const [activeApp, setActiveApp] = useState<AppType>("claude");
+  const [isEditMode, setIsEditMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isMcpOpen, setIsMcpOpen] = useState(false);
@@ -58,7 +59,7 @@ function App() {
             if (event.appType === activeApp) {
               await refetch();
             }
-          },
+          }
         );
       } catch (error) {
         console.error("[App] Failed to subscribe provider switch event", error);
@@ -112,7 +113,7 @@ function App() {
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       <header className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
             <a
               href="https://github.com/farion1231/cc-switch"
               target="_blank"
@@ -125,8 +126,25 @@ function App() {
               variant="ghost"
               size="icon"
               onClick={() => setIsSettingsOpen(true)}
+              title={t("common.settings")}
+              className="ml-2"
             >
               <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsEditMode(!isEditMode)}
+              title={t(
+                isEditMode ? "header.exitEditMode" : "header.enterEditMode"
+              )}
+              className={
+                isEditMode
+                  ? "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                  : ""
+              }
+            >
+              <Edit3 className="h-4 w-4" />
             </Button>
             <UpdateBadge onClick={() => setIsSettingsOpen(true)} />
           </div>
@@ -155,6 +173,7 @@ function App() {
             currentProviderId={currentProviderId}
             appType={activeApp}
             isLoading={isLoading}
+            isEditMode={isEditMode}
             onSwitch={switchProvider}
             onEdit={setEditingProvider}
             onDelete={setConfirmDelete}
