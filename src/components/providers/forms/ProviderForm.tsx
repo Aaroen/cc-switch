@@ -456,6 +456,7 @@ export function ProviderForm({
             categoryKeys={categoryKeys}
             presetCategoryLabels={presetCategoryLabels}
             onPresetChange={handlePresetChange}
+            category={category}
           />
         )}
 

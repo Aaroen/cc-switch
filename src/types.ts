@@ -1,6 +1,6 @@
 export type ProviderCategory =
   | "official" // 官方
-  | "cn_official" // 国产官方
+  | "cn_official" // 开源官方（原"国产官方"）
   | "aggregator" // 聚合网站
   | "third_party" // 第三方供应商
   | "custom"; // 自定义

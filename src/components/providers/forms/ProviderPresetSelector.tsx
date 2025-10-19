@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
+import type { ProviderCategory } from "@/types";
 
 type PresetEntry = {
   id: string;
@@ -14,6 +15,7 @@ interface ProviderPresetSelectorProps {
   categoryKeys: string[];
   presetCategoryLabels: Record<string, string>;
   onPresetChange: (value: string) => void;
+  category?: ProviderCategory; // 新增：当前选中的分类
 }
 
 export function ProviderPresetSelector({
@@ -22,8 +24,39 @@ export function ProviderPresetSelector({
   categoryKeys,
   presetCategoryLabels,
   onPresetChange,
+  category,
 }: ProviderPresetSelectorProps) {
   const { t } = useTranslation();
+
+  // 根据分类获取提示文字
+  const getCategoryHint = () => {
+    switch (category) {
+      case "official":
+        return t("providerForm.officialHint", {
+          defaultValue: "💡 官方供应商使用浏览器登录，无需配置 API Key",
+        });
+      case "cn_official":
+        return t("providerForm.cnOfficialApiKeyHint", {
+          defaultValue: "💡 国产官方供应商只需填写 API Key，请求地址已预设",
+        });
+      case "aggregator":
+        return t("providerForm.aggregatorApiKeyHint", {
+          defaultValue: "💡 聚合服务供应商只需填写 API Key 即可使用",
+        });
+      case "third_party":
+        return t("providerForm.thirdPartyApiKeyHint", {
+          defaultValue: "💡 第三方供应商需要填写 API Key 和请求地址",
+        });
+      case "custom":
+        return t("providerForm.customApiKeyHint", {
+          defaultValue: "💡 自定义配置需手动填写所有必要字段",
+        });
+      default:
+        return t("providerPreset.hint", {
+          defaultValue: "选择预设后可继续调整下方字段。",
+        });
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -71,9 +104,7 @@ export function ProviderPresetSelector({
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        {t("providerPreset.helper", {
-          defaultValue: "选择预设后可继续调整下方字段。",
-        })}
+        {getCategoryHint()}
       </p>
     </div>
   );
