@@ -13,9 +13,7 @@ export function ThemeSettings() {
       <header className="space-y-1">
         <h3 className="text-sm font-medium">{t("settings.theme")}</h3>
         <p className="text-xs text-muted-foreground">
-          {t("settings.themeHint", {
-            defaultValue: "选择应用的外观主题，立即生效。",
-          })}
+          {t("settings.themeHint")}
         </p>
       </header>
       <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">
@@ -24,21 +22,21 @@ export function ThemeSettings() {
           onClick={() => setTheme("light")}
           icon={Sun}
         >
-          {t("settings.themeLight", { defaultValue: "浅色" })}
+          {t("settings.themeLight")}
         </ThemeButton>
         <ThemeButton
           active={theme === "dark"}
           onClick={() => setTheme("dark")}
           icon={Moon}
         >
-          {t("settings.themeDark", { defaultValue: "深色" })}
+          {t("settings.themeDark")}
         </ThemeButton>
         <ThemeButton
           active={theme === "system"}
           onClick={() => setTheme("system")}
           icon={Monitor}
         >
-          {t("settings.themeSystem", { defaultValue: "跟随系统" })}
+          {t("settings.themeSystem")}
         </ThemeButton>
       </div>
     </section>

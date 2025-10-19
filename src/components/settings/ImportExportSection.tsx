@@ -47,9 +47,7 @@ export function ImportExportSection({
       <header className="space-y-1">
         <h3 className="text-sm font-medium">{t("settings.importExport")}</h3>
         <p className="text-xs text-muted-foreground">
-          {t("settings.importExportHint", {
-            defaultValue: "导入导出 cc-switch 配置，便于备份或迁移。",
-          })}
+          {t("settings.importExportHint")}
         </p>
       </header>
 
@@ -92,7 +90,7 @@ export function ImportExportSection({
             {selectedFile ? (
               <Button type="button" variant="ghost" onClick={onClear}>
                 <XCircle className="mr-2 h-4 w-4" />
-                {t("common.clear", { defaultValue: "清除" })}
+                {t("common.clear")}
               </Button>
             ) : null}
           </div>
@@ -103,9 +101,7 @@ export function ImportExportSection({
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {t("settings.noFileSelected", {
-                defaultValue: "尚未选择配置文件。",
-              })}
+              {t("settings.noFileSelected")}
             </p>
           )}
         </div>
@@ -147,7 +143,7 @@ function ImportStatusMessage({
         <div>
           <p className="font-medium">{t("settings.importing")}</p>
           <p className="text-muted-foreground">
-            {t("common.loading", { defaultValue: "正在处理..." })}
+            {t("common.loading")}
           </p>
         </div>
       </div>
@@ -164,10 +160,10 @@ function ImportStatusMessage({
           <p className="font-medium">{t("settings.importSuccess")}</p>
           {backupId ? (
             <p className="text-xs">
-              {t("settings.backupId", { defaultValue: "备份 ID" })}: {backupId}
+              {t("settings.backupId")}: {backupId}
             </p>
           ) : null}
-          <p>{t("settings.autoReload", { defaultValue: "即将刷新列表。" })}</p>
+          <p>{t("settings.autoReload")}</p>
         </div>
       </div>
     );
@@ -175,14 +171,14 @@ function ImportStatusMessage({
 
   const message =
     errorMessage ||
-    t("settings.importFailed", { defaultValue: "导入失败，请重试。" });
+    t("settings.importFailed");
 
   return (
     <div className={`${baseClass} border-red-200 bg-red-100/70 text-red-600`}>
       <AlertCircle className="mt-0.5 h-4 w-4" />
       <div className="space-y-1">
         <p className="font-medium">
-          {t("settings.importFailed", { defaultValue: "导入失败" })}
+          {t("settings.importFailed")}
         </p>
         <p>{message}</p>
       </div>

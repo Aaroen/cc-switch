@@ -57,9 +57,7 @@ export function DirectorySettings({
 
       <DirectoryInput
         label={t("settings.claudeConfigDir")}
-        description={t("settings.claudeConfigDirDescription", {
-          defaultValue: "覆盖 Claude 配置目录 (settings.json)。",
-        })}
+        description={t("settings.claudeConfigDirDescription")}
         value={claudeDir}
         resolvedValue={resolvedDirs.claude}
         placeholder={t("settings.browsePlaceholderClaude")}
@@ -70,9 +68,7 @@ export function DirectorySettings({
 
       <DirectoryInput
         label={t("settings.codexConfigDir")}
-        description={t("settings.codexConfigDirDescription", {
-          defaultValue: "覆盖 Codex 配置目录。",
-        })}
+        description={t("settings.codexConfigDirDescription")}
         value={codexDir}
         resolvedValue={resolvedDirs.codex}
         placeholder={t("settings.browsePlaceholderCodex")}

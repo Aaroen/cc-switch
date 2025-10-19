@@ -15,9 +15,7 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
       <header className="space-y-1">
         <h3 className="text-sm font-medium">{t("settings.windowBehavior")}</h3>
         <p className="text-xs text-muted-foreground">
-          {t("settings.windowBehaviorHint", {
-            defaultValue: "配置窗口最小化与 Claude 插件联动策略。",
-          })}
+          {t("settings.windowBehaviorHint")}
         </p>
       </header>
 

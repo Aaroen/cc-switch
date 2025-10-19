@@ -15,9 +15,7 @@ export function LanguageSettings({ value, onChange }: LanguageSettingsProps) {
       <header className="space-y-1">
         <h3 className="text-sm font-medium">{t("settings.language")}</h3>
         <p className="text-xs text-muted-foreground">
-          {t("settings.languageHint", {
-            defaultValue: "切换后立即预览界面语言，保存后永久生效。",
-          })}
+          {t("settings.languageHint")}
         </p>
       </header>
       <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">

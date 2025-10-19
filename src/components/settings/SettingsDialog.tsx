@@ -143,9 +143,7 @@ export function SettingsDialog({
     setShowRestartPrompt(false);
     if (import.meta.env.DEV) {
       toast.success(
-        t("settings.devModeRestartHint", {
-          defaultValue: "开发模式下不支持自动重启，请手动重新启动应用。",
-        }),
+        t("settings.devModeRestartHint"),
       );
       closeAfterSave();
       return;
@@ -156,9 +154,7 @@ export function SettingsDialog({
     } catch (error) {
       console.error("[SettingsDialog] Failed to restart app", error);
       toast.error(
-        t("settings.restartFailed", {
-          defaultValue: "应用重启失败，请手动关闭后重新打开。",
-        }),
+        t("settings.restartFailed"),
       );
     } finally {
       closeAfterSave();
@@ -187,10 +183,10 @@ export function SettingsDialog({
             >
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="general">
-                  {t("settings.tabGeneral", { defaultValue: "通用" })}
+                  {t("settings.tabGeneral")}
                 </TabsTrigger>
                 <TabsTrigger value="advanced">
-                  {t("settings.tabAdvanced", { defaultValue: "高级" })}
+                  {t("settings.tabAdvanced")}
                 </TabsTrigger>
                 <TabsTrigger value="about">{t("common.about")}</TabsTrigger>
               </TabsList>
@@ -262,7 +258,7 @@ export function SettingsDialog({
             {isSaving ? (
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("settings.saving", { defaultValue: "正在保存..." })}
+                {t("settings.saving")}
               </span>
             ) : (
               <>
@@ -284,9 +280,7 @@ export function SettingsDialog({
           </DialogHeader>
           <div className="px-6">
             <p className="text-sm text-muted-foreground">
-              {t("settings.restartRequiredMessage", {
-                defaultValue: "配置目录已变更，需要重启应用生效。",
-              })}
+              {t("settings.restartRequiredMessage")}
             </p>
           </div>
           <DialogFooter>
