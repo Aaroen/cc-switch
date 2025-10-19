@@ -51,7 +51,7 @@ export function CommonConfigEditor({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="settingsConfig">
-            {t("provider.configJson", { defaultValue: "配置 JSON" })}
+            {t("provider.configJson")}
           </Label>
           <div className="flex items-center gap-2">
             <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">

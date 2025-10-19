@@ -554,7 +554,7 @@ export function ProviderForm({
         {showButtons && (
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onCancel}>
-              {t("common.cancel", { defaultValue: "取消" })}
+              {t("common.cancel")}
             </Button>
             <Button type="submit">{submitLabel}</Button>
           </div>

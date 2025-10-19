@@ -25,14 +25,12 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {t("provider.name", { defaultValue: "供应商名称" })}
+              {t("provider.name")}
             </FormLabel>
             <FormControl>
               <Input
                 {...field}
-                placeholder={t("provider.namePlaceholder", {
-                  defaultValue: "例如：Claude 官方",
-                })}
+                placeholder={t("provider.namePlaceholder")}
               />
             </FormControl>
             <FormMessage />
@@ -46,7 +44,7 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {t("provider.websiteUrl", { defaultValue: "官网链接" })}
+              {t("provider.websiteUrl")}
             </FormLabel>
             <FormControl>
               <Input {...field} placeholder="https://" />

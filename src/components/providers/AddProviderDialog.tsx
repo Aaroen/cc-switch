@@ -135,8 +135,8 @@ export function AddProviderDialog({
 
   const submitLabel =
     appType === "claude"
-      ? t("provider.addClaudeProvider", { defaultValue: "添加 Claude 供应商" })
-      : t("provider.addCodexProvider", { defaultValue: "添加 Codex 供应商" });
+      ? t("provider.addClaudeProvider")
+      : t("provider.addCodexProvider");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,16 +144,14 @@ export function AddProviderDialog({
         <DialogHeader>
           <DialogTitle>{submitLabel}</DialogTitle>
           <DialogDescription>
-            {t("provider.addDescription", {
-              defaultValue: "填写信息后即可在列表中快速切换供应商。",
-            })}
+            {t("provider.addProviderHint")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
             appType={appType}
-            submitLabel={t("common.add", { defaultValue: "添加" })}
+            submitLabel={t("common.add")}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}
             showButtons={false}
@@ -162,11 +160,11 @@ export function AddProviderDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel", { defaultValue: "取消" })}
+            {t("common.cancel")}
           </Button>
           <Button type="submit" form="provider-form">
             <Plus className="h-4 w-4" />
-            {t("common.add", { defaultValue: "添加" })}
+            {t("common.add")}
           </Button>
         </DialogFooter>
       </DialogContent>

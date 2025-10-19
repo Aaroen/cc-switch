@@ -142,7 +142,7 @@ function App() {
             </Button>
             <Button onClick={() => setIsAddOpen(true)}>
               <Plus className="h-4 w-4" />
-              {t("header.addProvider", { defaultValue: "添加供应商" })}
+              {t("header.addProvider")}
             </Button>
           </div>
         </div>
@@ -198,12 +198,11 @@ function App() {
 
       <ConfirmDialog
         isOpen={Boolean(confirmDelete)}
-        title={t("confirm.deleteProvider", { defaultValue: "删除供应商" })}
+        title={t("confirm.deleteProvider")}
         message={
           confirmDelete
             ? t("confirm.deleteProviderMessage", {
                 name: confirmDelete.name,
-                defaultValue: `确定删除 ${confirmDelete.name} 吗？`,
               })
             : ""
         }

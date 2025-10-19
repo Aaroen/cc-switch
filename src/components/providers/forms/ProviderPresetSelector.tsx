@@ -28,7 +28,7 @@ export function ProviderPresetSelector({
   return (
     <div className="space-y-3">
       <FormLabel>
-        {t("providerPreset.label", { defaultValue: "预设供应商" })}
+        {t("providerPreset.label")}
       </FormLabel>
       <div className="flex flex-wrap gap-2">
         {/* 自定义按钮 */}
@@ -41,7 +41,7 @@ export function ProviderPresetSelector({
               : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           }`}
         >
-          {t("providerPreset.custom", { defaultValue: "自定义配置" })}
+          {t("providerPreset.custom")}
         </button>
 
         {/* 预设按钮 */}

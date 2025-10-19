@@ -66,19 +66,17 @@ export function EditProviderDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {t("provider.editProvider", { defaultValue: "编辑供应商" })}
+            {t("provider.editProvider")}
           </DialogTitle>
           <DialogDescription>
-            {t("provider.editDescription", {
-              defaultValue: "更新配置后将立即应用到当前供应商。",
-            })}
+            {t("provider.editProviderHint")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
             appType={appType}
-            submitLabel={t("common.save", { defaultValue: "保存" })}
+            submitLabel={t("common.save")}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}
             initialData={{
@@ -92,11 +90,11 @@ export function EditProviderDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel", { defaultValue: "取消" })}
+            {t("common.cancel")}
           </Button>
           <Button type="submit" form="provider-form">
             <Save className="h-4 w-4" />
-            {t("common.save", { defaultValue: "保存" })}
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

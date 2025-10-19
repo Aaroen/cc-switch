@@ -15,16 +15,14 @@ export function ProviderEmptyState({ onCreate }: ProviderEmptyStateProps) {
         <Users className="h-7 w-7 text-muted-foreground" />
       </div>
       <h3 className="text-lg font-semibold">
-        {t("provider.noProviders", { defaultValue: "暂无供应商" })}
+        {t("provider.noProviders")}
       </h3>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        {t("provider.noProvidersDescription", {
-          defaultValue: "开始添加一个供应商以快速完成切换。",
-        })}
+        {t("provider.noProvidersDescription")}
       </p>
       {onCreate && (
         <Button className="mt-6" onClick={onCreate}>
-          {t("provider.addProvider", { defaultValue: "添加供应商" })}
+          {t("provider.addProvider")}
         </Button>
       )}
     </div>

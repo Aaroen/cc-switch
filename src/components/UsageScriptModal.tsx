@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Play, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Provider, UsageScript } from "../types";
 import { usageApi, type AppType } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
@@ -88,12 +89,13 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { t } = useTranslation();
   const [script, setScript] = useState<UsageScript>(() => {
     return (
       provider.meta?.usage_script || {
         enabled: false,
         language: "javascript",
-        code: PRESET_TEMPLATES["通用模板"],
+        code: PRESET_TEMPLATES[t("usageScript.presetTemplate") === "预设模板" ? "通用模板" : "General"],
         timeout: 10,
       }
     );
@@ -104,13 +106,13 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleSave = () => {
     // 验证脚本格式
     if (script.enabled && !script.code.trim()) {
-      toast.error("脚本配置不能为空");
+      toast.error(t("usageScript.scriptEmpty"));
       return;
     }
 
     // 基本的 JS 语法检查（检查是否包含 return 语句）
     if (script.enabled && !script.code.includes("return")) {
-      toast.error("脚本必须包含 return 语句", { duration: 5000 });
+      toast.error(t("usageScript.mustHaveReturn"), { duration: 5000 });
       return;
     }
 
@@ -127,17 +129,17 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         const summary = result.data
           .map((plan) => {
             const planInfo = plan.planName ? `[${plan.planName}]` : "";
-            return `${planInfo} 剩余: ${plan.remaining} ${plan.unit}`;
+            return `${planInfo} ${t("usage.remaining")} ${plan.remaining} ${plan.unit}`;
           })
           .join(", ");
-        toast.success(`测试成功！${summary}`, { duration: 3000 });
+        toast.success(`${t("usageScript.testSuccess")}${summary}`, { duration: 3000 });
       } else {
-        toast.error(`测试失败: ${result.error || "无数据返回"}`, {
+        toast.error(`${t("usageScript.testFailed")}: ${result.error || t("endpointTest.noResult")}`, {
           duration: 5000,
         });
       }
     } catch (error: any) {
-      toast.error(`测试失败: ${error?.message || "未知错误"}`, {
+      toast.error(`${t("usageScript.testFailed")}: ${error?.message || t("common.unknown")}`, {
         duration: 5000,
       });
     } finally {
@@ -156,9 +158,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         printWidth: 80,
       });
       setScript({ ...script, code: formatted.trim() });
-      toast.success("格式化成功", { duration: 1000 });
+      toast.success(t("usageScript.formatSuccess"), { duration: 1000 });
     } catch (error: any) {
-      toast.error(`格式化失败: ${error?.message || "语法错误"}`, {
+      toast.error(`${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`, {
         duration: 3000,
       });
     }
@@ -175,7 +177,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>配置用量查询 - {provider.name}</DialogTitle>
+          <DialogTitle>{t("usageScript.title")} - {provider.name}</DialogTitle>
         </DialogHeader>
 
         {/* Content - Scrollable */}
@@ -191,7 +193,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               className="w-4 h-4"
             />
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              启用用量查询
+              {t("usageScript.enableUsageQuery")}
             </span>
           </label>
 
@@ -200,7 +202,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               {/* 预设模板选择 */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-                  预设模板
+                  {t("usageScript.presetTemplate")}
                 </label>
                 <div className="flex gap-2">
                   {Object.keys(PRESET_TEMPLATES).map((name) => (
@@ -218,7 +220,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               {/* 脚本编辑器 */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-                  查询脚本（JavaScript）
+                  {t("usageScript.queryScript")}
                 </label>
                 <JsonEditor
                   value={script.code}
@@ -227,9 +229,10 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   language="javascript"
                 />
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  支持变量: <code>{"{{apiKey}}"}</code>,{" "}
-                  <code>{"{{baseUrl}}"}</code> | extractor 函数接收 API 响应的
-                  JSON 对象
+                  {t("usageScript.variablesHint", {
+                    apiKey: "{{apiKey}}",
+                    baseUrl: "{{baseUrl}}"
+                  })}
                 </p>
               </div>
 
@@ -237,7 +240,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <label className="block">
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    超时时间（秒）
+                    {t("usageScript.timeoutSeconds")}
                   </span>
                   <input
                     type="number"
@@ -257,10 +260,10 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
               {/* 脚本说明 */}
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-gray-700 dark:text-gray-300">
-                <h4 className="font-medium mb-2">脚本编写说明：</h4>
+                <h4 className="font-medium mb-2">{t("usageScript.scriptHelp")}</h4>
                 <div className="space-y-3 text-xs">
                   <div>
-                    <strong>配置格式：</strong>
+                    <strong>{t("usageScript.configFormat")}</strong>
                     <pre className="mt-1 p-2 bg-white/50 dark:bg-black/20 rounded text-[10px] overflow-x-auto">
                       {`({
   request: {
@@ -285,51 +288,25 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   </div>
 
                   <div>
-                    <strong>extractor 返回格式（所有字段均为可选）：</strong>
+                    <strong>{t("usageScript.extractorFormat")}</strong>
                     <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>
-                        • <code>isValid</code>: 布尔值，套餐是否有效
-                      </li>
-                      <li>
-                        • <code>invalidMessage</code>: 字符串，失效原因说明（当
-                        isValid 为 false 时显示）
-                      </li>
-                      <li>
-                        • <code>remaining</code>: 数字，剩余额度
-                      </li>
-                      <li>
-                        • <code>unit</code>: 字符串，单位（如 "USD"）
-                      </li>
-                      <li>
-                        • <code>planName</code>: 字符串，套餐名称
-                      </li>
-                      <li>
-                        • <code>total</code>: 数字，总额度
-                      </li>
-                      <li>
-                        • <code>used</code>: 数字，已用额度
-                      </li>
-                      <li>
-                        • <code>extra</code>:
-                        字符串，扩展字段，可自由补充需要展示的文本
-                      </li>
+                      <li>{t("usageScript.fieldIsValid")}</li>
+                      <li>{t("usageScript.fieldInvalidMessage")}</li>
+                      <li>{t("usageScript.fieldRemaining")}</li>
+                      <li>{t("usageScript.fieldUnit")}</li>
+                      <li>{t("usageScript.fieldPlanName")}</li>
+                      <li>{t("usageScript.fieldTotal")}</li>
+                      <li>{t("usageScript.fieldUsed")}</li>
+                      <li>{t("usageScript.fieldExtra")}</li>
                     </ul>
                   </div>
 
                   <div className="text-gray-600 dark:text-gray-400">
-                    <strong>💡 提示：</strong>
+                    <strong>{t("usageScript.tips")}</strong>
                     <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>
-                        • 变量 <code>{"{{apiKey}}"}</code> 和{" "}
-                        <code>{"{{baseUrl}}"}</code> 会自动替换
-                      </li>
-                      <li>
-                        • extractor 函数在沙箱环境中执行，支持 ES2020+ 语法
-                      </li>
-                      <li>
-                        • 整个配置必须用 <code>()</code>{" "}
-                        包裹，形成对象字面量表达式
-                      </li>
+                      <li>{t("usageScript.tip1", { apiKey: "{{apiKey}}", baseUrl: "{{baseUrl}}" })}</li>
+                      <li>{t("usageScript.tip2")}</li>
+                      <li>{t("usageScript.tip3")}</li>
                     </ul>
                   </div>
                 </div>
@@ -349,27 +326,27 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               disabled={!script.enabled || testing}
             >
               <Play size={14} />
-              {testing ? "测试中..." : "测试脚本"}
+              {testing ? t("usageScript.testing") : t("usageScript.testScript")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleFormat}
               disabled={!script.enabled}
-              title="格式化代码 (Prettier)"
+              title={t("usageScript.format")}
             >
               <Wand2 size={14} />
-              格式化
+              {t("usageScript.format")}
             </Button>
           </div>
 
           {/* Right side - Cancel and Save buttons */}
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button variant="default" size="sm" onClick={handleSave}>
-              保存配置
+              {t("usageScript.saveConfig")}
             </Button>
           </div>
         </DialogFooter>

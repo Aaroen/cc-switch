@@ -137,15 +137,11 @@ export function ClaudeFormFields({
       {shouldShowSpeedTest && (
         <EndpointField
           id="baseUrl"
-          label={t("providerForm.apiEndpoint", { defaultValue: "API 端点" })}
+          label={t("providerForm.apiEndpoint")}
           value={baseUrl}
           onChange={onBaseUrlChange}
-          placeholder={t("providerForm.apiEndpointPlaceholder", {
-            defaultValue: "https://api.example.com",
-          })}
-          hint={t("providerForm.apiHint", {
-            defaultValue: "API 端点地址用于连接服务器",
-          })}
+          placeholder={t("providerForm.apiEndpointPlaceholder")}
+          hint={t("providerForm.apiHint")}
           onManageClick={() => onEndpointModalToggle(true)}
         />
       )}

@@ -1,5 +1,6 @@
 import React from "react";
 import { RefreshCw, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { type AppType } from "@/lib/api";
 import { useUsageQuery } from "@/lib/query/queries";
 import { UsageData } from "../types";
@@ -15,6 +16,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   appType,
   usageEnabled,
 }) => {
+  const { t } = useTranslation();
   const {
     data: usage,
     isLoading: loading,
@@ -31,7 +33,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
         <div className="flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
             <AlertCircle size={14} />
-            <span>{usage.error || "查询失败"}</span>
+            <span>{usage.error || t("usage.queryFailed")}</span>
           </div>
 
           {/* 刷新按钮 */}
@@ -39,7 +41,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
             onClick={() => refetch()}
             disabled={loading}
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex-shrink-0"
-            title="刷新用量"
+            title={t("usage.refreshUsage")}
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           </button>
@@ -58,13 +60,13 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
       {/* 标题行：包含刷新按钮 */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-          套餐用量
+          {t("usage.planUsage")}
         </span>
         <button
           onClick={() => refetch()}
           disabled={loading}
           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          title="刷新用量"
+          title={t("usage.refreshUsage")}
         >
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         </button>
@@ -82,6 +84,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
 // 单个套餐数据展示组件
 const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
+  const { t } = useTranslation();
   const {
     planName,
     extra,
@@ -130,7 +133,7 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         )}
         {isExpired && (
           <span className="text-red-500 dark:text-red-400 font-medium text-[10px] px-1.5 py-0.5 bg-red-50 dark:bg-red-900/20 rounded flex-shrink-0">
-            {invalidMessage || "已失效"}
+            {invalidMessage || t("usage.invalid")}
           </span>
         )}
       </div>
@@ -143,7 +146,7 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 总额度 */}
         {total !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">总：</span>
+            <span className="text-gray-500 dark:text-gray-400">{t("usage.total")}</span>
             <span className="tabular-nums text-gray-600 dark:text-gray-400">
               {total === -1 ? "∞" : total.toFixed(2)}
             </span>
@@ -154,7 +157,7 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 已用额度 */}
         {used !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">使用：</span>
+            <span className="text-gray-500 dark:text-gray-400">{t("usage.used")}</span>
             <span className="tabular-nums text-gray-600 dark:text-gray-400">
               {used.toFixed(2)}
             </span>
@@ -165,7 +168,7 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 剩余额度 - 突出显示 */}
         {remaining !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">剩余：</span>
+            <span className="text-gray-500 dark:text-gray-400">{t("usage.remaining")}</span>
             <span
               className={`font-semibold tabular-nums ${
                 isExpired

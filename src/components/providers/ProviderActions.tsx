@@ -35,25 +35,25 @@ export function ProviderActions({
         {isCurrent ? (
           <>
             <Check className="h-4 w-4" />
-            {t("provider.inUse", { defaultValue: "已启用" })}
+            {t("provider.inUse")}
           </>
         ) : (
           <>
             <Play className="h-4 w-4" />
-            {t("provider.enable", { defaultValue: "启用" })}
+            {t("provider.enable")}
           </>
         )}
       </Button>
 
       <Button size="sm" variant="outline" onClick={onEdit}>
-        {t("common.edit", { defaultValue: "编辑" })}
+        {t("common.edit")}
       </Button>
 
       <Button
         size="sm"
         variant="outline"
         onClick={onConfigureUsage}
-        title={t("provider.configureUsage", { defaultValue: "配置用量查询" })}
+        title={t("provider.configureUsage")}
       >
         <BarChart3 className="h-4 w-4" />
       </Button>

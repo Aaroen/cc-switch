@@ -68,15 +68,11 @@ export function CodexFormFields({
       {shouldShowSpeedTest && (
         <EndpointField
           id="codexBaseUrl"
-          label={t("codexConfig.apiUrlLabel", { defaultValue: "API 端点" })}
+          label={t("codexConfig.apiUrlLabel")}
           value={codexBaseUrl}
           onChange={onBaseUrlChange}
-          placeholder={t("providerForm.codexApiEndpointPlaceholder", {
-            defaultValue: "https://api.example.com/v1",
-          })}
-          hint={t("providerForm.codexApiHint", {
-            defaultValue: "Codex API 端点地址",
-          })}
+          placeholder={t("providerForm.codexApiEndpointPlaceholder")}
+          hint={t("providerForm.codexApiHint")}
           onManageClick={() => onEndpointModalToggle(true)}
         />
       )}

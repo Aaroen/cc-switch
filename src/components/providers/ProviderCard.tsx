@@ -104,7 +104,7 @@ export function ProviderCard({
               "mt-1 flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:border-muted hover:text-foreground",
               dragHandleProps?.isDragging && "border-primary text-primary",
             )}
-            aria-label={t("provider.dragHandle", { defaultValue: "拖拽排序" })}
+            aria-label={t("provider.dragHandle")}
             {...(dragHandleProps?.attributes ?? {})}
             {...(dragHandleProps?.listeners ?? {})}
           >
@@ -118,7 +118,7 @@ export function ProviderCard({
               </h3>
               {isCurrent && (
                 <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400">
-                  {t("provider.currentlyUsing", { defaultValue: "当前使用" })}
+                  {t("provider.currentlyUsing")}
                 </span>
               )}
             </div>
