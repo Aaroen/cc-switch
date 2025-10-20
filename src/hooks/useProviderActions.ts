@@ -39,16 +39,7 @@ export function useProviderActions(activeApp: AppType) {
         const isOfficial = provider.category === "official";
         await settingsApi.applyClaudePluginConfig({ official: isOfficial });
 
-        toast.success(
-          isOfficial
-            ? t("notifications.appliedToClaudePlugin", {
-                defaultValue: "已同步为官方配置",
-              })
-            : t("notifications.removedFromClaudePlugin", {
-                defaultValue: "已移除 Claude 插件配置",
-              }),
-          { duration: 2200 },
-        );
+        // 静默执行，不显示成功通知
       } catch (error) {
         const detail =
           extractErrorMessage(error) ||
