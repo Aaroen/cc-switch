@@ -90,12 +90,12 @@ export function ProviderCard({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card p-4 shadow-sm transition-[box-shadow,transform] duration-200",
+        "rounded-lg bg-card p-4 shadow-sm transition-all duration-200",
         isCurrent
-          ? "border-primary/70 bg-primary/5"
-          : "border-border hover:border-primary/40",
+          ? "border-2 border-[hsl(var(--primary))] bg-primary/5"
+          : "border border-[hsl(var(--border))] hover:border-primary/40",
         dragHandleProps?.isDragging &&
-          "cursor-grabbing border-primary/60 shadow-lg",
+          "cursor-grabbing border-2 border-[hsl(var(--primary)/.6)] shadow-lg",
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -117,15 +117,18 @@ export function ProviderCard({
           </button>
 
           <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-h-[20px]">
               <h3 className="text-base font-semibold leading-none">
                 {provider.name}
               </h3>
-              {isCurrent && (
-                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400">
-                  {t("provider.currentlyUsing")}
-                </span>
-              )}
+              <span
+                className={cn(
+                  "rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400 transition-opacity duration-200",
+                  isCurrent ? "opacity-100" : "opacity-0 pointer-events-none"
+                )}
+              >
+                {t("provider.currentlyUsing")}
+              </span>
             </div>
 
             {displayUrl && (

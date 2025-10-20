@@ -73,7 +73,6 @@
 /* 全局基础样式 */
 * {
   box-sizing: border-box;
-  border-color: hsl(var(--border));
 }
 
 html {
