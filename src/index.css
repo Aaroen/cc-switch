@@ -122,3 +122,33 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 *:focus-visible {
   @apply outline-2 outline-blue-500 outline-offset-2;
 }
+
+/* 统一边框设计系统 - 使用工具类定义 */
+@layer utilities {
+  /* 默认边框：1px，使用主题边框颜色 */
+  .border-default {
+    border-width: 1px;
+    border-color: hsl(var(--border));
+  }
+
+  /* 激活边框：2px，使用主色 */
+  .border-active {
+    border-width: 2px;
+  }
+
+  .border-border-default {
+    border-color: hsl(var(--border));
+  }
+
+  .border-border-active {
+    border-color: hsl(var(--primary));
+  }
+
+  .border-border-hover {
+    border-color: hsl(var(--primary) / 0.4);
+  }
+
+  .border-border-dragging {
+    border-color: hsl(var(--primary) / 0.6);
+  }
+}

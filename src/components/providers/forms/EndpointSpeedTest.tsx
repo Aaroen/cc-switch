@@ -457,7 +457,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                   type="checkbox"
                   checked={autoSelect}
                   onChange={(event) => setAutoSelect(event.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600"
+                  className="h-3.5 w-3.5 rounded border-border-default "
                 />
                 {t("endpointTest.autoSelect")}
               </label>
@@ -530,7 +530,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                     className={`group flex cursor-pointer items-center justify-between px-3 py-2.5 rounded-lg border transition ${
                       isSelected
                         ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
-                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+                        : "border-border-default bg-white hover:border-border-default hover:bg-gray-50  dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
                     }`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -595,7 +595,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
               })}
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-gray-200 bg-gray-50 py-8 text-center text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+            <div className="rounded-md border border-dashed border-border-default bg-gray-50 py-8 text-center text-xs text-gray-500  dark:bg-gray-900 dark:text-gray-400">
               {t("endpointTest.noEndpoints")}
             </div>
           )}

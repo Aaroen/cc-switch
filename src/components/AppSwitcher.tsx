@@ -13,7 +13,7 @@ export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
   };
 
   return (
-    <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 gap-1 border border-transparent dark:border-gray-700">
+    <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 gap-1 border border-transparent ">
       <button
         type="button"
         onClick={() => handleSwitch("claude")}

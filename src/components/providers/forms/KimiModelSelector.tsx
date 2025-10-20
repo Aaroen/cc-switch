@@ -98,8 +98,8 @@ const KimiModelSelector: React.FC<KimiModelSelectorProps> = ({
 
   const selectClass = `w-full px-3 py-2 border rounded-lg text-sm transition-colors appearance-none bg-white dark:bg-gray-800 ${
     disabled
-      ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-      : "border-gray-200 dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-blue-500 dark:focus:border-blue-400"
+      ? "bg-gray-100 dark:bg-gray-800 border-border-default  text-gray-400 dark:text-gray-500 cursor-not-allowed"
+      : "border-border-default  dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active "
   }`;
 
   const ModelSelect: React.FC<{

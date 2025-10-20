@@ -239,7 +239,7 @@ export const CodexQuickWizardModal: React.FC<CodexQuickWizardModalProps> = ({
 
           {/* Preview */}
           {(templateApiKey || templateProviderName || templateBaseUrl) && (
-            <div className="space-y-2 border-t border-gray-200 pt-4 dark:border-gray-700">
+            <div className="space-y-2 border-t border-border-default pt-4 ">
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 {t("codexConfig.configPreview")}
               </h3>

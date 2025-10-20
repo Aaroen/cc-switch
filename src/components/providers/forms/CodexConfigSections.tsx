@@ -36,7 +36,7 @@ export const CodexAuthSection: React.FC<CodexAuthSectionProps> = ({
         placeholder={t("codexConfig.authJsonPlaceholder")}
         rows={6}
         required
-        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-blue-500 dark:focus:border-blue-400 transition-colors resize-y min-h-[8rem]"
+        className="w-full px-3 py-2 border border-border-default  dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active  transition-colors resize-y min-h-[8rem]"
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="none"
@@ -98,7 +98,7 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
             type="checkbox"
             checked={useCommonConfig}
             onChange={(e) => onCommonConfigToggle(e.target.checked)}
-            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default  rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
           />
           {t("codexConfig.writeCommonConfig")}
         </label>
@@ -126,7 +126,7 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
         onChange={(e) => onChange(e.target.value)}
         placeholder=""
         rows={8}
-        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-blue-500 dark:focus:border-blue-400 transition-colors resize-y min-h-[10rem]"
+        className="w-full px-3 py-2 border border-border-default  dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active  transition-colors resize-y min-h-[10rem]"
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="none"

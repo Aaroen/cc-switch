@@ -92,10 +92,10 @@ export function ProviderCard({
       className={cn(
         "rounded-lg bg-card p-4 shadow-sm transition-all duration-200",
         isCurrent
-          ? "border-2 border-[hsl(var(--primary))] bg-primary/5"
-          : "border border-[hsl(var(--border))] hover:border-primary/40",
+          ? "border-active border-border-active bg-primary/5"
+          : "border border-border-default hover:border-border-hover",
         dragHandleProps?.isDragging &&
-          "cursor-grabbing border-2 border-[hsl(var(--primary)/.6)] shadow-lg",
+          "cursor-grabbing border-active border-border-dragging shadow-lg",
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -105,9 +105,9 @@ export function ProviderCard({
             className={cn(
               "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200",
               isEditMode
-                ? "w-8 mr-3 border-muted hover:border-primary hover:text-foreground opacity-100"
+                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground opacity-100"
                 : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
-              dragHandleProps?.isDragging && "border-primary text-primary",
+              dragHandleProps?.isDragging && "border-border-active text-primary",
             )}
             aria-label={t("provider.dragHandle")}
             {...(dragHandleProps?.attributes ?? {})}

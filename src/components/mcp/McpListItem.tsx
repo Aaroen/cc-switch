@@ -52,7 +52,7 @@ const McpListItem: React.FC<McpListItemProps> = ({
   };
 
   return (
-    <div className="h-16 rounded-lg border border-border bg-card p-4 transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-sm">
+    <div className="h-16 rounded-lg border border-border-default bg-card p-4 transition-[border-color,box-shadow] duration-200 hover:border-border-hover hover:shadow-sm">
       <div className="flex items-center gap-4 h-full">
         {/* 左侧：Toggle 开关 */}
         <div className="flex-shrink-0">

@@ -84,7 +84,7 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
             type="checkbox"
             checked={useCommonConfig}
             onChange={(e) => onCommonConfigToggle(e.target.checked)}
-            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default  rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
           />
           {t("claudeConfig.writeCommonConfig")}
         </label>

@@ -29,7 +29,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   // 错误状态
   if (!usage.success) {
     return (
-      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+      <div className="mt-3 pt-3 border-t border-border-default ">
         <div className="flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
             <AlertCircle size={14} />
@@ -56,7 +56,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   if (usageDataList.length === 0) return null;
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+    <div className="mt-3 pt-3 border-t border-border-default ">
       {/* 标题行：包含刷新按钮 */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">

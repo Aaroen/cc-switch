@@ -253,7 +253,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                         timeout: parseInt(e.target.value),
                       })
                     }
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
               </div>

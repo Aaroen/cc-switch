@@ -626,7 +626,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 <input
                   id={syncCheckboxId}
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-800"
+                  className="h-4 w-4 rounded border-border-default text-emerald-600 focus:ring-emerald-500  dark:bg-gray-800"
                   checked={syncOtherSide}
                   onChange={(event) => setSyncOtherSide(event.target.checked)}
                 />
