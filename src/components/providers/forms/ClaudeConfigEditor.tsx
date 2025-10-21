@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import JsonEditor from "@/components/JsonEditor";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -33,33 +32,7 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
   configError,
 }) => {
   const { t } = useTranslation();
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
-
-  useEffect(() => {
-    // 检测暗色模式
-    const checkDarkMode = () => {
-      setIsDarkMode(document.documentElement.classList.contains("dark"));
-    };
-
-    checkDarkMode();
-
-    // 监听暗色模式变化
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === "class") {
-          checkDarkMode();
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (commonConfigError && !isCommonConfigModalOpen) {
@@ -70,6 +43,7 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
   const closeModal = () => {
     setIsCommonConfigModalOpen(false);
   };
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -84,7 +58,7 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
             type="checkbox"
             checked={useCommonConfig}
             onChange={(e) => onCommonConfigToggle(e.target.checked)}
-            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default  rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
           />
           {t("claudeConfig.writeCommonConfig")}
         </label>
@@ -103,10 +77,10 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
           {commonConfigError}
         </p>
       )}
-      <JsonEditor
+      <textarea
+        id="settingsConfig"
         value={value}
-        onChange={onChange}
-        darkMode={isDarkMode}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={`{
   "env": {
     "ANTHROPIC_BASE_URL": "https://your-api-endpoint.com",
@@ -114,6 +88,16 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
   }
 }`}
         rows={12}
+        className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active transition-colors resize-y min-h-[14rem]"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        lang="en"
+        inputMode="text"
+        data-gramm="false"
+        data-gramm_editor="false"
+        data-enable-grammarly="false"
       />
       {configError && (
         <p className="text-xs text-red-500 dark:text-red-400">{configError}</p>
@@ -138,11 +122,20 @@ const ClaudeConfigEditor: React.FC<ClaudeConfigEditorProps> = ({
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {t("claudeConfig.commonConfigHint")}
             </p>
-            <JsonEditor
+            <textarea
               value={commonConfigSnippet}
-              onChange={onCommonConfigSnippetChange}
-              darkMode={isDarkMode}
+              onChange={(e) => onCommonConfigSnippetChange(e.target.value)}
               rows={12}
+              className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active transition-colors resize-y min-h-[14rem]"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              lang="en"
+              inputMode="text"
+              data-gramm="false"
+              data-gramm_editor="false"
+              data-enable-grammarly="false"
             />
             {commonConfigError && (
               <p className="text-sm text-red-500 dark:text-red-400">

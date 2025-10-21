@@ -78,6 +78,20 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
 
     // 创建编辑器扩展
     const minHeightPx = height ? undefined : Math.max(1, rows) * 18;
+
+    // 使用 baseTheme 定义基础样式，优先级低于 oneDark，但可以正确响应主题
+    const baseTheme = EditorView.baseTheme({
+      "&light .cm-editor, &dark .cm-editor": {
+        border: "1px solid hsl(var(--border))",
+        borderRadius: "0.5rem",
+      },
+      "&light .cm-editor.cm-focused, &dark .cm-editor.cm-focused": {
+        outline: "none",
+        borderColor: "hsl(var(--primary))",
+      },
+    });
+
+    // 使用 theme 定义尺寸和字体样式
     const sizingTheme = EditorView.theme({
       "&": height ? { height } : { minHeight: `${minHeightPx}px` },
       ".cm-scroller": { overflow: "auto" },
@@ -86,20 +100,13 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
           "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
         fontSize: "14px",
       },
-      ".cm-editor": {
-        border: "1px solid hsl(var(--border))",
-        borderRadius: "0.5rem",
-      },
-      ".cm-editor.cm-focused": {
-        outline: "none",
-        borderColor: "hsl(var(--primary))",
-      },
     });
 
     const extensions = [
       basicSetup,
       language === "javascript" ? javascript() : json(),
       placeholder(placeholderText || ""),
+      baseTheme,
       sizingTheme,
       jsonLinter,
       EditorView.updateListener.of((update) => {
@@ -113,6 +120,19 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
     // 如果启用深色模式，添加深色主题
     if (darkMode) {
       extensions.push(oneDark);
+      // 在 oneDark 之后强制覆盖边框样式
+      extensions.push(
+        EditorView.theme({
+          ".cm-editor": {
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "0.5rem",
+          },
+          ".cm-editor.cm-focused": {
+            outline: "none",
+            borderColor: "hsl(var(--primary))",
+          },
+        }),
+      );
     }
 
     // 创建初始状态

@@ -6,9 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import JsonEditor from "@/components/JsonEditor";
-import { useTheme } from "@/components/theme-provider";
-import { useMemo } from "react";
 
 interface CommonConfigEditorProps {
   value: string;
@@ -36,15 +33,6 @@ export function CommonConfigEditor({
   onModalClose,
 }: CommonConfigEditorProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
-
-  const isDarkMode = useMemo(() => {
-    if (theme === "dark") return true;
-    if (theme === "light") return false;
-    return typeof window !== "undefined"
-      ? window.document.documentElement.classList.contains("dark")
-      : false;
-  }, [theme]);
 
   return (
     <>
@@ -60,7 +48,7 @@ export function CommonConfigEditor({
                 id="useCommonConfig"
                 checked={useCommonConfig}
                 onChange={(e) => onCommonConfigToggle(e.target.checked)}
-                className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default  rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+                className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
               />
               <span>
                 {t("claudeConfig.writeCommonConfig", {
@@ -86,21 +74,28 @@ export function CommonConfigEditor({
             {commonConfigError}
           </p>
         )}
-        <div className="rounded-md border">
-          <JsonEditor
-            value={value}
-            onChange={onChange}
-            placeholder={`{
+        <textarea
+          id="settingsConfig"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`{
   "env": {
     "ANTHROPIC_BASE_URL": "https://your-api-endpoint.com",
     "ANTHROPIC_AUTH_TOKEN": "your-api-key-here"
   }
 }`}
-            darkMode={isDarkMode}
-            rows={14}
-            showValidation
-          />
-        </div>
+          rows={14}
+          className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active transition-colors resize-y min-h-[16rem]"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          lang="en"
+          inputMode="text"
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
+        />
         <p className="text-xs text-muted-foreground">
           {t("claudeConfig.fullSettingsHint", {
             defaultValue: "请填写完整的 Claude Code 配置",
@@ -126,14 +121,21 @@ export function CommonConfigEditor({
                 defaultValue: "通用配置片段将合并到所有启用它的供应商配置中",
               })}
             </p>
-            <div className="rounded-md border">
-              <JsonEditor
-                value={commonConfigSnippet}
-                onChange={onCommonConfigSnippetChange}
-                darkMode={isDarkMode}
-                rows={12}
-              />
-            </div>
+            <textarea
+              value={commonConfigSnippet}
+              onChange={(e) => onCommonConfigSnippetChange(e.target.value)}
+              rows={12}
+              className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active transition-colors resize-y min-h-[14rem]"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              lang="en"
+              inputMode="text"
+              data-gramm="false"
+              data-gramm_editor="false"
+              data-enable-grammarly="false"
+            />
             {commonConfigError && (
               <p className="text-sm text-red-500 dark:text-red-400">
                 {commonConfigError}
