@@ -86,6 +86,14 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
           "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
         fontSize: "14px",
       },
+      ".cm-editor": {
+        border: "1px solid hsl(var(--border))",
+        borderRadius: "0.5rem",
+      },
+      ".cm-editor.cm-focused": {
+        outline: "none",
+        borderColor: "hsl(var(--primary))",
+      },
     });
 
     const extensions = [

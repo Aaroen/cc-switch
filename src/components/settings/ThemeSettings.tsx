@@ -16,7 +16,7 @@ export function ThemeSettings() {
           {t("settings.themeHint")}
         </p>
       </header>
-      <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">
+      <div className="inline-flex gap-1 rounded-md border border-border-default bg-background p-1">
         <ThemeButton
           active={theme === "light"}
           onClick={() => setTheme("light")}

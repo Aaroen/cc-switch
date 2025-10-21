@@ -51,7 +51,7 @@ export function ImportExportSection({
         </p>
       </header>
 
-      <div className="space-y-3 rounded-lg border border-border p-4">
+      <div className="space-y-3 rounded-lg border border-border-default p-4">
         <Button
           type="button"
           className="w-full"
@@ -138,7 +138,7 @@ function ImportStatusMessage({
 
   if (status === "importing") {
     return (
-      <div className={`${baseClass} border-border bg-muted/40`}>
+      <div className={`${baseClass} border-border-default bg-muted/40`}>
         <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-muted-foreground" />
         <div>
           <p className="font-medium">{t("settings.importing")}</p>

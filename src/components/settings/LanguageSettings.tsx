@@ -18,7 +18,7 @@ export function LanguageSettings({ value, onChange }: LanguageSettingsProps) {
           {t("settings.languageHint")}
         </p>
       </header>
-      <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">
+      <div className="inline-flex gap-1 rounded-md border border-border-default bg-background p-1">
         <LanguageButton active={value === "zh"} onClick={() => onChange("zh")}>
           {t("settings.languageOptionChinese")}
         </LanguageButton>

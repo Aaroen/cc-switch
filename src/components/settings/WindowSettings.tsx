@@ -52,7 +52,7 @@ function ToggleRow({
   onCheckedChange,
 }: ToggleRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border-default p-4">
       <div className="space-y-1">
         <p className="text-sm font-medium leading-none">{title}</p>
         {description ? (
