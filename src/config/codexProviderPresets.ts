@@ -25,7 +25,7 @@ export interface CodexProviderPreset {
  */
 export function generateThirdPartyAuth(apiKey: string): Record<string, any> {
   return {
-    OPENAI_API_KEY: apiKey || "sk-your-api-key-here",
+    OPENAI_API_KEY: apiKey || "",
   };
 }
 
@@ -74,7 +74,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     name: "PackyCode",
     websiteUrl: "https://codex.packycode.com/",
     category: "third_party",
-    auth: generateThirdPartyAuth("sk-your-api-key-here"),
+    auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "packycode",
       "https://codex-api.packycode.com/v1",
@@ -83,8 +83,24 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     // Codex 请求地址候选（用于地址管理/测速）
     endpointCandidates: [
       "https://codex-api.packycode.com/v1",
-      "https://codex-api-hk-cn2.packycode.com/v1",
-      "https://codex-api-hk-cdn.packycode.com/v1",
+      "https://codex-api-slb.packycode.com/v1",
+    ],
+  },
+  {
+    name: "AnyRouter",
+    websiteUrl: "https://anyrouter.top",
+    category: "third_party",
+    auth: generateThirdPartyAuth(""),
+    config: generateThirdPartyConfig(
+      "anyrouter",
+      "https://anyrouter.top",
+      "gpt-5-codex",
+    ),
+    // Codex 请求地址候选（用于地址管理/测速）
+    endpointCandidates: [
+      "https://anyrouter.top",
+      "https://q.quuvv.cn",
+      "https://pmpjfbhq.cn-nb1.rainapp.top",
     ],
   },
 ];
