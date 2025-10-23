@@ -48,7 +48,6 @@ export function ApiKeySection({
         label={label}
         value={value}
         onChange={onChange}
-        required={category !== "official"}
         placeholder={
           category === "official"
             ? finalPlaceholder.official

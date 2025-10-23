@@ -62,9 +62,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     websiteUrl: "https://chatgpt.com/codex",
     isOfficial: true,
     category: "official",
-    auth: {
-      OPENAI_API_KEY: null,
-    },
+    auth: {},
     config: ``,
     theme: {
       icon: "codex",
