@@ -121,6 +121,7 @@ export function ProviderForm({
     initialConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
     selectedPresetId,
+    category,
   });
 
   // 使用 Base URL hook (仅 Claude 模式)
