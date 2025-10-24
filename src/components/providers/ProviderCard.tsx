@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { MoveVertical } from "lucide-react";
+import { MoveVertical, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   DraggableAttributes,
@@ -27,6 +27,7 @@ interface ProviderCardProps {
   onDelete: (provider: Provider) => void;
   onConfigureUsage: (provider: Provider) => void;
   onOpenWebsite: (url: string) => void;
+  onDuplicate: (provider: Provider) => void;
   dragHandleProps?: DragHandleProps;
 }
 
@@ -66,6 +67,7 @@ export function ProviderCard({
   onDelete,
   onConfigureUsage,
   onOpenWebsite,
+  onDuplicate,
   dragHandleProps,
 }: ProviderCardProps) {
   const { t } = useTranslation();
@@ -107,13 +109,29 @@ export function ProviderCard({
               isEditMode
                 ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground hover:bg-muted/50 opacity-100"
                 : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
-              dragHandleProps?.isDragging && "border-border-active text-primary bg-primary/10 cursor-grabbing",
+              dragHandleProps?.isDragging &&
+                "border-border-active text-primary bg-primary/10 cursor-grabbing",
             )}
             aria-label={t("provider.dragHandle")}
             {...(dragHandleProps?.attributes ?? {})}
             {...(dragHandleProps?.listeners ?? {})}
           >
             <MoveVertical className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            className={cn(
+              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200",
+              isEditMode
+                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground hover:bg-muted/50 opacity-100 cursor-pointer"
+                : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
+            )}
+            onClick={() => onDuplicate(provider)}
+            aria-label={t("provider.duplicate")}
+            title={t("provider.duplicate")}
+          >
+            <Copy className="h-4 w-4" />
           </button>
 
           <div className="space-y-1">
@@ -124,7 +142,7 @@ export function ProviderCard({
               <span
                 className={cn(
                   "rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400 transition-opacity duration-200",
-                  isCurrent ? "opacity-100" : "opacity-0 pointer-events-none"
+                  isCurrent ? "opacity-100" : "opacity-0 pointer-events-none",
                 )}
               >
                 {t("provider.currentlyUsing")}

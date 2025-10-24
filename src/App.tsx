@@ -59,7 +59,7 @@ function App() {
             if (event.appType === activeApp) {
               await refetch();
             }
-          }
+          },
         );
       } catch (error) {
         console.error("[App] Failed to subscribe provider switch event", error);
@@ -99,6 +99,22 @@ function App() {
     setConfirmDelete(null);
   };
 
+  // 复制供应商
+  const handleDuplicateProvider = async (provider: Provider) => {
+    const duplicatedProvider: Omit<Provider, "id" | "createdAt"> = {
+      name: `${provider.name} copy`,
+      settingsConfig: JSON.parse(JSON.stringify(provider.settingsConfig)), // 深拷贝
+      websiteUrl: provider.websiteUrl,
+      category: provider.category,
+      meta: provider.meta
+        ? JSON.parse(JSON.stringify(provider.meta))
+        : undefined, // 深拷贝
+      // sortIndex 不复制，让它按 createdAt 自然排序
+    };
+
+    await addProvider(duplicatedProvider);
+  };
+
   // 导入配置成功后刷新
   const handleImportSuccess = async () => {
     await refetch();
@@ -136,7 +152,7 @@ function App() {
               size="icon"
               onClick={() => setIsEditMode(!isEditMode)}
               title={t(
-                isEditMode ? "header.exitEditMode" : "header.enterEditMode"
+                isEditMode ? "header.exitEditMode" : "header.enterEditMode",
               )}
               className={
                 isEditMode
@@ -177,6 +193,7 @@ function App() {
             onSwitch={switchProvider}
             onEdit={setEditingProvider}
             onDelete={setConfirmDelete}
+            onDuplicate={handleDuplicateProvider}
             onConfigureUsage={setUsageProvider}
             onOpenWebsite={handleOpenWebsite}
             onCreate={() => setIsAddOpen(true)}

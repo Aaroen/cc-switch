@@ -72,6 +72,7 @@
     "removeFromClaudePlugin": "Remove from Claude plugin",
     "dragToReorder": "Drag to reorder",
     "dragHandle": "Drag to reorder",
+    "duplicate": "Duplicate",
     "sortUpdateFailed": "Failed to update sort order",
     "configureUsage": "Configure usage query",
     "name": "Provider Name",
