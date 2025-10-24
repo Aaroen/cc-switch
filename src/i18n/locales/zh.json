@@ -265,6 +265,8 @@
     "loadEndpointsFailed": "加载自定义端点失败:",
     "addEndpointFailed": "添加自定义端点失败:",
     "removeEndpointFailed": "删除自定义端点失败:",
+    "removeFailed": "删除失败: {{error}}",
+    "updateLastUsedFailed": "更新端点使用时间失败",
     "pleaseAddEndpoint": "请先添加端点",
     "testUnavailable": "测速功能不可用",
     "noResult": "未返回结果",

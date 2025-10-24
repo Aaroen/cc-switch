@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppType } from "@/lib/api";
-import type { ProviderCategory, CustomEndpoint } from "@/types";
+import type { ProviderCategory, CustomEndpoint, ProviderMeta } from "@/types";
 import { providerPresets, type ProviderPreset } from "@/config/providerPresets";
 import {
   codexProviderPresets,
@@ -52,6 +52,8 @@ interface ProviderFormProps {
     name?: string;
     websiteUrl?: string;
     settingsConfig?: Record<string, unknown>;
+    category?: ProviderCategory;
+    meta?: ProviderMeta;
   };
   showButtons?: boolean;
 }
@@ -86,6 +88,7 @@ export function ProviderForm({
     appType,
     selectedPresetId,
     isEditMode,
+    initialCategory: initialData?.category,
   });
 
   useEffect(() => {
@@ -320,8 +323,12 @@ export function ProviderForm({
       }
     }
 
-    // 新建供应商时：添加自定义端点
-    if (!initialData && customEndpointsMap) {
+    // 处理 meta 字段（新建与编辑使用不同策略）
+    if (initialData?.meta) {
+      // 编辑模式：后端已通过 API 更新 meta，直接使用原有值
+      payload.meta = initialData.meta;
+    } else if (customEndpointsMap) {
+      // 新建模式：从表单收集的自定义端点打包到 meta
       payload.meta = { custom_endpoints: customEndpointsMap };
     }
 

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { AppType } from "@/lib/api";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
+import type { ProviderMeta, EndpointCandidate } from "@/types";
 
 type PresetEntry = {
   id: string;
@@ -16,20 +17,18 @@ interface UseSpeedTestEndpointsProps {
   codexBaseUrl: string;
   initialData?: {
     settingsConfig?: Record<string, unknown>;
+    meta?: ProviderMeta;
   };
-}
-
-export interface EndpointCandidate {
-  url: string;
 }
 
 /**
  * 收集端点测速弹窗的初始端点列表
  *
  * 收集来源：
- * 1. 当前选中的 Base URL
- * 2. 编辑模式下的初始数据 URL
- * 3. 预设中的 endpointCandidates
+ * 1. 编辑模式：从 meta.custom_endpoints 读取已保存的端点（优先）
+ * 2. 当前选中的 Base URL
+ * 3. 编辑模式下的初始数据 URL
+ * 4. 预设中的 endpointCandidates
  */
 export function useSpeedTestEndpoints({
   appType,
@@ -43,43 +42,53 @@ export function useSpeedTestEndpoints({
     if (appType !== "claude") return [];
 
     const map = new Map<string, EndpointCandidate>();
+    // 所有端点都标记为 isCustom: true，给用户完全的管理自由
     const add = (url?: string) => {
       if (!url) return;
       const sanitized = url.trim().replace(/\/+$/, "");
       if (!sanitized || map.has(sanitized)) return;
-      map.set(sanitized, { url: sanitized });
+      map.set(sanitized, { url: sanitized, isCustom: true });
     };
 
-    // 1. 当前 Base URL
+    // 1. 编辑模式：从 meta.custom_endpoints 读取已保存的端点（优先）
+    if (initialData?.meta?.custom_endpoints) {
+      const customEndpoints = initialData.meta.custom_endpoints;
+      for (const url of Object.keys(customEndpoints)) {
+        add(url);
+      }
+    }
+
+    // 2. 当前 Base URL
     if (baseUrl) {
       add(baseUrl);
     }
 
-    // 2. 编辑模式：初始数据中的 URL
+    // 3. 编辑模式：初始数据中的 URL
     if (initialData && typeof initialData.settingsConfig === "object") {
-      const envUrl = (initialData.settingsConfig as any)?.env
-        ?.ANTHROPIC_BASE_URL;
+      const configEnv = initialData.settingsConfig as {
+        env?: { ANTHROPIC_BASE_URL?: string };
+      };
+      const envUrl = configEnv.env?.ANTHROPIC_BASE_URL;
       if (typeof envUrl === "string") {
         add(envUrl);
       }
     }
 
-    // 3. 预设中的 endpointCandidates
+    // 4. 预设中的 endpointCandidates（也允许用户删除）
     if (selectedPresetId && selectedPresetId !== "custom") {
       const entry = presetEntries.find((item) => item.id === selectedPresetId);
       if (entry) {
         const preset = entry.preset as ProviderPreset;
         // 添加预设自己的 baseUrl
-        const presetEnv = (preset.settingsConfig as any)?.env
-          ?.ANTHROPIC_BASE_URL;
-        if (typeof presetEnv === "string") {
-          add(presetEnv);
+        const presetEnv = preset.settingsConfig as {
+          env?: { ANTHROPIC_BASE_URL?: string };
+        };
+        if (presetEnv.env?.ANTHROPIC_BASE_URL) {
+          add(presetEnv.env.ANTHROPIC_BASE_URL);
         }
         // 添加预设的候选端点
-        if (Array.isArray((preset as any).endpointCandidates)) {
-          for (const u of (preset as any).endpointCandidates as string[]) {
-            add(u);
-          }
+        if (preset.endpointCandidates) {
+          preset.endpointCandidates.forEach((url) => add(url));
         }
       }
     }
@@ -91,30 +100,40 @@ export function useSpeedTestEndpoints({
     if (appType !== "codex") return [];
 
     const map = new Map<string, EndpointCandidate>();
+    // 所有端点都标记为 isCustom: true，给用户完全的管理自由
     const add = (url?: string) => {
       if (!url) return;
       const sanitized = url.trim().replace(/\/+$/, "");
       if (!sanitized || map.has(sanitized)) return;
-      map.set(sanitized, { url: sanitized });
+      map.set(sanitized, { url: sanitized, isCustom: true });
     };
 
-    // 1. 当前 Codex Base URL
+    // 1. 编辑模式：从 meta.custom_endpoints 读取已保存的端点（优先）
+    if (initialData?.meta?.custom_endpoints) {
+      const customEndpoints = initialData.meta.custom_endpoints;
+      for (const url of Object.keys(customEndpoints)) {
+        add(url);
+      }
+    }
+
+    // 2. 当前 Codex Base URL
     if (codexBaseUrl) {
       add(codexBaseUrl);
     }
 
-    // 2. 编辑模式：初始数据中的 URL
+    // 3. 编辑模式：初始数据中的 URL
     const initialCodexConfig =
-      initialData && typeof initialData.settingsConfig?.config === "string"
-        ? (initialData.settingsConfig as any).config
-        : "";
+      initialData?.settingsConfig as {
+        config?: string;
+      } | undefined;
+    const configStr = initialCodexConfig?.config ?? "";
     // 从 TOML 中提取 base_url
-    const match = /base_url\s*=\s*["']([^"']+)["']/i.exec(initialCodexConfig);
+    const match = /base_url\s*=\s*["']([^"']+)["']/i.exec(configStr);
     if (match?.[1]) {
       add(match[1]);
     }
 
-    // 3. 预设中的 endpointCandidates
+    // 4. 预设中的 endpointCandidates（也允许用户删除）
     if (selectedPresetId && selectedPresetId !== "custom") {
       const entry = presetEntries.find((item) => item.id === selectedPresetId);
       if (entry) {
@@ -128,10 +147,8 @@ export function useSpeedTestEndpoints({
           add(presetMatch[1]);
         }
         // 添加预设的候选端点
-        if (Array.isArray((preset as any).endpointCandidates)) {
-          for (const u of (preset as any).endpointCandidates as string[]) {
-            add(u);
-          }
+        if (preset.endpointCandidates) {
+          preset.endpointCandidates.forEach((url) => add(url));
         }
       }
     }

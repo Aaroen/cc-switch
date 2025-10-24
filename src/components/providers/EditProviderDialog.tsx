@@ -49,6 +49,8 @@ export function EditProviderDialog({
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
         ...(values.presetCategory ? { category: values.presetCategory } : {}),
+        // 保留或更新 meta 字段
+        ...(values.meta ? { meta: values.meta } : {}),
       };
 
       await onSubmit(updatedProvider);
@@ -83,6 +85,8 @@ export function EditProviderDialog({
               name: provider.name,
               websiteUrl: provider.websiteUrl,
               settingsConfig: provider.settingsConfig,
+              category: provider.category,
+              meta: provider.meta,
             }}
             showButtons={false}
           />

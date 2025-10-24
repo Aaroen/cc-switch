@@ -30,6 +30,13 @@ export interface CustomEndpoint {
   lastUsed?: number;
 }
 
+// 端点候选项（用于端点测速弹窗）
+export interface EndpointCandidate {
+  id?: string;
+  url: string;
+  isCustom?: boolean;
+}
+
 // 用量查询脚本配置
 export interface UsageScript {
   enabled: boolean; // 是否启用用量查询

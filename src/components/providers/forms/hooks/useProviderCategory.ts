@@ -8,6 +8,7 @@ interface UseProviderCategoryProps {
   appType: AppType;
   selectedPresetId: string | null;
   isEditMode: boolean;
+  initialCategory?: ProviderCategory;
 }
 
 /**
@@ -18,14 +19,19 @@ export function useProviderCategory({
   appType,
   selectedPresetId,
   isEditMode,
+  initialCategory,
 }: UseProviderCategoryProps) {
   const [category, setCategory] = useState<ProviderCategory | undefined>(
-    undefined,
+    // 编辑模式：使用 initialCategory
+    isEditMode ? initialCategory : undefined,
   );
 
   useEffect(() => {
-    // 编辑模式不自动设置类别
-    if (isEditMode) return;
+    // 编辑模式：只在初始化时设置，后续不自动更新
+    if (isEditMode) {
+      setCategory(initialCategory);
+      return;
+    }
 
     if (selectedPresetId === "custom") {
       setCategory("custom");
@@ -56,7 +62,7 @@ export function useProviderCategory({
         );
       }
     }
-  }, [appType, selectedPresetId, isEditMode]);
+  }, [appType, selectedPresetId, isEditMode, initialCategory]);
 
   return { category, setCategory };
 }

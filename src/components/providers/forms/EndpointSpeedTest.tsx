@@ -12,25 +12,19 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import type { CustomEndpoint, EndpointCandidate } from "@/types";
 
-// 临时类型定义，待后端 API 实现后替换
-interface CustomEndpoint {
-  url: string;
-  addedAt: number;
-  lastUsed?: number;
-}
+// 端点测速超时配置（秒）
+const ENDPOINT_TIMEOUT_SECS = {
+  codex: 12,
+  claude: 8,
+} as const;
 
 interface TestResult {
   url: string;
   latency: number | null;
   status?: number;
   error?: string | null;
-}
-
-export interface EndpointCandidate {
-  id?: string;
-  url: string;
-  isCustom?: boolean;
 }
 
 interface EndpointSpeedTestProps {
@@ -113,6 +107,8 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
   // 加载保存的自定义端点（按正在编辑的供应商）
   useEffect(() => {
+    let cancelled = false;
+
     const loadCustomEndpoints = async () => {
       try {
         if (!providerId) return;
@@ -121,6 +117,9 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           appType,
           providerId,
         );
+
+        // 检查是否已取消
+        if (cancelled) return;
 
         const candidates: EndpointCandidate[] = customEndpoints.map(
           (ep: CustomEndpoint) => ({
@@ -155,13 +154,19 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           return Array.from(map.values());
         });
       } catch (error) {
-        console.error(t("endpointTest.loadEndpointsFailed"), error);
+        if (!cancelled) {
+          console.error(t("endpointTest.loadEndpointsFailed"), error);
+        }
       }
     };
 
     if (visible) {
       loadCustomEndpoints();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [appType, visible, providerId, t]);
 
   useEffect(() => {
@@ -253,7 +258,9 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       }
     }
 
-    if (!errorMsg && parsed && !parsed.protocol.startsWith("http")) {
+    // 明确只允许 http: 和 https:
+    const allowedProtocols = ['http:', 'https:'];
+    if (!errorMsg && parsed && !allowedProtocols.includes(parsed.protocol)) {
       errorMsg = t("endpointTest.onlyHttps");
     }
 
@@ -318,17 +325,29 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
   const handleRemoveEndpoint = useCallback(
     async (entry: EndpointEntry) => {
-      // 如果是自定义端点,尝试从后端删除（无 providerId 则仅本地删除）
+      // 清空之前的错误提示
+      setLastError(null);
+
+      // 如果有 providerId，尝试从后端删除
       if (entry.isCustom && providerId) {
         try {
           await vscodeApi.removeCustomEndpoint(appType, providerId, entry.url);
         } catch (error) {
-          console.error(t("endpointTest.removeEndpointFailed"), error);
-          return;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+
+          // 只有"端点不存在"时才允许删除本地条目
+          if (errorMsg.includes('not found') || errorMsg.includes('does not exist') || errorMsg.includes('不存在')) {
+            console.warn(t('endpointTest.removeEndpointFailed'), errorMsg);
+            // 继续删除本地条目
+          } else {
+            // 其他错误：显示错误提示，阻止删除
+            setLastError(t('endpointTest.removeFailed', { error: errorMsg }));
+            return;
+          }
         }
       }
 
-      // 更新本地状态
+      // 更新本地状态（删除成功）
       setEntries((prev) => {
         const next = prev.filter((item) => item.id !== entry.id);
         if (entry.url === normalizedSelected) {
@@ -363,7 +382,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
     try {
       const results = await vscodeApi.testApiEndpoints(urls, {
-        timeoutSecs: appType === "codex" ? 12 : 8,
+        timeoutSecs: ENDPOINT_TIMEOUT_SECS[appType],
       });
 
       const resultMap = new Map(
@@ -425,13 +444,13 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         try {
           await vscodeApi.updateEndpointLastUsed(appType, providerId, url);
         } catch (error) {
-          console.error("Failed to update endpoint last used time:", error);
+          console.error(t("endpointTest.updateLastUsedFailed"), error);
         }
       }
 
       onChange(url);
     },
-    [normalizedSelected, onChange, appType, entries, providerId],
+    [normalizedSelected, onChange, appType, entries, providerId, t],
   );
 
   return (

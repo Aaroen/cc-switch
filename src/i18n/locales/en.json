@@ -265,6 +265,8 @@
     "loadEndpointsFailed": "Failed to load custom endpoints:",
     "addEndpointFailed": "Failed to add custom endpoint:",
     "removeEndpointFailed": "Failed to remove custom endpoint:",
+    "removeFailed": "Remove failed: {{error}}",
+    "updateLastUsedFailed": "Failed to update endpoint last used time",
     "pleaseAddEndpoint": "Please add an endpoint first",
     "testUnavailable": "Speed test unavailable",
     "noResult": "No result returned",
