@@ -101,17 +101,52 @@ function App() {
 
   // 复制供应商
   const handleDuplicateProvider = async (provider: Provider) => {
+    // 1️⃣ 计算新的 sortIndex：如果原供应商有 sortIndex，则复制它
+    const newSortIndex =
+      provider.sortIndex !== undefined ? provider.sortIndex + 1 : undefined;
+
     const duplicatedProvider: Omit<Provider, "id" | "createdAt"> = {
       name: `${provider.name} copy`,
       settingsConfig: JSON.parse(JSON.stringify(provider.settingsConfig)), // 深拷贝
       websiteUrl: provider.websiteUrl,
       category: provider.category,
+      sortIndex: newSortIndex, // 复制原 sortIndex + 1
       meta: provider.meta
         ? JSON.parse(JSON.stringify(provider.meta))
         : undefined, // 深拷贝
-      // sortIndex 不复制，让它按 createdAt 自然排序
     };
 
+    // 2️⃣ 如果原供应商有 sortIndex，需要将后续所有供应商的 sortIndex +1
+    if (provider.sortIndex !== undefined) {
+      const updates = Object.values(providers)
+        .filter(
+          (p) =>
+            p.sortIndex !== undefined &&
+            p.sortIndex >= newSortIndex! &&
+            p.id !== provider.id,
+        )
+        .map((p) => ({
+          id: p.id,
+          sortIndex: p.sortIndex! + 1,
+        }));
+
+      // 先更新现有供应商的 sortIndex，为新供应商腾出位置
+      if (updates.length > 0) {
+        try {
+          await providersApi.updateSortOrder(updates, activeApp);
+        } catch (error) {
+          console.error("[App] Failed to update sort order", error);
+          toast.error(
+            t("provider.sortUpdateFailed", {
+              defaultValue: "排序更新失败",
+            }),
+          );
+          return; // 如果排序更新失败，不继续添加
+        }
+      }
+    }
+
+    // 3️⃣ 添加复制的供应商
     await addProvider(duplicatedProvider);
   };
 
