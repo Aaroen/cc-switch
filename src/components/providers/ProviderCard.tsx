@@ -8,6 +8,7 @@ import type {
 import type { Provider } from "@/types";
 import type { AppType } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { ProviderActions } from "@/components/providers/ProviderActions";
 import UsageFooter from "@/components/UsageFooter";
 
@@ -92,7 +93,8 @@ export function ProviderCard({
   return (
     <div
       className={cn(
-        "rounded-lg bg-card p-4 shadow-sm transition-all duration-200",
+        "rounded-lg bg-card p-4 shadow-sm",
+        "transition-[border-color,background-color,box-shadow] duration-200",
         isCurrent
           ? "border-active border-border-active bg-primary/5"
           : "border border-border-default hover:border-border-hover",
@@ -102,37 +104,43 @@ export function ProviderCard({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-start">
-          <button
-            type="button"
+          <div
             className={cn(
-              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200 cursor-grab active:cursor-grabbing",
-              isEditMode
-                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground hover:bg-muted/50 opacity-100"
-                : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
-              dragHandleProps?.isDragging &&
-                "border-border-active text-primary bg-primary/10 cursor-grabbing",
+              "flex items-center gap-1 overflow-hidden",
+              "transition-[max-width,opacity] duration-200 ease-in-out",
+              isEditMode ? "max-w-20 opacity-100" : "max-w-0 opacity-0",
             )}
-            aria-label={t("provider.dragHandle")}
-            {...(dragHandleProps?.attributes ?? {})}
-            {...(dragHandleProps?.listeners ?? {})}
+            aria-hidden={!isEditMode}
           >
-            <MoveVertical className="h-4 w-4" />
-          </button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "flex-shrink-0 cursor-grab active:cursor-grabbing",
+                dragHandleProps?.isDragging && "cursor-grabbing",
+              )}
+              aria-label={t("provider.dragHandle")}
+              disabled={!isEditMode}
+              {...(dragHandleProps?.attributes ?? {})}
+              {...(dragHandleProps?.listeners ?? {})}
+            >
+              <MoveVertical className="h-4 w-4" />
+            </Button>
 
-          <button
-            type="button"
-            className={cn(
-              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200",
-              isEditMode
-                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground hover:bg-muted/50 opacity-100 cursor-pointer"
-                : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
-            )}
-            onClick={() => onDuplicate(provider)}
-            aria-label={t("provider.duplicate")}
-            title={t("provider.duplicate")}
-          >
-            <Copy className="h-4 w-4" />
-          </button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="flex-shrink-0"
+              onClick={() => onDuplicate(provider)}
+              disabled={!isEditMode}
+              aria-label={t("provider.duplicate")}
+              title={t("provider.duplicate")}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
 
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2 min-h-[20px]">
