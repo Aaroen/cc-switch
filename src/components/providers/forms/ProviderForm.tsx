@@ -455,7 +455,11 @@ export function ProviderForm({
 
   return (
     <Form {...form}>
-      <form id="provider-form" onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <form
+        id="provider-form"
+        onSubmit={form.handleSubmit(handleSubmit)}
+        className="space-y-6"
+      >
         {/* 预设供应商选择（仅新增模式显示） */}
         {!initialData && (
           <ProviderPresetSelector

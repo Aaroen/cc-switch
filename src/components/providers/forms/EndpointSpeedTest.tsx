@@ -259,7 +259,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     }
 
     // 明确只允许 http: 和 https:
-    const allowedProtocols = ['http:', 'https:'];
+    const allowedProtocols = ["http:", "https:"];
     if (!errorMsg && parsed && !allowedProtocols.includes(parsed.protocol)) {
       errorMsg = t("endpointTest.onlyHttps");
     }
@@ -333,15 +333,20 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         try {
           await vscodeApi.removeCustomEndpoint(appType, providerId, entry.url);
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
 
           // 只有"端点不存在"时才允许删除本地条目
-          if (errorMsg.includes('not found') || errorMsg.includes('does not exist') || errorMsg.includes('不存在')) {
-            console.warn(t('endpointTest.removeEndpointFailed'), errorMsg);
+          if (
+            errorMsg.includes("not found") ||
+            errorMsg.includes("does not exist") ||
+            errorMsg.includes("不存在")
+          ) {
+            console.warn(t("endpointTest.removeEndpointFailed"), errorMsg);
             // 继续删除本地条目
           } else {
             // 其他错误：显示错误提示，阻止删除
-            setLastError(t('endpointTest.removeFailed', { error: errorMsg }));
+            setLastError(t("endpointTest.removeFailed", { error: errorMsg }));
             return;
           }
         }

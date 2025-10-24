@@ -95,7 +95,11 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       provider.meta?.usage_script || {
         enabled: false,
         language: "javascript",
-        code: PRESET_TEMPLATES[t("usageScript.presetTemplate") === "预设模板" ? "通用模板" : "General"],
+        code: PRESET_TEMPLATES[
+          t("usageScript.presetTemplate") === "预设模板"
+            ? "通用模板"
+            : "General"
+        ],
         timeout: 10,
       }
     );
@@ -132,16 +136,24 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
             return `${planInfo} ${t("usage.remaining")} ${plan.remaining} ${plan.unit}`;
           })
           .join(", ");
-        toast.success(`${t("usageScript.testSuccess")}${summary}`, { duration: 3000 });
-      } else {
-        toast.error(`${t("usageScript.testFailed")}: ${result.error || t("endpointTest.noResult")}`, {
-          duration: 5000,
+        toast.success(`${t("usageScript.testSuccess")}${summary}`, {
+          duration: 3000,
         });
+      } else {
+        toast.error(
+          `${t("usageScript.testFailed")}: ${result.error || t("endpointTest.noResult")}`,
+          {
+            duration: 5000,
+          },
+        );
       }
     } catch (error: any) {
-      toast.error(`${t("usageScript.testFailed")}: ${error?.message || t("common.unknown")}`, {
-        duration: 5000,
-      });
+      toast.error(
+        `${t("usageScript.testFailed")}: ${error?.message || t("common.unknown")}`,
+        {
+          duration: 5000,
+        },
+      );
     } finally {
       setTesting(false);
     }
@@ -160,9 +172,12 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       setScript({ ...script, code: formatted.trim() });
       toast.success(t("usageScript.formatSuccess"), { duration: 1000 });
     } catch (error: any) {
-      toast.error(`${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`, {
-        duration: 3000,
-      });
+      toast.error(
+        `${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`,
+        {
+          duration: 3000,
+        },
+      );
     }
   };
 
@@ -177,7 +192,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{t("usageScript.title")} - {provider.name}</DialogTitle>
+          <DialogTitle>
+            {t("usageScript.title")} - {provider.name}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Content - Scrollable */}
@@ -231,7 +248,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                   {t("usageScript.variablesHint", {
                     apiKey: "{{apiKey}}",
-                    baseUrl: "{{baseUrl}}"
+                    baseUrl: "{{baseUrl}}",
                   })}
                 </p>
               </div>
@@ -260,7 +277,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
               {/* 脚本说明 */}
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-gray-700 dark:text-gray-300">
-                <h4 className="font-medium mb-2">{t("usageScript.scriptHelp")}</h4>
+                <h4 className="font-medium mb-2">
+                  {t("usageScript.scriptHelp")}
+                </h4>
                 <div className="space-y-3 text-xs">
                   <div>
                     <strong>{t("usageScript.configFormat")}</strong>
@@ -304,7 +323,12 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   <div className="text-gray-600 dark:text-gray-400">
                     <strong>{t("usageScript.tips")}</strong>
                     <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>{t("usageScript.tip1", { apiKey: "{{apiKey}}", baseUrl: "{{baseUrl}}" })}</li>
+                      <li>
+                        {t("usageScript.tip1", {
+                          apiKey: "{{apiKey}}",
+                          baseUrl: "{{baseUrl}}",
+                        })}
+                      </li>
                       <li>{t("usageScript.tip2")}</li>
                       <li>{t("usageScript.tip3")}</li>
                     </ul>

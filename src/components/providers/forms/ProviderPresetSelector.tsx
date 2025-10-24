@@ -114,9 +114,7 @@ export function ProviderPresetSelector({
 
   return (
     <div className="space-y-3">
-      <FormLabel>
-        {t("providerPreset.label")}
-      </FormLabel>
+      <FormLabel>{t("providerPreset.label")}</FormLabel>
       <div className="flex flex-wrap gap-2">
         {/* 自定义按钮 */}
         <button
@@ -158,9 +156,7 @@ export function ProviderPresetSelector({
           });
         })}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {getCategoryHint()}
-      </p>
+      <p className="text-xs text-muted-foreground">{getCategoryHint()}</p>
     </div>
   );
 }

@@ -74,9 +74,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       );
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
-      toast.error(
-        t("settings.openReleaseNotesFailed"),
-      );
+      toast.error(t("settings.openReleaseNotesFailed"));
     }
   }, [t, updateInfo?.availableVersion, version]);
 
@@ -98,9 +96,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         await relaunchApp();
       } catch (error) {
         console.error("[AboutSection] Update failed", error);
-        toast.error(
-          t("settings.updateFailed"),
-        );
+        toast.error(t("settings.updateFailed"));
         try {
           await settingsApi.checkUpdates();
         } catch (fallbackError) {
@@ -122,14 +118,11 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       }
     } catch (error) {
       console.error("[AboutSection] Check update failed", error);
-      toast.error(
-        t("settings.checkUpdateFailed"),
-      );
+      toast.error(t("settings.checkUpdateFailed"));
     }
   }, [checkUpdate, hasUpdate, isPortable, resetDismiss, t, updateHandle]);
 
-  const displayVersion =
-    version ?? t("common.unknown");
+  const displayVersion = version ?? t("common.unknown");
 
   return (
     <section className="space-y-4">

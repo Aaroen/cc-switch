@@ -143,9 +143,7 @@ export function AddProviderDialog({
       <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
         <DialogHeader>
           <DialogTitle>{submitLabel}</DialogTitle>
-          <DialogDescription>
-            {t("provider.addProviderHint")}
-          </DialogDescription>
+          <DialogDescription>{t("provider.addProviderHint")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">

@@ -122,10 +122,11 @@ export function useSpeedTestEndpoints({
     }
 
     // 3. 编辑模式：初始数据中的 URL
-    const initialCodexConfig =
-      initialData?.settingsConfig as {
-        config?: string;
-      } | undefined;
+    const initialCodexConfig = initialData?.settingsConfig as
+      | {
+          config?: string;
+        }
+      | undefined;
     const configStr = initialCodexConfig?.config ?? "";
     // 从 TOML 中提取 base_url
     const match = /base_url\s*=\s*["']([^"']+)["']/i.exec(configStr);

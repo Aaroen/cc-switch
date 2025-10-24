@@ -24,14 +24,9 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
         name="name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>
-              {t("provider.name")}
-            </FormLabel>
+            <FormLabel>{t("provider.name")}</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                placeholder={t("provider.namePlaceholder")}
-              />
+              <Input {...field} placeholder={t("provider.namePlaceholder")} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -43,9 +38,7 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
         name="websiteUrl"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>
-              {t("provider.websiteUrl")}
-            </FormLabel>
+            <FormLabel>{t("provider.websiteUrl")}</FormLabel>
             <FormControl>
               <Input {...field} placeholder="https://" />
             </FormControl>

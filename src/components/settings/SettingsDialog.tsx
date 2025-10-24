@@ -142,9 +142,7 @@ export function SettingsDialog({
   const handleRestartNow = useCallback(async () => {
     setShowRestartPrompt(false);
     if (import.meta.env.DEV) {
-      toast.success(
-        t("settings.devModeRestartHint"),
-      );
+      toast.success(t("settings.devModeRestartHint"));
       closeAfterSave();
       return;
     }
@@ -153,9 +151,7 @@ export function SettingsDialog({
       await settingsApi.restart();
     } catch (error) {
       console.error("[SettingsDialog] Failed to restart app", error);
-      toast.error(
-        t("settings.restartFailed"),
-      );
+      toast.error(t("settings.restartFailed"));
     } finally {
       closeAfterSave();
     }

@@ -142,9 +142,7 @@ function ImportStatusMessage({
         <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-muted-foreground" />
         <div>
           <p className="font-medium">{t("settings.importing")}</p>
-          <p className="text-muted-foreground">
-            {t("common.loading")}
-          </p>
+          <p className="text-muted-foreground">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -169,17 +167,13 @@ function ImportStatusMessage({
     );
   }
 
-  const message =
-    errorMessage ||
-    t("settings.importFailed");
+  const message = errorMessage || t("settings.importFailed");
 
   return (
     <div className={`${baseClass} border-red-200 bg-red-100/70 text-red-600`}>
       <AlertCircle className="mt-0.5 h-4 w-4" />
       <div className="space-y-1">
-        <p className="font-medium">
-          {t("settings.importFailed")}
-        </p>
+        <p className="font-medium">{t("settings.importFailed")}</p>
         <p>{message}</p>
       </div>
     </div>

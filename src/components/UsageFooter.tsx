@@ -146,7 +146,9 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 总额度 */}
         {total !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">{t("usage.total")}</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              {t("usage.total")}
+            </span>
             <span className="tabular-nums text-gray-600 dark:text-gray-400">
               {total === -1 ? "∞" : total.toFixed(2)}
             </span>
@@ -157,7 +159,9 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 已用额度 */}
         {used !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">{t("usage.used")}</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              {t("usage.used")}
+            </span>
             <span className="tabular-nums text-gray-600 dark:text-gray-400">
               {used.toFixed(2)}
             </span>
@@ -168,7 +172,9 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
         {/* 剩余额度 - 突出显示 */}
         {remaining !== undefined && (
           <>
-            <span className="text-gray-500 dark:text-gray-400">{t("usage.remaining")}</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              {t("usage.remaining")}
+            </span>
             <span
               className={`font-semibold tabular-nums ${
                 isExpired

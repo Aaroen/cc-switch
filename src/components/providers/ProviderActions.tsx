@@ -29,7 +29,8 @@ export function ProviderActions({
         disabled={isCurrent}
         className={cn(
           "w-20",
-          isCurrent && "bg-gray-200 text-muted-foreground hover:bg-gray-200 hover:text-muted-foreground dark:bg-gray-700 dark:hover:bg-gray-700",
+          isCurrent &&
+            "bg-gray-200 text-muted-foreground hover:bg-gray-200 hover:text-muted-foreground dark:bg-gray-700 dark:hover:bg-gray-700",
         )}
       >
         {isCurrent ? (

@@ -67,9 +67,7 @@ export function EditProviderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
         <DialogHeader>
-          <DialogTitle>
-            {t("provider.editProvider")}
-          </DialogTitle>
+          <DialogTitle>{t("provider.editProvider")}</DialogTitle>
           <DialogDescription>
             {t("provider.editProviderHint")}
           </DialogDescription>
