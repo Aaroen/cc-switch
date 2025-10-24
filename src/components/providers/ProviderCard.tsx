@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { GripVertical } from "lucide-react";
+import { MoveVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   DraggableAttributes,
@@ -103,17 +103,17 @@ export function ProviderCard({
           <button
             type="button"
             className={cn(
-              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200",
+              "mt-1 flex h-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border text-muted-foreground transition-all duration-200 cursor-grab active:cursor-grabbing",
               isEditMode
-                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground opacity-100"
+                ? "w-8 mr-3 border-muted hover:border-border-hover hover:text-foreground hover:bg-muted/50 opacity-100"
                 : "w-0 mr-0 border-transparent opacity-0 pointer-events-none",
-              dragHandleProps?.isDragging && "border-border-active text-primary",
+              dragHandleProps?.isDragging && "border-border-active text-primary bg-primary/10 cursor-grabbing",
             )}
             aria-label={t("provider.dragHandle")}
             {...(dragHandleProps?.attributes ?? {})}
             {...(dragHandleProps?.listeners ?? {})}
           >
-            <GripVertical className="h-4 w-4" />
+            <MoveVertical className="h-4 w-4" />
           </button>
 
           <div className="space-y-1">
