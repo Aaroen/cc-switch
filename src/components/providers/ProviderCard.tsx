@@ -103,7 +103,7 @@ export function ProviderCard({
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-start">
+        <div className="flex flex-1 items-center gap-2">
           <div
             className={cn(
               "flex items-center gap-1 overflow-hidden",
