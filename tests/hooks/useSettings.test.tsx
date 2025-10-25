@@ -275,4 +275,42 @@ describe("useSettings hook", () => {
     );
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(false);
   });
+
+  it("returns null immediately when settings state is missing", async () => {
+    settingsFormMock = createSettingsFormMock({
+      settings: null,
+    });
+
+    const { result } = renderHook(() => useSettings());
+
+    let resultValue: { requiresRestart: boolean } | null = null;
+    await act(async () => {
+      resultValue = await result.current.saveSettings();
+    });
+
+    expect(resultValue).toBeNull();
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
+    expect(setAppConfigDirOverrideMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when save mutation rejects and keeps restart flag untouched", async () => {
+    settingsFormMock = createSettingsFormMock();
+    directorySettingsMock = createDirectorySettingsMock({
+      appConfigDir: "/override/app",
+      initialAppConfigDir: "/override/app",
+    });
+    const rejection = new Error("save failed");
+    mutateAsyncMock.mockRejectedValueOnce(rejection);
+
+    const { result } = renderHook(() => useSettings());
+
+    await expect(
+      act(async () => {
+        await result.current.saveSettings();
+      }),
+    ).rejects.toThrow("save failed");
+
+    expect(setAppConfigDirOverrideMock).not.toHaveBeenCalled();
+    expect(metadataMock.setRequiresRestart).not.toHaveBeenCalledWith(true);
+  });
 });

@@ -223,6 +223,22 @@ describe("useProviderActions", () => {
     expect(toastErrorMock.mock.calls[0]?.[0]).toBe("Sync failed");
   });
 
+  it("propagates updateProvider errors", async () => {
+    updateProviderMutateAsync.mockRejectedValueOnce(new Error("update failed"));
+    const { wrapper } = createWrapper();
+    const provider = createProvider();
+
+    const { result } = renderHook(() => useProviderActions("claude"), {
+      wrapper,
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.updateProvider(provider);
+      }),
+    ).rejects.toThrow("update failed");
+  });
+
   it("should use default error message when plugin sync fails without error message", async () => {
     switchProviderMutateAsync.mockResolvedValueOnce(undefined);
     settingsApiGetMock.mockResolvedValueOnce({
@@ -242,6 +258,20 @@ describe("useProviderActions", () => {
 
     expect(toastErrorMock).toHaveBeenCalledTimes(1);
     expect(toastErrorMock.mock.calls[0]?.[0]).toBe("同步 Claude 插件失败");
+  });
+
+  it("handles mutation errors when plugin sync is skipped", async () => {
+    switchProviderMutateAsync.mockRejectedValueOnce(new Error("switch failed"));
+    const { wrapper } = createWrapper();
+    const provider = createProvider();
+
+    const { result } = renderHook(() => useProviderActions("codex"), {
+      wrapper,
+    });
+
+    await expect(result.current.switchProvider(provider)).resolves.toBeUndefined();
+    expect(settingsApiGetMock).not.toHaveBeenCalled();
+    expect(settingsApiApplyMock).not.toHaveBeenCalled();
   });
 
   it("should call delete mutation when calling deleteProvider", async () => {
@@ -349,6 +379,55 @@ describe("useProviderActions", () => {
     expect(toastErrorMock.mock.calls[0]?.[0]).toBe("用量查询配置保存失败");
   });
 
+
+  it("propagates addProvider errors to caller", async () => {
+    addProviderMutateAsync.mockRejectedValueOnce(new Error("add failed"));
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useProviderActions("claude"), {
+      wrapper,
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.addProvider({
+          name: "temp",
+          settingsConfig: {},
+        } as Omit<Provider, "id">);
+      }),
+    ).rejects.toThrow("add failed");
+  });
+
+  it("propagates deleteProvider errors to caller", async () => {
+    deleteProviderMutateAsync.mockRejectedValueOnce(new Error("delete failed"));
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useProviderActions("claude"), {
+      wrapper,
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.deleteProvider("provider-2");
+      }),
+    ).rejects.toThrow("delete failed");
+  });
+
+  it("handles switch mutation errors silently", async () => {
+    switchProviderMutateAsync.mockRejectedValueOnce(new Error("switch failed"));
+    const { wrapper } = createWrapper();
+    const provider = createProvider();
+
+    const { result } = renderHook(() => useProviderActions("claude"), {
+      wrapper,
+    });
+
+    await result.current.switchProvider(provider);
+
+    expect(settingsApiGetMock).not.toHaveBeenCalled();
+    expect(settingsApiApplyMock).not.toHaveBeenCalled();
+  });
+
   it("should track pending state of all mutations in isLoading", () => {
     addProviderMutation.isPending = true;
     const { wrapper } = createWrapper();
@@ -360,3 +439,16 @@ describe("useProviderActions", () => {
     expect(result.current.isLoading).toBe(true);
   });
 });
+  it("clears loading flag when all mutations idle", () => {
+    addProviderMutation.isPending = false;
+    updateProviderMutation.isPending = false;
+    deleteProviderMutation.isPending = false;
+    switchProviderMutation.isPending = false;
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useProviderActions("claude"), {
+      wrapper,
+    });
+
+    expect(result.current.isLoading).toBe(false);
+  });
