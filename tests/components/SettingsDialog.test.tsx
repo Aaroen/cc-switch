@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createContext, useContext } from "react";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 
@@ -104,13 +104,16 @@ const createImportExportMock = (overrides: Partial<ImportExportMock> = {}) => {
 
 let settingsMock = createSettingsMock();
 let importExportMock = createImportExportMock();
+const useImportExportSpy = vi.fn();
+let lastUseImportExportOptions: Record<string, unknown> | undefined;
 
 vi.mock("@/hooks/useSettings", () => ({
   useSettings: () => settingsMock,
 }));
 
 vi.mock("@/hooks/useImportExport", () => ({
-  useImportExport: () => importExportMock,
+  useImportExport: (options?: Record<string, unknown>) =>
+    useImportExportSpy(options),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -177,8 +180,22 @@ vi.mock("@/components/settings/WindowSettings", () => ({
 }));
 
 vi.mock("@/components/settings/DirectorySettings", () => ({
-  DirectorySettings: ({ onBrowseDirectory }: any) => (
-    <button onClick={() => onBrowseDirectory("claude")}>browse-directory</button>
+  DirectorySettings: ({
+    onBrowseDirectory,
+    onResetDirectory,
+    onDirectoryChange,
+    onBrowseAppConfig,
+    onResetAppConfig,
+    onAppConfigChange,
+  }: any) => (
+    <div>
+      <button onClick={() => onBrowseDirectory("claude")}>browse-directory</button>
+      <button onClick={() => onResetDirectory("claude")}>reset-directory</button>
+      <button onClick={() => onDirectoryChange("codex", "/new/path")}>change-directory</button>
+      <button onClick={() => onBrowseAppConfig()}>browse-app-config</button>
+      <button onClick={() => onResetAppConfig()}>reset-app-config</button>
+      <button onClick={() => onAppConfigChange("/app/new")}>change-app-config</button>
+    </div>
   ),
 }));
 
@@ -193,10 +210,20 @@ describe("SettingsDialog Component", () => {
     tMock.mockImplementation((key: string) => key);
     settingsMock = createSettingsMock();
     importExportMock = createImportExportMock();
+    useImportExportSpy.mockReset();
+    useImportExportSpy.mockImplementation((options?: Record<string, unknown>) => {
+      lastUseImportExportOptions = options;
+      return importExportMock;
+    });
+    lastUseImportExportOptions = undefined;
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     settingsApi = (await import("@/lib/api")).settingsApi;
     settingsApi.restart.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("should not render form content when loading", () => {
@@ -208,9 +235,21 @@ describe("SettingsDialog Component", () => {
     expect(screen.getByText("settings.title")).toBeInTheDocument();
   });
 
+  it("should reset import/export status when dialog transitions to open", () => {
+    const { rerender } = render(
+      <SettingsDialog open={false} onOpenChange={vi.fn()} />,
+    );
+
+    importExportMock.resetStatus.mockClear();
+
+    rerender(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+
+    expect(importExportMock.resetStatus).toHaveBeenCalledTimes(1);
+  });
+
   it("should render general and advanced tabs and trigger child callbacks", () => {
     const onOpenChange = vi.fn();
-    importExportMock = createImportExportMock({ selectedFile: "" });
+    importExportMock = createImportExportMock({ selectedFile: "/tmp/config.json" });
 
     render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
 
@@ -227,6 +266,37 @@ describe("SettingsDialog Component", () => {
     fireEvent.click(screen.getByRole("button", { name: "settings.selectConfigFile" }));
 
     expect(importExportMock.selectImportFile).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "settings.exportConfig" }));
+    expect(importExportMock.exportConfig).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "settings.import" }));
+    expect(importExportMock.importConfig).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "common.clear" }));
+    expect(importExportMock.clearSelection).toHaveBeenCalled();
+  });
+
+  it("should pass onImportSuccess callback to useImportExport hook", async () => {
+    const onImportSuccess = vi.fn();
+
+    render(
+      <SettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        onImportSuccess={onImportSuccess}
+      />,
+    );
+
+    expect(useImportExportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ onImportSuccess }),
+    );
+    expect(lastUseImportExportOptions?.onImportSuccess).toBe(onImportSuccess);
+
+    if (typeof lastUseImportExportOptions?.onImportSuccess === "function") {
+      await lastUseImportExportOptions.onImportSuccess();
+    }
+    expect(onImportSuccess).toHaveBeenCalledTimes(1);
   });
 
   it("should call saveSettings and close dialog when clicking save", async () => {
@@ -275,5 +345,49 @@ describe("SettingsDialog Component", () => {
     await waitFor(() => {
       expect(toastSuccessMock).toHaveBeenCalledWith("settings.devModeRestartHint");
     });
+  });
+
+  it("should allow postponing restart and close dialog without restarting", async () => {
+    const onOpenChange = vi.fn();
+    settingsMock = createSettingsMock({ requiresRestart: true });
+
+    render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
+
+    expect(await screen.findByText("settings.restartRequired")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("settings.restartLater"));
+
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(settingsMock.acknowledgeRestart).toHaveBeenCalledTimes(1);
+    });
+
+    expect(settingsApi.restart).not.toHaveBeenCalled();
+    expect(toastSuccessMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("should trigger directory management callbacks inside advanced tab", () => {
+    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByText("settings.tabAdvanced"));
+
+    fireEvent.click(screen.getByText("browse-directory"));
+    expect(settingsMock.browseDirectory).toHaveBeenCalledWith("claude");
+
+    fireEvent.click(screen.getByText("reset-directory"));
+    expect(settingsMock.resetDirectory).toHaveBeenCalledWith("claude");
+
+    fireEvent.click(screen.getByText("change-directory"));
+    expect(settingsMock.updateDirectory).toHaveBeenCalledWith("codex", "/new/path");
+
+    fireEvent.click(screen.getByText("browse-app-config"));
+    expect(settingsMock.browseAppConfigDir).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("reset-app-config"));
+    expect(settingsMock.resetAppConfigDir).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("change-app-config"));
+    expect(settingsMock.updateAppConfigDir).toHaveBeenCalledWith("/app/new");
   });
 });
