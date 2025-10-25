@@ -138,6 +138,11 @@ export const handlers = [
     return success(default_path ? `${default_path}/picked` : "/mock/selected-dir");
   }),
 
+  http.post(`${TAURI_ENDPOINT}/pick_directory`, async ({ request }) => {
+    const { default_path } = await withJson<{ default_path?: string }>(request);
+    return success(default_path ? `${default_path}/picked` : "/mock/selected-dir");
+  }),
+
   http.post(`${TAURI_ENDPOINT}/open_file_dialog`, () =>
     success("/mock/import-settings.json"),
   ),

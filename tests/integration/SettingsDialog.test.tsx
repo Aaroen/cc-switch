@@ -2,8 +2,10 @@ import React, { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { http, HttpResponse } from "msw";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { resetProviderState, getSettings, getAppConfigDirOverride } from "../msw/state";
+import { server } from "../msw/server";
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
@@ -174,5 +176,79 @@ describe("SettingsDialog integration", () => {
     );
 
     expect(getAppConfigDirOverride()).toBe("/custom/app");
+  });
+
+  it("allows browsing and resetting directories", async () => {
+    renderDialog();
+
+    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("settings.tabAdvanced"));
+
+    const browseButtons = screen.getAllByTitle("settings.browseDirectory");
+    const resetButtons = screen.getAllByTitle("settings.resetDefault");
+
+    const appInput = (await screen.findByPlaceholderText(
+      "settings.browsePlaceholderApp",
+    )) as HTMLInputElement;
+    expect(appInput.value).toBe("/home/mock/.cc-switch");
+
+    fireEvent.click(browseButtons[0]);
+    await waitFor(() =>
+      expect(appInput.value).toBe("/home/mock/.cc-switch/picked"),
+    );
+
+    fireEvent.click(resetButtons[0]);
+    await waitFor(() => expect(appInput.value).toBe("/home/mock/.cc-switch"));
+
+    const claudeInput = (await screen.findByPlaceholderText(
+      "settings.browsePlaceholderClaude",
+    )) as HTMLInputElement;
+    fireEvent.change(claudeInput, { target: { value: "/custom/claude" } });
+    await waitFor(() => expect(claudeInput.value).toBe("/custom/claude"));
+
+    fireEvent.click(browseButtons[1]);
+    await waitFor(() =>
+      expect(claudeInput.value).toBe("/custom/claude/picked"),
+    );
+
+    fireEvent.click(resetButtons[1]);
+    await waitFor(() => expect(claudeInput.value).toBe("/home/mock/.claude"));
+  });
+
+  it("notifies when export fails", async () => {
+    renderDialog();
+
+    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("settings.tabAdvanced"));
+
+    server.use(
+      http.post("http://tauri.local/save_file_dialog", () =>
+        HttpResponse.json(null),
+      ),
+    );
+    fireEvent.click(screen.getByText("settings.exportConfig"));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    const cancelMessage = toastErrorMock.mock.calls.at(-1)?.[0] as string;
+    expect(cancelMessage).toMatch(/settings\.selectFileFailed|选择保存位置失败/);
+
+    toastErrorMock.mockClear();
+
+    server.use(
+      http.post("http://tauri.local/save_file_dialog", () =>
+        HttpResponse.json("/mock/export-settings.json"),
+      ),
+      http.post("http://tauri.local/export_config_to_file", () =>
+        HttpResponse.json({ success: false, message: "disk-full" }),
+      ),
+    );
+
+    fireEvent.click(screen.getByText("settings.exportConfig"));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    const exportMessage = toastErrorMock.mock.calls.at(-1)?.[0] as string;
+    expect(exportMessage).toContain("disk-full");
+    expect(toastSuccessMock).not.toHaveBeenCalled();
   });
 });
