@@ -1,5 +1,5 @@
 import type { AppType } from "@/lib/api/types";
-import type { Provider } from "@/types";
+import type { Provider, Settings } from "@/types";
 
 type ProvidersByApp = Record<AppType, Record<string, Provider>>;
 type CurrentProviderState = Record<AppType, string>;
@@ -50,6 +50,15 @@ const createDefaultCurrent = (): CurrentProviderState => ({
 
 let providers = createDefaultProviders();
 let current = createDefaultCurrent();
+let settingsState: Settings = {
+  showInTray: true,
+  minimizeToTrayOnClose: true,
+  enableClaudePluginIntegration: false,
+  claudeConfigDir: "/default/claude",
+  codexConfigDir: "/default/codex",
+  language: "zh",
+};
+let appConfigDirOverride: string | null = null;
 
 const cloneProviders = (value: ProvidersByApp) =>
   JSON.parse(JSON.stringify(value)) as ProvidersByApp;
@@ -57,6 +66,15 @@ const cloneProviders = (value: ProvidersByApp) =>
 export const resetProviderState = () => {
   providers = createDefaultProviders();
   current = createDefaultCurrent();
+  settingsState = {
+    showInTray: true,
+    minimizeToTrayOnClose: true,
+    enableClaudePluginIntegration: false,
+    claudeConfigDir: "/default/claude",
+    codexConfigDir: "/default/codex",
+    language: "zh",
+  };
+  appConfigDirOverride = null;
 };
 
 export const getProviders = (appType: AppType) =>
@@ -114,3 +132,14 @@ export const updateSortOrder = (
 export const listProviders = (appType: AppType) =>
   JSON.parse(JSON.stringify(providers[appType] ?? {})) as Record<string, Provider>;
 
+export const getSettings = () => JSON.parse(JSON.stringify(settingsState)) as Settings;
+
+export const setSettings = (data: Partial<Settings>) => {
+  settingsState = { ...settingsState, ...data };
+};
+
+export const getAppConfigDirOverride = () => appConfigDirOverride;
+
+export const setAppConfigDirOverrideState = (value: string | null) => {
+  appConfigDirOverride = value;
+};
