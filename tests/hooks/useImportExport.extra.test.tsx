@@ -14,13 +14,15 @@ vi.mock("sonner", () => ({
 
 const openFileDialogMock = vi.fn();
 const importConfigMock = vi.fn();
+const saveFileDialogMock = vi.fn();
+const exportConfigMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   settingsApi: {
     openFileDialog: (...args: unknown[]) => openFileDialogMock(...args),
     importConfigFromFile: (...args: unknown[]) => importConfigMock(...args),
-    saveFileDialog: vi.fn(),
-    exportConfigToFile: vi.fn(),
+    saveFileDialog: (...args: unknown[]) => saveFileDialogMock(...args),
+    exportConfigToFile: (...args: unknown[]) => exportConfigMock(...args),
   },
 }));
 
@@ -28,6 +30,8 @@ describe("useImportExport Hook (edge cases)", () => {
   beforeEach(() => {
     openFileDialogMock.mockReset();
     importConfigMock.mockReset();
+    saveFileDialogMock.mockReset();
+    exportConfigMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     vi.useFakeTimers();
@@ -71,6 +75,42 @@ describe("useImportExport Hook (edge cases)", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.errorMessage).toBeNull();
     expect(result.current.backupId).toBeNull();
+  });
+
+  it("does not call onImportSuccess when import fails", async () => {
+    openFileDialogMock.mockResolvedValue("/config.json");
+    importConfigMock.mockResolvedValue({
+      success: false,
+      message: "invalid",
+    });
+    const onImportSuccess = vi.fn();
+    const { result } = renderHook(() => useImportExport({ onImportSuccess }));
+
+    await act(async () => {
+      await result.current.selectImportFile();
+    });
+
+    await act(async () => {
+      await result.current.importConfig();
+    });
+
+    expect(onImportSuccess).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("error");
+  });
+
+  it("propagates export success message to toast with saved path", async () => {
+    saveFileDialogMock.mockResolvedValue("/exports/config.json");
+    exportConfigMock.mockResolvedValue({ success: true, filePath: "/final/config.json" });
+    const { result } = renderHook(() => useImportExport());
+
+    await act(async () => {
+      await result.current.exportConfig();
+    });
+
+    expect(exportConfigMock).toHaveBeenCalledWith("/exports/config.json");
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      expect.stringContaining("/final/config.json"),
+    );
   });
 
 });
