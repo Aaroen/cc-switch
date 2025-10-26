@@ -17,6 +17,8 @@ const getConfigMock = vi.fn();
 const setEnabledMock = vi.fn();
 const upsertServerInConfigMock = vi.fn();
 const deleteServerInConfigMock = vi.fn();
+const syncEnabledToClaudeMock = vi.fn();
+const syncEnabledToCodexMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   mcpApi: {
@@ -24,6 +26,8 @@ vi.mock("@/lib/api", () => ({
     setEnabled: (...args: unknown[]) => setEnabledMock(...args),
     upsertServerInConfig: (...args: unknown[]) => upsertServerInConfigMock(...args),
     deleteServerInConfig: (...args: unknown[]) => deleteServerInConfigMock(...args),
+    syncEnabledToClaude: (...args: unknown[]) => syncEnabledToClaudeMock(...args),
+    syncEnabledToCodex: (...args: unknown[]) => syncEnabledToCodexMock(...args),
   },
 }));
 
@@ -60,6 +64,8 @@ describe("useMcpActions", () => {
     setEnabledMock.mockReset();
     upsertServerInConfigMock.mockReset();
     deleteServerInConfigMock.mockReset();
+    syncEnabledToClaudeMock.mockReset();
+    syncEnabledToCodexMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
 
@@ -238,5 +244,37 @@ describe("useMcpActions", () => {
     expect(result.current.servers[server.id]).toEqual(server);
     expect(captured).toBe(failure);
     expect(toastErrorMock).toHaveBeenCalledWith("delete failed", { duration: 6000 });
+  });
+
+  it("maps backend error message when save fails with known detail", async () => {
+    const serverInput = createServer({ id: "input-id" });
+    const backendError = { message: "stdio 类型的 MCP 服务器必须包含 command 字段" };
+    upsertServerInConfigMock.mockRejectedValueOnce(backendError);
+    const { result } = renderUseMcpActions();
+
+    await expect(async () =>
+      result.current.saveServer("server-1", serverInput),
+    ).rejects.toEqual(backendError);
+
+    expect(toastErrorMock).toHaveBeenCalledWith("mcp.error.commandRequired", {
+      duration: 6000,
+    });
+  });
+
+  it("syncs enabled state to counterpart when appType is claude", async () => {
+    const server = createServer();
+    getConfigMock.mockResolvedValueOnce(mockConfigResponse({ [server.id]: server }));
+    const { result } = renderUseMcpActions();
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    await act(async () => {
+      await result.current.toggleEnabled(server.id, true);
+    });
+
+    expect(setEnabledMock).toHaveBeenCalledWith("claude", server.id, true);
+    expect(syncEnabledToClaudeMock).not.toHaveBeenCalled();
   });
 });

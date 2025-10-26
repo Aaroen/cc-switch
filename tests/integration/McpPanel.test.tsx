@@ -229,3 +229,4 @@ describe("McpPanel integration", () => {
     await waitFor(() => expect(deleteServerMock).toHaveBeenCalledWith("sample"));
   });
 });
+
