@@ -1,8 +1,9 @@
 import type { AppType } from "@/lib/api/types";
-import type { Provider, Settings } from "@/types";
+import type { McpServer, Provider, Settings } from "@/types";
 
 type ProvidersByApp = Record<AppType, Record<string, Provider>>;
 type CurrentProviderState = Record<AppType, string>;
+type McpConfigState = Record<AppType, Record<string, McpServer>>;
 
 const createDefaultProviders = (): ProvidersByApp => ({
   claude: {
@@ -59,6 +60,30 @@ let settingsState: Settings = {
   language: "zh",
 };
 let appConfigDirOverride: string | null = null;
+let mcpConfigs: McpConfigState = {
+  claude: {
+    sample: {
+      id: "sample",
+      name: "Sample Claude Server",
+      enabled: true,
+      server: {
+        type: "stdio",
+        command: "claude-server",
+      },
+    },
+  },
+  codex: {
+    httpServer: {
+      id: "httpServer",
+      name: "HTTP Codex Server",
+      enabled: false,
+      server: {
+        type: "http",
+        url: "http://localhost:3000",
+      },
+    },
+  },
+};
 
 const cloneProviders = (value: ProvidersByApp) =>
   JSON.parse(JSON.stringify(value)) as ProvidersByApp;
@@ -75,6 +100,30 @@ export const resetProviderState = () => {
     language: "zh",
   };
   appConfigDirOverride = null;
+  mcpConfigs = {
+    claude: {
+      sample: {
+        id: "sample",
+        name: "Sample Claude Server",
+        enabled: true,
+        server: {
+          type: "stdio",
+          command: "claude-server",
+        },
+      },
+    },
+    codex: {
+      httpServer: {
+        id: "httpServer",
+        name: "HTTP Codex Server",
+        enabled: false,
+        server: {
+          type: "http",
+          url: "http://localhost:3000",
+        },
+      },
+    },
+  };
 };
 
 export const getProviders = (appType: AppType) =>
@@ -142,4 +191,46 @@ export const getAppConfigDirOverride = () => appConfigDirOverride;
 
 export const setAppConfigDirOverrideState = (value: string | null) => {
   appConfigDirOverride = value;
+};
+
+export const getMcpConfig = (appType: AppType) => {
+  const servers = JSON.parse(
+    JSON.stringify(mcpConfigs[appType] ?? {}),
+  ) as Record<string, McpServer>;
+  return {
+    configPath: `/mock/${appType}.mcp.json`,
+    servers,
+  };
+};
+
+export const setMcpConfig = (appType: AppType, value: Record<string, McpServer>) => {
+  mcpConfigs[appType] = JSON.parse(JSON.stringify(value)) as Record<string, McpServer>;
+};
+
+export const setMcpServerEnabled = (
+  appType: AppType,
+  id: string,
+  enabled: boolean,
+) => {
+  if (!mcpConfigs[appType]?.[id]) return;
+  mcpConfigs[appType][id] = {
+    ...mcpConfigs[appType][id],
+    enabled,
+  };
+};
+
+export const upsertMcpServer = (
+  appType: AppType,
+  id: string,
+  server: McpServer,
+) => {
+  if (!mcpConfigs[appType]) {
+    mcpConfigs[appType] = {};
+  }
+  mcpConfigs[appType][id] = JSON.parse(JSON.stringify(server)) as McpServer;
+};
+
+export const deleteMcpServer = (appType: AppType, id: string) => {
+  if (!mcpConfigs[appType]) return;
+  delete mcpConfigs[appType][id];
 };

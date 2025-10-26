@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import type { AppType } from "@/lib/api/types";
-import type { Provider, Settings } from "@/types";
+import type { McpServer, Provider, Settings } from "@/types";
 import {
   addProvider,
   deleteProvider,
@@ -15,6 +15,11 @@ import {
   setSettings,
   getAppConfigDirOverride,
   setAppConfigDirOverrideState,
+  getMcpConfig,
+  setMcpConfig,
+  setMcpServerEnabled,
+  upsertMcpServer,
+  deleteMcpServer,
 } from "./state";
 
 const TAURI_ENDPOINT = "http://tauri.local";
@@ -99,6 +104,41 @@ export const handlers = [
   }),
 
   http.post(`${TAURI_ENDPOINT}/open_external`, () => success(true)),
+
+  // MCP APIs
+  http.post(`${TAURI_ENDPOINT}/get_mcp_config`, async ({ request }) => {
+    const { app } = await withJson<{ app: AppType }>(request);
+    return success(getMcpConfig(app));
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/import_mcp_from_claude`, () => success(1)),
+  http.post(`${TAURI_ENDPOINT}/import_mcp_from_codex`, () => success(1)),
+
+  http.post(`${TAURI_ENDPOINT}/set_mcp_enabled`, async ({ request }) => {
+    const { app, id, enabled } = await withJson<{
+      app: AppType;
+      id: string;
+      enabled: boolean;
+    }>(request);
+    setMcpServerEnabled(app, id, enabled);
+    return success(true);
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/upsert_mcp_server_in_config`, async ({ request }) => {
+    const { app, id, spec } = await withJson<{
+      app: AppType;
+      id: string;
+      spec: McpServer;
+    }>(request);
+    upsertMcpServer(app, id, spec);
+    return success(true);
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/delete_mcp_server_in_config`, async ({ request }) => {
+    const { app, id } = await withJson<{ app: AppType; id: string }>(request);
+    deleteMcpServer(app, id);
+    return success(true);
+  }),
 
   http.post(`${TAURI_ENDPOINT}/restart_app`, () => success(true)),
 
