@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 use tauri_plugin_store::StoreExt;
 
+use crate::error::AppError;
+
 /// Store 中的键名
 const STORE_KEY_APP_CONFIG_DIR: &str = "app_config_dir_override";
 
@@ -75,11 +77,11 @@ pub fn get_app_config_dir_from_store(app: &tauri::AppHandle) -> Option<PathBuf> 
 pub fn set_app_config_dir_to_store(
     app: &tauri::AppHandle,
     path: Option<&str>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let store = app
         .store_builder("app_paths.json")
         .build()
-        .map_err(|e| format!("创建 Store 失败: {}", e))?;
+        .map_err(|e| AppError::Message(format!("创建 Store 失败: {}", e)))?;
 
     match path {
         Some(p) => {
@@ -100,7 +102,9 @@ pub fn set_app_config_dir_to_store(
         }
     }
 
-    store.save().map_err(|e| format!("保存 Store 失败: {}", e))?;
+    store
+        .save()
+        .map_err(|e| AppError::Message(format!("保存 Store 失败: {}", e)))?;
 
     Ok(())
 }
@@ -125,7 +129,7 @@ fn resolve_path(raw: &str) -> PathBuf {
 }
 
 /// 从旧的 settings.json 迁移 app_config_dir 到 Store
-pub fn migrate_app_config_dir_from_settings(app: &tauri::AppHandle) -> Result<(), String> {
+pub fn migrate_app_config_dir_from_settings(app: &tauri::AppHandle) -> Result<(), AppError> {
     // app_config_dir 已从 settings.json 移除，此函数保留但不再执行迁移
     // 如果用户在旧版本设置过 app_config_dir，需要在 Store 中手动配置
     log::info!("app_config_dir 迁移功能已移除，请在设置中重新配置");

@@ -3,6 +3,8 @@ use reqwest::{Client, Url};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
+use crate::error::AppError;
+
 const DEFAULT_TIMEOUT_SECS: u64 = 8;
 const MAX_TIMEOUT_SECS: u64 = 30;
 const MIN_TIMEOUT_SECS: u64 = 2;
@@ -15,13 +17,13 @@ pub struct EndpointLatency {
     pub error: Option<String>,
 }
 
-fn build_client(timeout_secs: u64) -> Result<Client, String> {
+fn build_client(timeout_secs: u64) -> Result<Client, AppError> {
     Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .redirect(reqwest::redirect::Policy::limited(5))
         .user_agent("cc-switch-speedtest/1.0")
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))
+        .map_err(|e| AppError::Message(format!("创建 HTTP 客户端失败: {e}")))
 }
 
 fn sanitize_timeout(timeout_secs: Option<u64>) -> u64 {
@@ -32,7 +34,7 @@ fn sanitize_timeout(timeout_secs: Option<u64>) -> u64 {
 pub async fn test_endpoints(
     urls: Vec<String>,
     timeout_secs: Option<u64>,
-) -> Result<Vec<EndpointLatency>, String> {
+) -> Result<Vec<EndpointLatency>, AppError> {
     if urls.is_empty() {
         return Ok(vec![]);
     }

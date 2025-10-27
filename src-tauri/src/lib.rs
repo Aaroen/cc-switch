@@ -24,21 +24,23 @@ use tauri::{
 use tauri::{ActivationPolicy, RunEvent};
 use tauri::{Emitter, Manager};
 
+use crate::error::AppError;
+
 /// 创建动态托盘菜单
 fn create_tray_menu(
     app: &tauri::AppHandle,
     app_state: &AppState,
-) -> Result<Menu<tauri::Wry>, String> {
+) -> Result<Menu<tauri::Wry>, AppError> {
     let config = app_state
         .config
         .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
+        .map_err(AppError::from)?;
 
     let mut menu_builder = MenuBuilder::new(app);
 
     // 顶部：打开主界面
     let show_main_item = MenuItem::with_id(app, "show_main", "打开主界面", true, None::<&str>)
-        .map_err(|e| format!("创建打开主界面菜单失败: {}", e))?;
+        .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {}", e)))?;
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
@@ -46,7 +48,7 @@ fn create_tray_menu(
         // 添加Claude标题（禁用状态，仅作为分组标识）
         let claude_header =
             MenuItem::with_id(app, "claude_header", "─── Claude ───", false, None::<&str>)
-                .map_err(|e| format!("创建Claude标题失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建Claude标题失败: {}", e)))?;
         menu_builder = menu_builder.item(&claude_header);
 
         if !claude_manager.providers.is_empty() {
@@ -81,7 +83,7 @@ fn create_tray_menu(
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| format!("创建菜单项失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -93,7 +95,7 @@ fn create_tray_menu(
                 false,
                 None::<&str>,
             )
-            .map_err(|e| format!("创建Claude空提示失败: {}", e))?;
+            .map_err(|e| AppError::Message(format!("创建Claude空提示失败: {}", e)))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
@@ -102,7 +104,7 @@ fn create_tray_menu(
         // 添加Codex标题（禁用状态，仅作为分组标识）
         let codex_header =
             MenuItem::with_id(app, "codex_header", "─── Codex ───", false, None::<&str>)
-                .map_err(|e| format!("创建Codex标题失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建Codex标题失败: {}", e)))?;
         menu_builder = menu_builder.item(&codex_header);
 
         if !codex_manager.providers.is_empty() {
@@ -137,7 +139,7 @@ fn create_tray_menu(
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| format!("创建菜单项失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -149,20 +151,20 @@ fn create_tray_menu(
                 false,
                 None::<&str>,
             )
-            .map_err(|e| format!("创建Codex空提示失败: {}", e))?;
+            .map_err(|e| AppError::Message(format!("创建Codex空提示失败: {}", e)))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
 
     // 分隔符和退出菜单
     let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
-        .map_err(|e| format!("创建退出菜单失败: {}", e))?;
+        .map_err(|e| AppError::Message(format!("创建退出菜单失败: {}", e)))?;
 
     menu_builder = menu_builder.separator().item(&quit_item);
 
     menu_builder
         .build()
-        .map_err(|e| format!("构建菜单失败: {}", e))
+        .map_err(|e| AppError::Message(format!("构建菜单失败: {}", e)))
 }
 
 #[cfg(target_os = "macos")]
@@ -257,7 +259,7 @@ async fn switch_provider_internal(
     app: &tauri::AppHandle,
     app_type: crate::app_config::AppType,
     provider_id: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if let Some(app_state) = app.try_state::<AppState>() {
         // 在使用前先保存需要的值
         let app_type_str = app_type.as_str().to_string();
@@ -270,7 +272,8 @@ async fn switch_provider_internal(
             None,
             provider_id,
         )
-        .await?;
+        .await
+        .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
@@ -299,14 +302,20 @@ async fn update_tray_menu(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
-    if let Ok(new_menu) = create_tray_menu(&app, state.inner()) {
-        if let Some(tray) = app.tray_by_id("main") {
-            tray.set_menu(Some(new_menu))
-                .map_err(|e| format!("更新托盘菜单失败: {}", e))?;
-            return Ok(true);
+    match create_tray_menu(&app, state.inner()) {
+        Ok(new_menu) => {
+            if let Some(tray) = app.tray_by_id("main") {
+                tray.set_menu(Some(new_menu))
+                    .map_err(|e| format!("更新托盘菜单失败: {}", e))?;
+                return Ok(true);
+            }
+            Ok(false)
+        }
+        Err(err) => {
+            log::error!("创建托盘菜单失败: {}", err);
+            Ok(false)
         }
     }
-    Ok(false)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

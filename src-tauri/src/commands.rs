@@ -879,7 +879,7 @@ pub async fn query_provider_usage(
         Err(e) => Ok(UsageResult {
             success: false,
             data: None,
-            error: Some(e),
+            error: Some(e.to_string()),
         }),
     }
 }
@@ -1280,7 +1280,9 @@ pub async fn test_api_endpoints(
         .into_iter()
         .filter(|url| !url.trim().is_empty())
         .collect();
-    speedtest::test_endpoints(filtered, timeout_secs).await
+    speedtest::test_endpoints(filtered, timeout_secs)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 获取自定义端点列表

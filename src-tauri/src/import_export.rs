@@ -157,7 +157,7 @@ fn sync_codex_live(
     let cfg_text = settings.get("config").and_then(Value::as_str);
 
     crate::codex_config::write_codex_live_atomic(auth, cfg_text)?;
-    crate::mcp::sync_enabled_to_codex(config).map_err(AppError::Message)?;
+    crate::mcp::sync_enabled_to_codex(config)?;
 
     let cfg_text_after = crate::codex_config::read_and_validate_codex_config_text()?;
     if let Some(manager) = config.get_manager_mut(&AppType::Codex) {
