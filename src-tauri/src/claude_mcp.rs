@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config::{atomic_write, get_claude_mcp_path, get_default_claude_mcp_path};
+use crate::error::AppError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,28 +61,26 @@ fn ensure_mcp_override_migrated() {
     }
 }
 
-fn read_json_value(path: &Path) -> Result<Value, String> {
+fn read_json_value(path: &Path) -> Result<Value, AppError> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("读取文件失败: {}: {}", path.display(), e))?;
-    let value: Value = serde_json::from_str(&content)
-        .map_err(|e| format!("解析 JSON 失败: {}: {}", path.display(), e))?;
+    let content = fs::read_to_string(path).map_err(|e| AppError::io(path, e))?;
+    let value: Value =
+        serde_json::from_str(&content).map_err(|e| AppError::json(path, e))?;
     Ok(value)
 }
 
-fn write_json_value(path: &Path, value: &Value) -> Result<(), String> {
+fn write_json_value(path: &Path, value: &Value) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}: {}", parent.display(), e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
     let json =
-        serde_json::to_string_pretty(value).map_err(|e| format!("序列化 JSON 失败: {}", e))?;
+        serde_json::to_string_pretty(value).map_err(|e| AppError::JsonSerialize { source: e })?;
     atomic_write(path, json.as_bytes())
 }
 
-pub fn get_mcp_status() -> Result<McpStatus, String> {
+pub fn get_mcp_status() -> Result<McpStatus, AppError> {
     let path = user_config_path();
     let (exists, count) = if path.exists() {
         let v = read_json_value(&path)?;
@@ -98,35 +97,43 @@ pub fn get_mcp_status() -> Result<McpStatus, String> {
     })
 }
 
-pub fn read_mcp_json() -> Result<Option<String>, String> {
+pub fn read_mcp_json() -> Result<Option<String>, AppError> {
     let path = user_config_path();
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path).map_err(|e| format!("读取 MCP 配置失败: {}", e))?;
+    let content = fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?;
     Ok(Some(content))
 }
 
-pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, String> {
+pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err("MCP 服务器 ID 不能为空".into());
+        return Err(AppError::InvalidInput(
+            "MCP 服务器 ID 不能为空".into(),
+        ));
     }
     // 基础字段校验（尽量宽松）
     if !spec.is_object() {
-        return Err("MCP 服务器定义必须为 JSON 对象".into());
+        return Err(AppError::McpValidation(
+            "MCP 服务器定义必须为 JSON 对象".into(),
+        ));
     }
     let t_opt = spec.get("type").and_then(|x| x.as_str());
     let is_stdio = t_opt.map(|t| t == "stdio").unwrap_or(true); // 兼容缺省（按 stdio 处理）
     let is_http = t_opt.map(|t| t == "http").unwrap_or(false);
     if !(is_stdio || is_http) {
-        return Err("MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into());
+        return Err(AppError::McpValidation(
+            "MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into(),
+        ));
     }
 
     // stdio 类型必须有 command
     if is_stdio {
         let cmd = spec.get("command").and_then(|x| x.as_str()).unwrap_or("");
         if cmd.is_empty() {
-            return Err("stdio 类型的 MCP 服务器缺少 command 字段".into());
+            return Err(AppError::McpValidation(
+                "stdio 类型的 MCP 服务器缺少 command 字段".into(),
+            ));
         }
     }
 
@@ -134,7 +141,9 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, String> {
     if is_http {
         let url = spec.get("url").and_then(|x| x.as_str()).unwrap_or("");
         if url.is_empty() {
-            return Err("http 类型的 MCP 服务器缺少 url 字段".into());
+            return Err(AppError::McpValidation(
+                "http 类型的 MCP 服务器缺少 url 字段".into(),
+            ));
         }
     }
 
@@ -149,7 +158,7 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, String> {
     {
         let obj = root
             .as_object_mut()
-            .ok_or_else(|| "mcp.json 根必须是对象".to_string())?;
+            .ok_or_else(|| AppError::Config("mcp.json 根必须是对象".into()))?;
         if !obj.contains_key("mcpServers") {
             obj.insert("mcpServers".into(), serde_json::json!({}));
         }
@@ -168,9 +177,11 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, String> {
     Ok(true)
 }
 
-pub fn delete_mcp_server(id: &str) -> Result<bool, String> {
+pub fn delete_mcp_server(id: &str) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err("MCP 服务器 ID 不能为空".into());
+        return Err(AppError::InvalidInput(
+            "MCP 服务器 ID 不能为空".into(),
+        ));
     }
     let path = user_config_path();
     if !path.exists() {
@@ -188,7 +199,7 @@ pub fn delete_mcp_server(id: &str) -> Result<bool, String> {
     Ok(true)
 }
 
-pub fn validate_command_in_path(cmd: &str) -> Result<bool, String> {
+pub fn validate_command_in_path(cmd: &str) -> Result<bool, AppError> {
     if cmd.trim().is_empty() {
         return Ok(false);
     }
@@ -229,7 +240,7 @@ pub fn validate_command_in_path(cmd: &str) -> Result<bool, String> {
 /// 仅覆盖 mcpServers，其他字段保持不变
 pub fn set_mcp_servers_map(
     servers: &std::collections::HashMap<String, Value>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let path = user_config_path();
     let mut root = if path.exists() {
         read_json_value(&path)?
@@ -243,14 +254,22 @@ pub fn set_mcp_servers_map(
         let mut obj = if let Some(map) = spec.as_object() {
             map.clone()
         } else {
-            return Err(format!("MCP 服务器 '{}' 不是对象", id));
+            return Err(AppError::McpValidation(format!(
+                "MCP 服务器 '{}' 不是对象",
+                id
+            )));
         };
 
         if let Some(server_val) = obj.remove("server") {
             let server_obj = server_val
                 .as_object()
                 .cloned()
-                .ok_or_else(|| format!("MCP 服务器 '{}' server 字段不是对象", id))?;
+                .ok_or_else(|| {
+                    AppError::McpValidation(format!(
+                        "MCP 服务器 '{}' server 字段不是对象",
+                        id
+                    ))
+                })?;
             obj = server_obj;
         }
 
@@ -269,7 +288,7 @@ pub fn set_mcp_servers_map(
     {
         let obj = root
             .as_object_mut()
-            .ok_or_else(|| "~/.claude.json 根必须是对象".to_string())?;
+            .ok_or_else(|| AppError::Config("~/.claude.json 根必须是对象".into()))?;
         obj.insert("mcpServers".into(), Value::Object(out));
     }
 

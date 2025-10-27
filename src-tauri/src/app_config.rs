@@ -19,6 +19,7 @@ pub struct McpRoot {
 }
 
 use crate::config::{copy_file, get_app_config_dir, get_app_config_path, write_json_file};
+use crate::error::AppError;
 use crate::provider::ProviderManager;
 
 /// 应用类型
@@ -80,7 +81,7 @@ impl Default for MultiAppConfig {
 
 impl MultiAppConfig {
     /// 从文件加载配置（处理v1到v2的迁移）
-    pub fn load() -> Result<Self, String> {
+    pub fn load() -> Result<Self, AppError> {
         let config_path = get_app_config_path();
 
         if !config_path.exists() {
@@ -90,7 +91,7 @@ impl MultiAppConfig {
 
         // 尝试读取文件
         let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| format!("读取配置文件失败: {}", e))?;
+            .map_err(|e| AppError::io(&config_path, e))?;
 
         // 检查是否是旧版本格式（v1）
         if let Ok(v1_config) = serde_json::from_str::<ProviderManager>(&content) {
@@ -130,11 +131,11 @@ impl MultiAppConfig {
         }
 
         // 尝试读取v2格式
-        serde_json::from_str::<Self>(&content).map_err(|e| format!("解析配置文件失败: {}", e))
+        serde_json::from_str::<Self>(&content).map_err(|e| AppError::json(&config_path, e))
     }
 
     /// 保存配置到文件
-    pub fn save(&self) -> Result<(), String> {
+    pub fn save(&self) -> Result<(), AppError> {
         let config_path = get_app_config_path();
         // 先备份旧版（若存在）到 ~/.cc-switch/config.json.bak，再写入新内容
         if config_path.exists() {

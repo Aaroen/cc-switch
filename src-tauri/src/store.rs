@@ -1,4 +1,5 @@
 use crate::app_config::MultiAppConfig;
+use crate::error::AppError;
 use std::sync::Mutex;
 
 /// 全局应用状态
@@ -20,11 +21,8 @@ impl AppState {
     }
 
     /// 保存配置到文件
-    pub fn save(&self) -> Result<(), String> {
-        let config = self
-            .config
-            .lock()
-            .map_err(|e| format!("获取锁失败: {}", e))?;
+    pub fn save(&self) -> Result<(), AppError> {
+        let config = self.config.lock().map_err(AppError::from)?;
 
         config.save()
     }

@@ -5,6 +5,7 @@ mod claude_plugin;
 mod codex_config;
 mod commands;
 mod config;
+mod error;
 mod import_export;
 mod mcp;
 mod migration;
