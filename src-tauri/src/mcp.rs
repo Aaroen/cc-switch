@@ -315,7 +315,7 @@ pub fn set_enabled_and_sync_for(
 /// 将 config.json 中 enabled==true 的项投影写入 ~/.claude.json
 pub fn sync_enabled_to_claude(config: &MultiAppConfig) -> Result<(), String> {
     let enabled = collect_enabled_servers(&config.mcp.claude);
-    crate::claude_mcp::set_mcp_servers_map(&enabled).map_err(Into::into)
+    crate::claude_mcp::set_mcp_servers_map(&enabled).map_err(|e| e.to_string())
 }
 
 /// 从 ~/.claude.json 导入 mcpServers 到 config.json（设为 enabled=true）。

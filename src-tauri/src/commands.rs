@@ -767,31 +767,31 @@ pub async fn open_app_config_folder(handle: tauri::AppHandle) -> Result<bool, St
 /// 获取 Claude MCP 状态（settings.local.json 与 mcp.json）
 #[tauri::command]
 pub async fn get_claude_mcp_status() -> Result<crate::claude_mcp::McpStatus, String> {
-    claude_mcp::get_mcp_status().map_err(Into::into)
+    claude_mcp::get_mcp_status().map_err(|e| e.to_string())
 }
 
 /// 读取 mcp.json 文本内容（不存在则返回 Ok(None)）
 #[tauri::command]
 pub async fn read_claude_mcp_config() -> Result<Option<String>, String> {
-    claude_mcp::read_mcp_json().map_err(Into::into)
+    claude_mcp::read_mcp_json().map_err(|e| e.to_string())
 }
 
 /// 新增或更新一个 MCP 服务器条目
 #[tauri::command]
 pub async fn upsert_claude_mcp_server(id: String, spec: serde_json::Value) -> Result<bool, String> {
-    claude_mcp::upsert_mcp_server(&id, spec).map_err(Into::into)
+    claude_mcp::upsert_mcp_server(&id, spec).map_err(|e| e.to_string())
 }
 
 /// 删除一个 MCP 服务器条目
 #[tauri::command]
 pub async fn delete_claude_mcp_server(id: String) -> Result<bool, String> {
-    claude_mcp::delete_mcp_server(&id).map_err(Into::into)
+    claude_mcp::delete_mcp_server(&id).map_err(|e| e.to_string())
 }
 
 /// 校验命令是否在 PATH 中可用（不执行）
 #[tauri::command]
 pub async fn validate_mcp_command(cmd: String) -> Result<bool, String> {
-    claude_mcp::validate_command_in_path(&cmd).map_err(Into::into)
+    claude_mcp::validate_command_in_path(&cmd).map_err(|e| e.to_string())
 }
 
 // =====================
@@ -1199,7 +1199,8 @@ pub async fn get_settings() -> Result<crate::settings::AppSettings, String> {
 /// 保存设置
 #[tauri::command]
 pub async fn save_settings(settings: crate::settings::AppSettings) -> Result<bool, String> {
-    crate::settings::update_settings(settings)?;
+    crate::settings::update_settings(settings)
+        .map_err(|e| e.to_string())?;
     Ok(true)
 }
 
@@ -1239,35 +1240,34 @@ pub async fn is_portable_mode() -> Result<bool, String> {
 /// Claude 插件：获取 ~/.claude/config.json 状态
 #[tauri::command]
 pub async fn get_claude_plugin_status() -> Result<ConfigStatus, String> {
-    match claude_plugin::claude_config_status() {
-        Ok((exists, path)) => Ok(ConfigStatus {
+    claude_plugin::claude_config_status()
+        .map(|(exists, path)| ConfigStatus {
             exists,
             path: path.to_string_lossy().to_string(),
-        }),
-        Err(err) => Err(err),
-    }
+        })
+        .map_err(|e| e.to_string())
 }
 
 /// Claude 插件：读取配置内容（若不存在返回 Ok(None)）
 #[tauri::command]
 pub async fn read_claude_plugin_config() -> Result<Option<String>, String> {
-    claude_plugin::read_claude_config()
+    claude_plugin::read_claude_config().map_err(|e| e.to_string())
 }
 
 /// Claude 插件：写入/清除固定配置
 #[tauri::command]
 pub async fn apply_claude_plugin_config(official: bool) -> Result<bool, String> {
     if official {
-        claude_plugin::clear_claude_config()
+        claude_plugin::clear_claude_config().map_err(|e| e.to_string())
     } else {
-        claude_plugin::write_claude_config()
+        claude_plugin::write_claude_config().map_err(|e| e.to_string())
     }
 }
 
 /// Claude 插件：检测是否已写入目标配置
 #[tauri::command]
 pub async fn is_claude_plugin_applied() -> Result<bool, String> {
-    claude_plugin::is_claude_config_applied()
+    claude_plugin::is_claude_config_applied().map_err(|e| e.to_string())
 }
 
 /// 测试第三方/自定义供应商端点的网络延迟

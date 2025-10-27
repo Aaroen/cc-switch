@@ -4,6 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 
+use crate::error::AppError;
+
 /// 自定义端点配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,18 +119,18 @@ impl AppSettings {
         }
     }
 
-    pub fn save(&self) -> Result<(), String> {
+    pub fn save(&self) -> Result<(), AppError> {
         let mut normalized = self.clone();
         normalized.normalize_paths();
         let path = Self::settings_path();
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("创建设置目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
         }
 
         let json = serde_json::to_string_pretty(&normalized)
-            .map_err(|e| format!("序列化设置失败: {}", e))?;
-        fs::write(&path, json).map_err(|e| format!("写入设置失败: {}", e))?;
+            .map_err(|e| AppError::JsonSerialize { source: e })?;
+        fs::write(&path, json).map_err(|e| AppError::io(&path, e))?;
         Ok(())
     }
 }
@@ -160,7 +162,7 @@ pub fn get_settings() -> AppSettings {
     settings_store().read().expect("读取设置锁失败").clone()
 }
 
-pub fn update_settings(mut new_settings: AppSettings) -> Result<(), String> {
+pub fn update_settings(mut new_settings: AppSettings) -> Result<(), AppError> {
     new_settings.normalize_paths();
     new_settings.save()?;
 
