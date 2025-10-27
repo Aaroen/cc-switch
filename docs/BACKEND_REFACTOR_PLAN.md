@@ -77,9 +77,9 @@
   - 每个文件聚焦单一功能域（供应商、MCP、配置、设置、杂项、插件），命令函数平均 150-250 行，可读性与后续维护性显著提升。  
   - 相关依赖调整后 `cargo check` 通过，静态巡检确认无重复定义或未注册命令。
 - **阶段 3：补充测试 🚧**  
-  - 新增 `tests/import_export_sync.rs` 集成测试，覆盖配置备份与 Claude 供应商 live 同步路径（使用隔离的 HOME 目录，避免污染真实环境）。  
-  - 扩展 `lib.rs` 对核心数据结构与错误处理 API 的导出，便于后续服务层测试复用。  
-  - 当前覆盖率聚焦配置导入导出模块，后续待补充 MCP 同步、供应商切换等跨模块场景。
+  - `tests/import_export_sync.rs` 集成测试涵盖配置备份、Claude/Codex live 同步、MCP 投影与 Codex/Claude 双向导入流程，并新增启用项清理、非法 TOML 抛错等失败场景验证；统一使用隔离 HOME 目录避免污染真实用户环境。  
+  - 扩展 `lib.rs` re-export，暴露 `AppType`、`MultiAppConfig`、`AppError`、配置 IO 以及 Codex/Claude MCP 路径与同步函数，方便服务层及测试直接复用核心逻辑。  
+  - 当前已覆盖配置、Codex/Claude MCP 核心路径及关键错误分支，后续仍需补齐命令层边界与导入导出异常回滚测试。
 
 ## 渐进式重构路线
 

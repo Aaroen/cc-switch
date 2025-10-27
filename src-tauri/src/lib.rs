@@ -16,10 +16,13 @@ mod store;
 mod usage_script;
 
 pub use app_config::{AppType, MultiAppConfig};
-pub use config::{get_claude_settings_path, read_json_file};
+pub use codex_config::{get_codex_auth_path, get_codex_config_path};
+pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
 pub use import_export::{create_backup, sync_current_providers_to_live};
 pub use provider::Provider;
 pub use settings::{update_settings, AppSettings};
+pub use mcp::{import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex};
+pub use error::AppError;
 
 use store::AppState;
 use tauri::{
@@ -29,8 +32,6 @@ use tauri::{
 #[cfg(target_os = "macos")]
 use tauri::{ActivationPolicy, RunEvent};
 use tauri::{Emitter, Manager};
-
-use crate::error::AppError;
 
 /// 创建动态托盘菜单
 fn create_tray_menu(

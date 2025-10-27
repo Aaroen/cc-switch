@@ -34,6 +34,10 @@ fn reset_test_fs() {
             }
         }
     }
+    let claude_json = home.join(".claude.json");
+    if claude_json.exists() {
+        let _ = fs::remove_file(&claude_json);
+    }
     // 重置内存中的设置缓存，确保测试环境不受上一次调用影响
     // 写入默认设置即可刷新 OnceLock 中的缓存数据
     let _ = update_settings(AppSettings::default());
@@ -99,6 +103,389 @@ fn sync_claude_provider_writes_live_settings() {
         "settings path {:?} should reside under test HOME {:?}",
         settings_path,
         home
+    );
+}
+
+#[test]
+fn sync_codex_provider_writes_auth_and_config() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    let mut config = MultiAppConfig::default();
+
+    // 添加入测 MCP 启用项，确保 sync_enabled_to_codex 会写入 TOML
+    config
+        .mcp
+        .codex
+        .servers
+        .insert(
+            "echo-server".into(),
+            json!({
+                "id": "echo-server",
+                "enabled": true,
+                "server": {
+                    "type": "stdio",
+                    "command": "echo",
+                    "args": ["hello"]
+                }
+            }),
+        );
+
+    let provider_config = json!({
+        "auth": {
+            "OPENAI_API_KEY": "codex-key"
+        },
+        "config": r#"base_url = "https://codex.test""#
+    });
+
+    let provider = Provider::with_id(
+        "codex-1".to_string(),
+        "Codex Test".to_string(),
+        provider_config.clone(),
+        None,
+    );
+
+    let manager = config
+        .get_manager_mut(&AppType::Codex)
+        .expect("codex manager");
+    manager.providers.insert("codex-1".to_string(), provider);
+    manager.current = "codex-1".to_string();
+
+    sync_current_providers_to_live(&mut config).expect("sync codex live");
+
+    let auth_path = cc_switch_lib::get_codex_auth_path();
+    let config_path = cc_switch_lib::get_codex_config_path();
+
+    assert!(
+        auth_path.exists(),
+        "auth.json should exist at {}",
+        auth_path.display()
+    );
+    assert!(
+        config_path.exists(),
+        "config.toml should exist at {}",
+        config_path.display()
+    );
+
+    let auth_value: serde_json::Value = read_json_file(&auth_path).expect("read auth");
+    assert_eq!(
+        auth_value,
+        provider_config.get("auth").cloned().expect("auth object")
+    );
+
+    let toml_text = fs::read_to_string(&config_path).expect("read config.toml");
+    assert!(
+        toml_text.contains("command = \"echo\""),
+        "config.toml should contain serialized enabled MCP server"
+    );
+
+    // 当前供应商应同步最新 config 文本
+    let manager = config
+        .get_manager(&AppType::Codex)
+        .expect("codex manager");
+    let synced = manager.providers.get("codex-1").expect("codex provider");
+    let synced_cfg = synced
+        .settings_config
+        .get("config")
+        .and_then(|v| v.as_str())
+        .expect("config string");
+    assert_eq!(synced_cfg, toml_text);
+}
+
+#[test]
+fn sync_enabled_to_codex_writes_enabled_servers() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    let mut config = MultiAppConfig::default();
+    config
+        .mcp
+        .codex
+        .servers
+        .insert(
+            "stdio-enabled".into(),
+            json!({
+                "id": "stdio-enabled",
+                "enabled": true,
+                "server": {
+                    "type": "stdio",
+                    "command": "echo",
+                    "args": ["ok"],
+                }
+            }),
+        );
+
+    cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex");
+
+    let path = cc_switch_lib::get_codex_config_path();
+    assert!(path.exists(), "config.toml should be created");
+    let text = fs::read_to_string(&path).expect("read config.toml");
+    assert!(
+        text.contains("mcp_servers") && text.contains("stdio-enabled"),
+        "enabled servers should be serialized"
+    );
+}
+
+#[test]
+fn sync_enabled_to_codex_removes_servers_when_none_enabled() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    fs::write(
+        &path,
+        r#"[mcp_servers]
+disabled = { type = "stdio", command = "noop" }
+"#,
+    )
+    .expect("seed config file");
+
+    let config = MultiAppConfig::default(); // 无启用项
+    cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex");
+
+    let text = fs::read_to_string(&path).expect("read config.toml");
+    assert!(
+        !text.contains("mcp_servers") && !text.contains("servers"),
+        "disabled entries should be removed from config.toml"
+    );
+}
+
+#[test]
+fn sync_enabled_to_codex_returns_error_on_invalid_toml() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    fs::write(&path, "invalid = [").expect("write invalid config");
+
+    let mut config = MultiAppConfig::default();
+    config.mcp.codex.servers.insert(
+        "broken".into(),
+        json!({
+            "id": "broken",
+            "enabled": true,
+            "server": {
+                "type": "stdio",
+                "command": "echo"
+            }
+        }),
+    );
+
+    let err = cc_switch_lib::sync_enabled_to_codex(&config).expect_err("sync should fail");
+    match err {
+        cc_switch_lib::AppError::Toml { path, .. } => {
+            assert!(path.ends_with("config.toml"), "path should reference config.toml");
+        }
+        cc_switch_lib::AppError::McpValidation(msg) => {
+            assert!(msg.contains("config.toml"), "error message should mention config.toml");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
+fn import_from_codex_adds_servers_from_mcp_servers_table() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    fs::write(
+        &path,
+        r#"[mcp_servers.echo_server]
+type = "stdio"
+command = "echo"
+args = ["hello"]
+
+[mcp_servers.http_server]
+type = "http"
+url = "https://example.com"
+"#,
+    )
+    .expect("write codex config");
+
+    let mut config = MultiAppConfig::default();
+    let changed = cc_switch_lib::import_from_codex(&mut config).expect("import codex");
+    assert!(changed >= 2, "should import both servers");
+
+    let servers = &config.mcp.codex.servers;
+    let echo = servers.get("echo_server").and_then(|v| v.as_object()).expect("echo server");
+    assert_eq!(echo.get("enabled").and_then(|v| v.as_bool()), Some(true));
+    let server_spec = echo.get("server").and_then(|v| v.as_object()).expect("server spec");
+    assert_eq!(
+        server_spec.get("command").and_then(|v| v.as_str()).unwrap_or(""),
+        "echo"
+    );
+
+    let http = servers.get("http_server").and_then(|v| v.as_object()).expect("http server");
+    let http_spec = http.get("server").and_then(|v| v.as_object()).expect("http spec");
+    assert_eq!(
+        http_spec.get("url").and_then(|v| v.as_str()).unwrap_or(""),
+        "https://example.com"
+    );
+}
+
+#[test]
+fn import_from_codex_merges_into_existing_entries() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    fs::write(
+        &path,
+        r#"[mcp.servers.existing]
+type = "stdio"
+command = "echo"
+"#,
+    )
+    .expect("write codex config");
+
+    let mut config = MultiAppConfig::default();
+    config
+        .mcp
+        .codex
+        .servers
+        .insert(
+            "existing".into(),
+            json!({
+                "id": "existing",
+                "name": "existing",
+                "enabled": false,
+                "server": {
+                    "type": "stdio",
+                    "command": "prev"
+                }
+            }),
+        );
+
+    let changed = cc_switch_lib::import_from_codex(&mut config).expect("import codex");
+    assert!(changed >= 1, "should mark change for enabled flag");
+
+    let entry = config
+        .mcp
+        .codex
+        .servers
+        .get("existing")
+        .and_then(|v| v.as_object())
+        .expect("existing entry");
+    assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
+    let spec = entry.get("server").and_then(|v| v.as_object()).expect("server spec");
+    // 保留原 command，确保导入不会覆盖现有 server 细节
+    assert_eq!(spec.get("command").and_then(|v| v.as_str()), Some("prev"));
+}
+
+#[test]
+fn sync_claude_enabled_mcp_projects_to_user_config() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let mut config = MultiAppConfig::default();
+
+    config.mcp.claude.servers.insert(
+        "stdio-enabled".into(),
+        json!({
+            "id": "stdio-enabled",
+            "enabled": true,
+            "server": {
+                "type": "stdio",
+                "command": "echo",
+                "args": ["hi"],
+            }
+        }),
+    );
+    config.mcp.claude.servers.insert(
+        "http-disabled".into(),
+        json!({
+            "id": "http-disabled",
+            "enabled": false,
+            "server": {
+                "type": "http",
+                "url": "https://example.com",
+            }
+        }),
+    );
+
+    cc_switch_lib::sync_enabled_to_claude(&config).expect("sync Claude MCP");
+
+    let claude_path = cc_switch_lib::get_claude_mcp_path();
+    assert!(claude_path.exists(), "claude config should exist");
+    let text = fs::read_to_string(&claude_path).expect("read .claude.json");
+    let value: serde_json::Value = serde_json::from_str(&text).expect("parse claude json");
+    let servers = value
+        .get("mcpServers")
+        .and_then(|v| v.as_object())
+        .expect("mcpServers map");
+    assert_eq!(servers.len(), 1, "only enabled entries should be written");
+    let enabled = servers.get("stdio-enabled").expect("enabled entry");
+    assert_eq!(
+        enabled
+            .get("command")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default(),
+        "echo"
+    );
+    assert!(servers.get("http-disabled").is_none());
+}
+
+#[test]
+fn import_from_claude_merges_into_config() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+    let claude_path = home.join(".claude.json");
+
+    fs::write(
+        &claude_path,
+        serde_json::to_string_pretty(&json!({
+            "mcpServers": {
+                "stdio-enabled": {
+                    "type": "stdio",
+                    "command": "echo",
+                    "args": ["hello"]
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .expect("write claude json");
+
+    let mut config = MultiAppConfig::default();
+    config
+        .mcp
+        .claude
+        .servers
+        .insert("stdio-enabled".into(), json!({
+            "id": "stdio-enabled",
+            "name": "stdio-enabled",
+            "enabled": false,
+            "server": {
+                "type": "stdio",
+                "command": "prev"
+            }
+        }));
+
+    let changed = cc_switch_lib::import_from_claude(&mut config).expect("import from claude");
+    assert!(changed >= 1, "should mark at least one change");
+
+    let entry = config
+        .mcp
+        .claude
+        .servers
+        .get("stdio-enabled")
+        .and_then(|v| v.as_object())
+        .expect("entry exists");
+    assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
+    let server = entry.get("server").and_then(|v| v.as_object()).expect("server obj");
+    assert_eq!(
+        server.get("command").and_then(|v| v.as_str()).unwrap_or(""),
+        "prev",
+        "existing server config should be preserved"
     );
 }
 
