@@ -143,7 +143,7 @@
     "appConfigDirDescription": "Customize the storage location for CC-Switch configuration files (config.json, etc.)",
     "browsePlaceholderApp": "e.g., C:\\Users\\Administrator\\.cc-switch",
     "claudeConfigDir": "Claude Code Configuration Directory",
-    "claudeConfigDirDescription": "Override Claude configuration directory (settings.json).",
+    "claudeConfigDirDescription": "Override Claude configuration directory (settings.json) and keep claude.json (MCP) alongside it.",
     "codexConfigDir": "Codex Configuration Directory",
     "codexConfigDirDescription": "Override Codex configuration directory.",
     "browsePlaceholderClaude": "e.g., /home/<your-username>/.claude",

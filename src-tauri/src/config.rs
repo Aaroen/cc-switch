@@ -15,6 +15,36 @@ pub fn get_claude_config_dir() -> PathBuf {
         .join(".claude")
 }
 
+/// 默认 Claude MCP 配置文件路径 (~/.claude.json)
+pub fn get_default_claude_mcp_path() -> PathBuf {
+    dirs::home_dir()
+        .expect("无法获取用户主目录")
+        .join(".claude.json")
+}
+
+fn derive_mcp_path_from_override(dir: &Path) -> Option<PathBuf> {
+    let file_name = dir
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())?
+        .trim()
+        .to_string();
+    if file_name.is_empty() {
+        return None;
+    }
+    let parent = dir.parent().unwrap_or_else(|| Path::new(""));
+    Some(parent.join(format!("{}.json", file_name)))
+}
+
+/// 获取 Claude MCP 配置文件路径，若设置了目录覆盖则与覆盖目录同级
+pub fn get_claude_mcp_path() -> PathBuf {
+    if let Some(custom_dir) = crate::settings::get_claude_override_dir() {
+        if let Some(path) = derive_mcp_path_from_override(&custom_dir) {
+            return path;
+        }
+    }
+    get_default_claude_mcp_path()
+}
+
 /// 获取 Claude Code 主配置文件路径
 pub fn get_claude_settings_path() -> PathBuf {
     let dir = get_claude_config_dir();
@@ -217,6 +247,41 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
         })?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derive_mcp_path_from_override_preserves_folder_name() {
+        let override_dir = PathBuf::from("/tmp/profile/.claude");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for nested dir");
+        assert_eq!(derived, PathBuf::from("/tmp/profile/.claude.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_override_handles_non_hidden_folder() {
+        let override_dir = PathBuf::from("/data/claude-config");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for standard dir");
+        assert_eq!(derived, PathBuf::from("/data/claude-config.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_override_supports_relative_rootless_dir() {
+        let override_dir = PathBuf::from("claude");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for single segment");
+        assert_eq!(derived, PathBuf::from("claude.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_root_like_dir_returns_none() {
+        let override_dir = PathBuf::from("/");
+        assert!(derive_mcp_path_from_override(&override_dir).is_none());
+    }
 }
 
 /// 复制文件
