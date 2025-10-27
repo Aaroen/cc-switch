@@ -203,7 +203,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
     fireEvent.click(screen.getByText("common.add"));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, payload, options] = onSave.mock.calls[0];
+    const [id, payload, options] = (onSave as any).mock.calls[0];
     expect(id).toBe("my-server");
     expect(payload).toMatchObject({
       id: "my-server",
@@ -281,7 +281,7 @@ command = "run"
     fireEvent.click(screen.getByText("common.add"));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, payload] = onSave.mock.calls[0];
+    const [id, payload] = (onSave as any).mock.calls[0];
     expect(id).toBe("demo");
     expect(payload.server).toEqual({ type: "stdio", command: "run" });
     expect(toastErrorMock).not.toHaveBeenCalled();
@@ -342,7 +342,7 @@ type = "stdio"
     fireEvent.click(screen.getByText("common.save"));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, entry, options] = onSave.mock.calls[0];
+    const [id, entry, options] = (onSave as any).mock.calls[0];
     expect(id).toBe("existing");
     expect(entry.server.command).toBe("updated");
     expect(entry.enabled).toBe(true);

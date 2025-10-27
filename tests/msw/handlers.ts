@@ -16,7 +16,6 @@ import {
   getAppConfigDirOverride,
   setAppConfigDirOverrideState,
   getMcpConfig,
-  setMcpConfig,
   setMcpServerEnabled,
   upsertMcpServer,
   deleteMcpServer,

@@ -7,7 +7,7 @@ const getAppConfigDirOverrideMock = vi.hoisted(() => vi.fn());
 const getConfigDirMock = vi.hoisted(() => vi.fn());
 const selectConfigDirectoryMock = vi.hoisted(() => vi.fn());
 const setAppConfigDirOverrideMock = vi.hoisted(() => vi.fn());
-const homeDirMock = vi.hoisted(() => vi.fn<[], Promise<string>>());
+const homeDirMock = vi.hoisted(() => vi.fn<() => Promise<string>>());
 const joinMock = vi.hoisted(() => vi.fn(async (...segments: string[]) => segments.join("/")));
 const toastErrorMock = vi.hoisted(() => vi.fn());
 
