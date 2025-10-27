@@ -81,7 +81,7 @@ fn cleanup_old_backups(backup_dir: &PathBuf, retain: usize) -> Result<(), AppErr
     Ok(())
 }
 
-fn sync_current_providers_to_live(config: &mut MultiAppConfig) -> Result<(), AppError> {
+pub fn sync_current_providers_to_live(config: &mut MultiAppConfig) -> Result<(), AppError> {
     sync_current_provider_for_app(config, &AppType::Claude)?;
     sync_current_provider_for_app(config, &AppType::Codex)?;
     Ok(())

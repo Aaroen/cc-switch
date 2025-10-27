@@ -15,6 +15,12 @@ mod speedtest;
 mod store;
 mod usage_script;
 
+pub use app_config::{AppType, MultiAppConfig};
+pub use config::{get_claude_settings_path, read_json_file};
+pub use import_export::{create_backup, sync_current_providers_to_live};
+pub use provider::Provider;
+pub use settings::{update_settings, AppSettings};
+
 use store::AppState;
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
