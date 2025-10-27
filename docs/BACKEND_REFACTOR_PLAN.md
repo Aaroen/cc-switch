@@ -66,6 +66,17 @@
    - `spawn_blocking` 仅用于 >100ms 的阻塞任务，避免滥用。  
    - 以现有依赖为主，控制复杂度。
 
+## 实施进度
+- **阶段 1：统一错误处理 ✅**  
+  - 引入 `thiserror` 并在 `src-tauri/src/error.rs` 定义 `AppError`，提供常用构造函数和 `From<AppError> for String`，保留错误链路。  
+  - 配置、存储、同步等核心模块（`config.rs`、`app_config.rs`、`app_store.rs`、`store.rs`、`codex_config.rs`、`claude_mcp.rs`、`claude_plugin.rs`、`import_export.rs`、`mcp.rs`、`migration.rs`、`speedtest.rs`、`usage_script.rs`、`settings.rs`、`lib.rs` 等）已统一返回 `Result<_, AppError>`，避免字符串错误丢失上下文。  
+  - Tauri 命令层继续返回 `Result<_, String>`，通过 `?` + `Into<String>` 统一转换，前端无需调整。  
+  - `cargo check` 通过，`rg "Result<[^>]+, String"` 巡检确认除命令层外已无字符串错误返回。
+- **阶段 2：拆分命令层 ✅**  
+  - 已将单一 `src-tauri/src/commands.rs` 拆分为 `commands/{provider,mcp,config,settings,misc,plugin}.rs` 并通过 `commands/mod.rs` 统一导出，保持对外 API 不变。  
+  - 每个文件聚焦单一功能域（供应商、MCP、配置、设置、杂项、插件），命令函数平均 150-250 行，可读性与后续维护性显著提升。  
+  - 相关依赖调整后 `cargo check` 通过，静态巡检确认无重复定义或未注册命令。
+
 ## 渐进式重构路线
 
 ### 阶段 1：统一错误处理（高收益 / 低风险）
@@ -136,4 +147,3 @@
 - 建议遵循“错误统一 → 命令拆分 → 补测试 → 服务层抽象 → 锁优化”的渐进式策略。  
 - 完成阶段 1-3 后即可显著提升可维护性与可靠性；阶段 4-5 可根据资源灵活安排。  
 - 重构过程中同步维护文档与测试，确保团队成员对架构演进保持一致认知。
-
