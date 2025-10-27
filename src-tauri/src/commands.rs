@@ -369,7 +369,6 @@ pub async fn switch_provider(
         AppType::Codex => {
             use serde_json::Value;
 
-            // 回填：读取 live（auth.json + config.toml）写回当前供应商 settings_config
             if !{
                 let cur = config
                     .get_manager_mut(&app_type)
@@ -424,7 +423,6 @@ pub async fn switch_provider(
 
             let settings_path = get_claude_settings_path();
 
-            // 回填：读取 live settings.json 写回当前供应商 settings_config
             if settings_path.exists() {
                 let cur_id = {
                     let m = config
@@ -816,9 +814,7 @@ pub async fn query_provider_usage(
     use crate::provider::{UsageData, UsageResult};
 
     // 解析参数
-    let provider_id = provider_id
-        .or(providerId)
-        .ok_or("缺少 providerId 参数")?;
+    let provider_id = provider_id.or(providerId).ok_or("缺少 providerId 参数")?;
 
     let app_type = app_type
         .or_else(|| app.as_deref().map(|s| s.into()))
@@ -832,14 +828,9 @@ pub async fn query_provider_usage(
             .lock()
             .map_err(|e| format!("获取锁失败: {}", e))?;
 
-        let manager = config
-            .get_manager(&app_type)
-            .ok_or("应用类型不存在")?;
+        let manager = config.get_manager(&app_type).ok_or("应用类型不存在")?;
 
-        let provider = manager
-            .providers
-            .get(&provider_id)
-            .ok_or("供应商不存在")?;
+        let provider = manager.providers.get(&provider_id).ok_or("供应商不存在")?;
 
         // 2. 检查脚本配置
         let usage_script = provider
@@ -864,13 +855,9 @@ pub async fn query_provider_usage(
     };
 
     // 5. 执行脚本
-    let result = crate::usage_script::execute_usage_script(
-        &usage_script_code,
-        &api_key,
-        &base_url,
-        timeout,
-    )
-    .await;
+    let result =
+        crate::usage_script::execute_usage_script(&usage_script_code, &api_key, &base_url, timeout)
+            .await;
 
     // 6. 构建结果（支持单对象或数组）
     match result {
@@ -878,12 +865,11 @@ pub async fn query_provider_usage(
             // 尝试解析为数组
             let usage_list: Vec<UsageData> = if data.is_array() {
                 // 直接解析为数组
-                serde_json::from_value(data)
-                    .map_err(|e| format!("数据格式错误: {}", e))?
+                serde_json::from_value(data).map_err(|e| format!("数据格式错误: {}", e))?
             } else {
                 // 单对象包装为数组（向后兼容）
-                let single: UsageData = serde_json::from_value(data)
-                    .map_err(|e| format!("数据格式错误: {}", e))?;
+                let single: UsageData =
+                    serde_json::from_value(data).map_err(|e| format!("数据格式错误: {}", e))?;
                 vec![single]
             };
 
@@ -893,13 +879,11 @@ pub async fn query_provider_usage(
                 error: None,
             })
         }
-        Err(e) => {
-            Ok(UsageResult {
-                success: false,
-                data: None,
-                error: Some(e),
-            })
-        }
+        Err(e) => Ok(UsageResult {
+            success: false,
+            data: None,
+            error: Some(e),
+        }),
     }
 }
 

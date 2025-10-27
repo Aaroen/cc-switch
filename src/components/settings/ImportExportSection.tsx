@@ -167,6 +167,20 @@ function ImportStatusMessage({
     );
   }
 
+  if (status === "partial-success") {
+    return (
+      <div
+        className={`${baseClass} border-yellow-200 bg-yellow-100/70 text-yellow-700`}
+      >
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <div className="space-y-1">
+          <p className="font-medium">{t("settings.importPartialSuccess")}</p>
+          <p>{t("settings.importPartialHint")}</p>
+        </div>
+      </div>
+    );
+  }
+
   const message = errorMessage || t("settings.importFailed");
 
   return (

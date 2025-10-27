@@ -11,8 +11,8 @@ mod migration;
 mod provider;
 mod settings;
 mod speedtest;
-mod usage_script;
 mod store;
+mod usage_script;
 
 use store::AppState;
 use tauri::{
@@ -509,6 +509,7 @@ pub fn run() {
             import_export::import_config_from_file,
             import_export::save_file_dialog,
             import_export::open_file_dialog,
+            import_export::sync_current_providers_live,
             update_tray_menu,
         ]);
 

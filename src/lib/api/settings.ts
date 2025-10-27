@@ -97,6 +97,16 @@ export const settingsApi = {
     });
   },
 
+  async syncCurrentProvidersLive(): Promise<void> {
+    const result = (await invoke("sync_current_providers_live")) as {
+      success?: boolean;
+      message?: string;
+    };
+    if (!result?.success) {
+      throw new Error(result?.message || "Sync current providers failed");
+    }
+  },
+
   async openExternal(url: string): Promise<void> {
     try {
       const u = new URL(url);

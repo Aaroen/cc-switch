@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api";
 
-export type ImportStatus = "idle" | "importing" | "success" | "error";
+export type ImportStatus =
+  | "idle"
+  | "importing"
+  | "success"
+  | "partial-success"
+  | "error";
 
 export interface UseImportExportOptions {
   onImportSuccess?: () => void | Promise<void>;
@@ -86,8 +91,22 @@ export function useImportExport(
 
     try {
       const result = await settingsApi.importConfigFromFile(selectedFile);
-      if (result.success) {
-        setBackupId(result.backupId ?? null);
+      if (!result.success) {
+        setStatus("error");
+        const message =
+          result.message ||
+          t("settings.configCorrupted", {
+            defaultValue: "配置文件已损坏或格式不正确",
+          });
+        setErrorMessage(message);
+        toast.error(message);
+        return;
+      }
+
+      setBackupId(result.backupId ?? null);
+
+      try {
+        await settingsApi.syncCurrentProvidersLive();
         setStatus("success");
         toast.success(
           t("settings.importSuccess", {
@@ -98,15 +117,15 @@ export function useImportExport(
         successTimerRef.current = window.setTimeout(() => {
           void onImportSuccess?.();
         }, 1500);
-      } else {
-        setStatus("error");
-        const message =
-          result.message ||
-          t("settings.configCorrupted", {
-            defaultValue: "配置文件已损坏或格式不正确",
-          });
-        setErrorMessage(message);
-        toast.error(message);
+      } catch (error) {
+        console.error("[useImportExport] Failed to sync live config", error);
+        setStatus("partial-success");
+        toast.warning(
+          t("settings.importPartialSuccess", {
+            defaultValue:
+              "配置已导入，但同步到当前供应商失败。请手动重新选择一次供应商。",
+          }),
+        );
       }
     } catch (error) {
       console.error("[useImportExport] Failed to import config", error);
