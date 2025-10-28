@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppType } from "@/lib/api";
-import type { ProviderCategory, CustomEndpoint, ProviderMeta } from "@/types";
+import type { ProviderCategory, ProviderMeta } from "@/types";
 import { providerPresets, type ProviderPreset } from "@/config/providerPresets";
 import {
   codexProviderPresets,
   type CodexProviderPreset,
 } from "@/config/codexProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
+import { mergeProviderMeta } from "@/utils/providerMetaUtils";
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import { ProviderPresetSelector } from "./ProviderPresetSelector";
@@ -324,12 +325,9 @@ export function ProviderForm({
     }
 
     // 处理 meta 字段（新建与编辑使用不同策略）
-    if (initialData?.meta) {
-      // 编辑模式：后端已通过 API 更新 meta，直接使用原有值
-      payload.meta = initialData.meta;
-    } else if (customEndpointsMap) {
-      // 新建模式：从表单收集的自定义端点打包到 meta
-      payload.meta = { custom_endpoints: customEndpointsMap };
+    const mergedMeta = mergeProviderMeta(initialData?.meta, customEndpointsMap);
+    if (mergedMeta) {
+      payload.meta = mergedMeta;
     }
 
     onSubmit(payload);
@@ -580,7 +578,5 @@ export function ProviderForm({
 export type ProviderFormValues = ProviderFormData & {
   presetId?: string;
   presetCategory?: ProviderCategory;
-  meta?: {
-    custom_endpoints?: Record<string, CustomEndpoint>;
-  };
+  meta?: ProviderMeta;
 };
