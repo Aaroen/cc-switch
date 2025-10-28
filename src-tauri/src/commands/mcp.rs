@@ -7,8 +7,7 @@ use tauri::State;
 
 use crate::app_config::AppType;
 use crate::claude_mcp;
-use crate::error::AppError;
-use crate::mcp;
+use crate::services::McpService;
 use crate::store::AppState;
 
 /// 获取 Claude MCP 状态
@@ -56,17 +55,8 @@ pub async fn get_mcp_config(
     let config_path = crate::config::get_app_config_path()
         .to_string_lossy()
         .to_string();
-    let mut cfg = state
-        .config
-        .write()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
-    let (servers, normalized) = mcp::get_servers_snapshot_for(&mut cfg, &app_ty);
-    let need_save = normalized > 0;
-    drop(cfg);
-    if need_save {
-        state.save()?;
-    }
+    let servers = McpService::get_servers(&state, app_ty).map_err(|e| e.to_string())?;
     Ok(McpConfigResponse {
         config_path,
         servers,
@@ -82,48 +72,9 @@ pub async fn upsert_mcp_server_in_config(
     spec: serde_json::Value,
     sync_other_side: Option<bool>,
 ) -> Result<bool, String> {
-    let mut cfg = state
-        .config
-        .write()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
-    let mut sync_targets: Vec<AppType> = Vec::new();
-
-    let changed = mcp::upsert_in_config_for(&mut cfg, &app_ty, &id, spec.clone())?;
-
-    let should_sync_current = cfg
-        .mcp_for(&app_ty)
-        .servers
-        .get(&id)
-        .and_then(|entry| entry.get("enabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    if should_sync_current {
-        sync_targets.push(app_ty.clone());
-    }
-
-    if sync_other_side.unwrap_or(false) {
-        match app_ty {
-            AppType::Claude => sync_targets.push(AppType::Codex),
-            AppType::Codex => sync_targets.push(AppType::Claude),
-        }
-    }
-
-    drop(cfg);
-    state.save()?;
-
-    let cfg2 = state
-        .config
-        .read()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-    for app_ty_to_sync in sync_targets {
-        match app_ty_to_sync {
-            AppType::Claude => mcp::sync_enabled_to_claude(&cfg2)?,
-            AppType::Codex => mcp::sync_enabled_to_codex(&cfg2)?,
-        };
-    }
-    Ok(changed)
+    McpService::upsert_server(&state, app_ty, &id, spec, sync_other_side.unwrap_or(false))
+        .map_err(|e| e.to_string())
 }
 
 /// 在 config.json 中删除一个 MCP 服务器定义
@@ -133,23 +84,8 @@ pub async fn delete_mcp_server_in_config(
     app: Option<String>,
     id: String,
 ) -> Result<bool, String> {
-    let mut cfg = state
-        .config
-        .write()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
-    let existed = mcp::delete_in_config_for(&mut cfg, &app_ty, &id)?;
-    drop(cfg);
-    state.save()?;
-    let cfg2 = state
-        .config
-        .read()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-    match app_ty {
-        AppType::Claude => mcp::sync_enabled_to_claude(&cfg2)?,
-        AppType::Codex => mcp::sync_enabled_to_codex(&cfg2)?,
-    }
-    Ok(existed)
+    McpService::delete_server(&state, app_ty, &id).map_err(|e| e.to_string())
 }
 
 /// 设置启用状态并同步到客户端配置
@@ -161,104 +97,33 @@ pub async fn set_mcp_enabled(
     enabled: bool,
 ) -> Result<bool, String> {
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
-    set_mcp_enabled_internal(&*state, app_ty, &id, enabled).map_err(Into::into)
+    McpService::set_enabled(&state, app_ty, &id, enabled).map_err(|e| e.to_string())
 }
 
 /// 手动同步：将启用的 MCP 投影到 ~/.claude.json
 #[tauri::command]
 pub async fn sync_enabled_mcp_to_claude(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut cfg = state
-        .config
-        .write()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-    let normalized = mcp::normalize_servers_for(&mut cfg, &AppType::Claude);
-    mcp::sync_enabled_to_claude(&cfg)?;
-    let need_save = normalized > 0;
-    drop(cfg);
-    if need_save {
-        state.save()?;
-    }
-    Ok(true)
+    McpService::sync_enabled(&state, AppType::Claude)
+        .map(|_| true)
+        .map_err(|e| e.to_string())
 }
 
 /// 手动同步：将启用的 MCP 投影到 ~/.codex/config.toml
 #[tauri::command]
 pub async fn sync_enabled_mcp_to_codex(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut cfg = state
-        .config
-        .write()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-    let normalized = mcp::normalize_servers_for(&mut cfg, &AppType::Codex);
-    mcp::sync_enabled_to_codex(&cfg)?;
-    let need_save = normalized > 0;
-    drop(cfg);
-    if need_save {
-        state.save()?;
-    }
-    Ok(true)
+    McpService::sync_enabled(&state, AppType::Codex)
+        .map(|_| true)
+        .map_err(|e| e.to_string())
 }
 
 /// 从 ~/.claude.json 导入 MCP 定义到 config.json
 #[tauri::command]
 pub async fn import_mcp_from_claude(state: State<'_, AppState>) -> Result<usize, String> {
-    import_mcp_from_claude_internal(&*state).map_err(Into::into)
+    McpService::import_from_claude(&state).map_err(|e| e.to_string())
 }
 
 /// 从 ~/.codex/config.toml 导入 MCP 定义到 config.json
 #[tauri::command]
 pub async fn import_mcp_from_codex(state: State<'_, AppState>) -> Result<usize, String> {
-    import_mcp_from_codex_internal(&*state).map_err(Into::into)
-}
-
-fn set_mcp_enabled_internal(
-    state: &AppState,
-    app_ty: AppType,
-    id: &str,
-    enabled: bool,
-) -> Result<bool, AppError> {
-    let mut cfg = state.config.write()?;
-    let changed = mcp::set_enabled_and_sync_for(&mut cfg, &app_ty, id, enabled)?;
-    drop(cfg);
-    state.save()?;
-    Ok(changed)
-}
-
-#[doc(hidden)]
-pub fn set_mcp_enabled_test_hook(
-    state: &AppState,
-    app_ty: AppType,
-    id: &str,
-    enabled: bool,
-) -> Result<bool, AppError> {
-    set_mcp_enabled_internal(state, app_ty, id, enabled)
-}
-
-fn import_mcp_from_claude_internal(state: &AppState) -> Result<usize, AppError> {
-    let mut cfg = state.config.write()?;
-    let changed = mcp::import_from_claude(&mut cfg)?;
-    drop(cfg);
-    if changed > 0 {
-        state.save()?;
-    }
-    Ok(changed)
-}
-
-#[doc(hidden)]
-pub fn import_mcp_from_claude_test_hook(state: &AppState) -> Result<usize, AppError> {
-    import_mcp_from_claude_internal(state)
-}
-
-fn import_mcp_from_codex_internal(state: &AppState) -> Result<usize, AppError> {
-    let mut cfg = state.config.write()?;
-    let changed = mcp::import_from_codex(&mut cfg)?;
-    drop(cfg);
-    if changed > 0 {
-        state.save()?;
-    }
-    Ok(changed)
-}
-
-#[doc(hidden)]
-pub fn import_mcp_from_codex_test_hook(state: &AppState) -> Result<usize, AppError> {
-    import_mcp_from_codex_internal(state)
+    McpService::import_from_codex(&state).map_err(|e| e.to_string())
 }

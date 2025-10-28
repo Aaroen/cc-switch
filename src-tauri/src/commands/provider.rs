@@ -393,7 +393,7 @@ pub async fn import_default_config(
         .or_else(|| appType.as_deref().map(|s| s.into()))
         .unwrap_or(AppType::Claude);
 
-    import_default_config_internal(&*state, app_type)
+    import_default_config_internal(&state, app_type)
         .map(|_| true)
         .map_err(Into::into)
 }

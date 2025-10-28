@@ -292,8 +292,8 @@ pub fn delete_in_config_for(
     Ok(existed)
 }
 
-/// 设置启用状态并同步到 ~/.claude.json
-pub fn set_enabled_and_sync_for(
+/// 设置启用状态（不执行落盘或文件同步）
+pub fn set_enabled_flag_for(
     config: &mut MultiAppConfig,
     app: &AppType,
     id: &str,
@@ -316,17 +316,6 @@ pub fn set_enabled_and_sync_for(
         return Ok(false);
     }
 
-    // 同步启用项
-    match app {
-        AppType::Claude => {
-            // 将启用项投影到 ~/.claude.json
-            sync_enabled_to_claude(config)?;
-        }
-        AppType::Codex => {
-            // 将启用项投影到 ~/.codex/config.toml
-            sync_enabled_to_codex(config)?;
-        }
-    }
     Ok(true)
 }
 

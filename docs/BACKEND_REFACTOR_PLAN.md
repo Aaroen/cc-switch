@@ -86,14 +86,15 @@
   - 增加 Codex 缺失 `auth` 场景测试，确认 `switch_provider_internal` 在关键字段缺失时返回带上下文的 `AppError`，同时保持内存状态未被污染。  
   - 为配置导入命令抽取复用逻辑 `import_config_from_path` 并补充成功/失败集成测试，校验备份生成、状态同步、JSON 解析与文件缺失等错误回退路径；`export_config_to_file` 亦具备成功/缺失源文件的命令级回归。  
   - 新增 `tests/mcp_commands.rs`，通过测试钩子覆盖 `import_default_config`、`import_mcp_from_claude`、`set_mcp_enabled` 等命令层行为，验证缺失文件/非法 JSON 的错误回滚以及成功路径落盘效果；阶段三目标达成，命令层关键边界已具备回归保障。
-- **阶段 4：服务层抽象 🚧**  
-  - 新增 `services/provider.rs` 并实现 `ProviderService::switch`，负责供应商切换时的业务流程（live 回填、持久化、MCP 同步），命令层通过薄封装调用并负责状态持久化。  
-  - 扩展 `ProviderService` 提供 `delete` 能力，统一 Codex/Claude 清理逻辑；`tests/provider_service.rs` 校验切换与删除在成功/失败场景（包括缺失供应商、缺少 auth、删除当前供应商）下的行为，确保命令/托盘复用时拥有回归护栏。  
-- **阶段 5：锁与阻塞优化 🚧**  
-  - `AppState` 由 `Mutex<MultiAppConfig>` 切换为 `RwLock<MultiAppConfig>`，命令层根据读/写语义分别使用 `read()` 与 `write()`，避免查询场景被多余互斥阻塞。  
-  - 配套更新托盘初始化、服务层、MCP/Provider/Import Export 命令及所有集成测试，确保新锁语义下的并发安全；`cargo test` 全量通过（含命令、服务层集成用例）。  
-  - 针对可能耗时的配置导入/导出命令，抽取 `load_config_for_import` 负责文件 IO 与备份逻辑，并在命令层通过 `tauri::async_runtime::spawn_blocking` 下沉至阻塞线程执行，主线程仅负责状态写入与响应组装。  
-  - 其余命令（如设置查询、单文件读写）评估后维持同步执行，以免引入不必要的线程切换；后续若新增批量 IO 场景，再按同一模式挂载到阻塞线程。  
+- **阶段 4：服务层抽象 🚧（进行中）**  
+  - 新增 `services/provider.rs` 并实现 `ProviderService::switch` / `delete`，集中处理供应商切换、回填、MCP 同步等核心业务；命令层改为薄封装并在 `tests/provider_service.rs`、`tests/provider_commands.rs` 中完成成功与失败路径的集成验证。  
+  - 新增 `services/mcp.rs` 提供 `McpService`，封装 MCP 服务器的查询、增删改、启用同步与导入流程；命令层改为参数解析 + 调用服务，`tests/mcp_commands.rs` 直接使用 `McpService` 验证成功与失败路径，阶段三测试继续适配。  
+  - `McpService` 在内部先复制内存快照、释放写锁，再执行文件同步，避免阶段五升级后的 `RwLock` 在 I/O 场景被长时间占用；`upsert/delete/set_enabled/sync_enabled` 均已修正。  
+  - 仍待拆分的领域服务：配置导入导出、应用设置等命令需进一步抽象，以便统一封装文件 IO 与状态同步后再收尾阶段四。  
+- **阶段 5：锁与阻塞优化 ✅（首轮）**  
+  - `AppState` 已由 `Mutex<MultiAppConfig>` 切换为 `RwLock<MultiAppConfig>`，托盘、命令与测试均按读写语义区分 `read()` / `write()`；`cargo test` 全量通过验证并未破坏现有流程。  
+  - 针对高开销 IO 的配置导入/导出命令提取 `load_config_for_import`，并通过 `tauri::async_runtime::spawn_blocking` 将文件读写与备份迁至阻塞线程，保持命令处理线程轻量。  
+  - 其余命令梳理后确认仍属轻量同步操作，暂不额外引入 `spawn_blocking`；若后续出现新的长耗时流程，再按同一模式扩展。  
 
 ## 渐进式重构路线
 
@@ -129,10 +130,9 @@
 - 预估 7-10 天，可在测试补齐后执行。
 
 ### 阶段 5：锁与阻塞优化（低收益 / 低风险）
-- `AppState` 从 `Mutex` 改为 `RwLock`。  
-- 读写操作分别使用 `read()`/`write()`，减少不必要的互斥。  
-- 长耗时任务（如归档、批量迁移）用 `spawn_blocking` 包裹，其余直接同步调用。  
-- 预估 3-5 天，可在主流程稳定后安排。
+- ✅ `AppState` 已从 `Mutex` 切换为 `RwLock`，命令与托盘读写按需区分，现有测试全部通过。  
+- ✅ 配置导入/导出命令通过 `spawn_blocking` 处理高开销文件 IO；其他命令维持同步执行以避免不必要调度。  
+- 🔄 持续监控：若后续引入新的批量迁移或耗时任务，再按相同模式扩展到阻塞线程；观察运行时锁竞争情况，必要时考虑进一步拆分状态或引入缓存。  
 
 ## 测试策略
 - **优先覆盖场景**  

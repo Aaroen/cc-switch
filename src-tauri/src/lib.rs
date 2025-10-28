@@ -28,7 +28,7 @@ pub use mcp::{
     import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
 };
 pub use provider::Provider;
-pub use services::ProviderService;
+pub use services::{McpService, ProviderService};
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
 
@@ -427,7 +427,7 @@ pub fn run() {
             let app_state = AppState::new();
 
             // 迁移旧的 app_config_dir 配置到 Store
-            if let Err(e) = app_store::migrate_app_config_dir_from_settings(&app.handle()) {
+            if let Err(e) = app_store::migrate_app_config_dir_from_settings(app.handle()) {
                 log::warn!("迁移 app_config_dir 失败: {}", e);
             }
 

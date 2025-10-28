@@ -3,9 +3,8 @@ use std::{fs, sync::RwLock};
 use serde_json::json;
 
 use cc_switch_lib::{
-    get_claude_mcp_path, get_claude_settings_path, import_default_config_test_hook,
-    import_mcp_from_claude_test_hook, set_mcp_enabled_test_hook, AppError, AppState, AppType,
-    MultiAppConfig,
+    get_claude_mcp_path, get_claude_settings_path, import_default_config_test_hook, AppError,
+    AppState, AppType, McpService, MultiAppConfig,
 };
 
 #[path = "support.rs"]
@@ -116,8 +115,7 @@ fn import_mcp_from_claude_creates_config_and_enables_servers() {
         config: RwLock::new(MultiAppConfig::default()),
     };
 
-    let changed =
-        import_mcp_from_claude_test_hook(&state).expect("import mcp from claude succeeds");
+    let changed = McpService::import_from_claude(&state).expect("import mcp from claude succeeds");
     assert!(
         changed > 0,
         "import should report inserted or normalized entries"
@@ -159,7 +157,7 @@ fn import_mcp_from_claude_invalid_json_preserves_state() {
     };
 
     let err =
-        import_mcp_from_claude_test_hook(&state).expect_err("invalid json should bubble up error");
+        McpService::import_from_claude(&state).expect_err("invalid json should bubble up error");
     match err {
         AppError::McpValidation(msg) => assert!(
             msg.contains("解析 ~/.claude.json 失败"),
@@ -200,7 +198,7 @@ fn set_mcp_enabled_for_codex_writes_live_config() {
         config: RwLock::new(config),
     };
 
-    set_mcp_enabled_test_hook(&state, AppType::Codex, "codex-server", true)
+    McpService::set_enabled(&state, AppType::Codex, "codex-server", true)
         .expect("set enabled should succeed");
 
     let guard = state.config.read().expect("lock config");

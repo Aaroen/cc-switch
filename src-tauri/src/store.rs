@@ -7,6 +7,12 @@ pub struct AppState {
     pub config: RwLock<MultiAppConfig>,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     /// 创建新的应用状态
     pub fn new() -> Self {
