@@ -44,15 +44,11 @@ fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
 fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
     let obj = entry
         .as_object()
-        .ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into())
-        })?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
 
     let server = obj
         .get("server")
-        .ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器条目缺少 server 字段".into())
-        })?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目缺少 server 字段".into()))?;
     validate_server_spec(server)?;
 
     for key in ["name", "description", "homepage", "docs"] {
@@ -67,9 +63,9 @@ fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
     }
 
     if let Some(tags) = obj.get("tags") {
-        let arr = tags.as_array().ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器 tags 必须为字符串数组".into())
-        })?;
+        let arr = tags
+            .as_array()
+            .ok_or_else(|| AppError::McpValidation("MCP 服务器 tags 必须为字符串数组".into()))?;
         if !arr.iter().all(|item| item.is_string()) {
             return Err(AppError::McpValidation(
                 "MCP 服务器 tags 必须为字符串数组".into(),
@@ -182,14 +178,10 @@ pub fn normalize_servers_for(config: &mut MultiAppConfig, app: &AppType) -> usiz
 fn extract_server_spec(entry: &Value) -> Result<Value, AppError> {
     let obj = entry
         .as_object()
-        .ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into())
-        })?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
     let server = obj
         .get("server")
-        .ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器条目缺少 server 字段".into())
-        })?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目缺少 server 字段".into()))?;
 
     if !server.is_object() {
         return Err(AppError::McpValidation(
@@ -255,9 +247,7 @@ pub fn upsert_in_config_for(
     spec: Value,
 ) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "MCP 服务器 ID 不能为空".into(),
-        ));
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     validate_mcp_entry(&spec)?;
@@ -265,14 +255,10 @@ pub fn upsert_in_config_for(
     let mut entry_obj = spec
         .as_object()
         .cloned()
-        .ok_or_else(|| {
-            AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into())
-        })?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
     if let Some(existing_id) = entry_obj.get("id") {
         let Some(existing_id_str) = existing_id.as_str() else {
-            return Err(AppError::McpValidation(
-                "MCP 服务器 id 必须为字符串".into(),
-            ));
+            return Err(AppError::McpValidation("MCP 服务器 id 必须为字符串".into()));
         };
         if existing_id_str != id {
             return Err(AppError::McpValidation(format!(
@@ -299,9 +285,7 @@ pub fn delete_in_config_for(
     id: &str,
 ) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "MCP 服务器 ID 不能为空".into(),
-        ));
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     let existed = config.mcp_for_mut(app).servers.remove(id).is_some();
@@ -316,9 +300,7 @@ pub fn set_enabled_and_sync_for(
     enabled: bool,
 ) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "MCP 服务器 ID 不能为空".into(),
-        ));
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     if let Some(spec) = config.mcp_for_mut(app).servers.get_mut(id) {
@@ -326,9 +308,7 @@ pub fn set_enabled_and_sync_for(
         let mut obj = spec
             .as_object()
             .cloned()
-            .ok_or_else(|| {
-                AppError::McpValidation("MCP 服务器定义必须为 JSON 对象".into())
-            })?;
+            .ok_or_else(|| AppError::McpValidation("MCP 服务器定义必须为 JSON 对象".into()))?;
         obj.insert("enabled".into(), json!(enabled));
         *spec = Value::Object(obj);
     } else {
@@ -362,9 +342,8 @@ pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError
     let text_opt = crate::claude_mcp::read_mcp_json()?;
     let Some(text) = text_opt else { return Ok(0) };
     let mut changed = normalize_servers_for(config, &AppType::Claude);
-    let v: Value = serde_json::from_str(&text).map_err(|e| {
-        AppError::McpValidation(format!("解析 ~/.claude.json 失败: {}", e))
-    })?;
+    let v: Value = serde_json::from_str(&text)
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.claude.json 失败: {}", e)))?;
     let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
         return Ok(changed);
     };
@@ -440,12 +419,8 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
     }
     let mut changed_total = normalize_servers_for(config, &AppType::Codex);
 
-    let root: toml::Table = toml::from_str(&text).map_err(|e| {
-        AppError::McpValidation(format!(
-            "解析 ~/.codex/config.toml 失败: {}",
-            e
-        ))
-    })?;
+    let root: toml::Table = toml::from_str(&text)
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.codex/config.toml 失败: {}", e)))?;
 
     // helper：处理一组 servers 表
     let mut import_servers_tbl = |servers_tbl: &toml::value::Table| {
@@ -619,9 +594,8 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
     let mut root: TomlTable = if base_text.trim().is_empty() {
         TomlTable::new()
     } else {
-        toml::from_str::<TomlTable>(&base_text).map_err(|e| {
-            AppError::McpValidation(format!("解析 config.toml 失败: {}", e))
-        })?
+        toml::from_str::<TomlTable>(&base_text)
+            .map_err(|e| AppError::McpValidation(format!("解析 config.toml 失败: {}", e)))?
     };
 
     // 3) 写入 servers 表（支持 mcp.servers 与 mcp_servers；优先沿用已有风格，默认 mcp_servers）
@@ -767,9 +741,8 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
     }
 
     // 4) 序列化并写回 config.toml（仅改 TOML，不触碰 auth.json）
-    let new_text = toml::to_string(&TomlValue::Table(root)).map_err(|e| {
-        AppError::McpValidation(format!("序列化 config.toml 失败: {}", e))
-    })?;
+    let new_text = toml::to_string(&TomlValue::Table(root))
+        .map_err(|e| AppError::McpValidation(format!("序列化 config.toml 失败: {}", e)))?;
     let path = crate::codex_config::get_codex_config_path();
     crate::config::write_text_file(&path, &new_text)?;
 

@@ -1,5 +1,5 @@
 use reqwest::Client;
-use rquickjs::{Context, Runtime, Function};
+use rquickjs::{Context, Function, Runtime};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -20,8 +20,8 @@ pub async fn execute_usage_script(
 
     // 2. 在独立作用域中提取 request 配置（确保 Runtime/Context 在 await 前释放）
     let request_config = {
-        let runtime = Runtime::new()
-            .map_err(|e| AppError::Message(format!("创建 JS 运行时失败: {}", e)))?;
+        let runtime =
+            Runtime::new().map_err(|e| AppError::Message(format!("创建 JS 运行时失败: {}", e)))?;
         let context = Context::full(&runtime)
             .map_err(|e| AppError::Message(format!("创建 JS 上下文失败: {}", e)))?;
 
@@ -57,8 +57,8 @@ pub async fn execute_usage_script(
 
     // 5. 在独立作用域中执行 extractor（确保 Runtime/Context 在函数结束前释放）
     let result: Value = {
-        let runtime = Runtime::new()
-            .map_err(|e| AppError::Message(format!("创建 JS 运行时失败: {}", e)))?;
+        let runtime =
+            Runtime::new().map_err(|e| AppError::Message(format!("创建 JS 运行时失败: {}", e)))?;
         let context = Context::full(&runtime)
             .map_err(|e| AppError::Message(format!("创建 JS 上下文失败: {}", e)))?;
 
@@ -121,10 +121,7 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
         .build()
         .map_err(|e| AppError::Message(format!("创建客户端失败: {}", e)))?;
 
-    let method = config
-        .method
-        .parse()
-        .unwrap_or(reqwest::Method::GET);
+    let method = config.method.parse().unwrap_or(reqwest::Method::GET);
 
     let mut req = client.request(method.clone(), &config.url);
 
@@ -171,9 +168,7 @@ fn validate_result(result: &Value) -> Result<(), AppError> {
         }
         for (idx, item) in arr.iter().enumerate() {
             validate_single_usage(item)
-                .map_err(|e| {
-                    AppError::InvalidInput(format!("数组索引[{}]验证失败: {}", idx, e))
-                })?;
+                .map_err(|e| AppError::InvalidInput(format!("数组索引[{}]验证失败: {}", idx, e)))?;
         }
         return Ok(());
     }
@@ -184,18 +179,16 @@ fn validate_result(result: &Value) -> Result<(), AppError> {
 
 /// 验证单个用量数据对象
 fn validate_single_usage(result: &Value) -> Result<(), AppError> {
-    let obj = result.as_object().ok_or_else(|| {
-        AppError::InvalidInput("脚本必须返回对象或对象数组".into())
-    })?;
+    let obj = result
+        .as_object()
+        .ok_or_else(|| AppError::InvalidInput("脚本必须返回对象或对象数组".into()))?;
 
     // 所有字段均为可选，只进行类型检查
     if obj.contains_key("isValid")
         && !result["isValid"].is_null()
         && !result["isValid"].is_boolean()
     {
-        return Err(AppError::InvalidInput(
-            "isValid 必须是布尔值或 null".into(),
-        ));
+        return Err(AppError::InvalidInput("isValid 必须是布尔值或 null".into()));
     }
     if obj.contains_key("invalidMessage")
         && !result["invalidMessage"].is_null()
@@ -209,33 +202,16 @@ fn validate_single_usage(result: &Value) -> Result<(), AppError> {
         && !result["remaining"].is_null()
         && !result["remaining"].is_number()
     {
-        return Err(AppError::InvalidInput(
-            "remaining 必须是数字或 null".into(),
-        ));
+        return Err(AppError::InvalidInput("remaining 必须是数字或 null".into()));
     }
-    if obj.contains_key("unit")
-        && !result["unit"].is_null()
-        && !result["unit"].is_string()
-    {
-        return Err(AppError::InvalidInput(
-            "unit 必须是字符串或 null".into(),
-        ));
+    if obj.contains_key("unit") && !result["unit"].is_null() && !result["unit"].is_string() {
+        return Err(AppError::InvalidInput("unit 必须是字符串或 null".into()));
     }
-    if obj.contains_key("total")
-        && !result["total"].is_null()
-        && !result["total"].is_number()
-    {
-        return Err(AppError::InvalidInput(
-            "total 必须是数字或 null".into(),
-        ));
+    if obj.contains_key("total") && !result["total"].is_null() && !result["total"].is_number() {
+        return Err(AppError::InvalidInput("total 必须是数字或 null".into()));
     }
-    if obj.contains_key("used")
-        && !result["used"].is_null()
-        && !result["used"].is_number()
-    {
-        return Err(AppError::InvalidInput(
-            "used 必须是数字或 null".into(),
-        ));
+    if obj.contains_key("used") && !result["used"].is_null() && !result["used"].is_number() {
+        return Err(AppError::InvalidInput("used 必须是数字或 null".into()));
     }
     if obj.contains_key("planName")
         && !result["planName"].is_null()
@@ -245,13 +221,8 @@ fn validate_single_usage(result: &Value) -> Result<(), AppError> {
             "planName 必须是字符串或 null".into(),
         ));
     }
-    if obj.contains_key("extra")
-        && !result["extra"].is_null()
-        && !result["extra"].is_string()
-    {
-        return Err(AppError::InvalidInput(
-            "extra 必须是字符串或 null".into(),
-        ));
+    if obj.contains_key("extra") && !result["extra"].is_null() && !result["extra"].is_string() {
+        return Err(AppError::InvalidInput("extra 必须是字符串或 null".into()));
     }
 
     Ok(())

@@ -271,41 +271,14 @@ pub async fn delete_provider(
         .or_else(|| appType.as_deref().map(|s| s.into()))
         .unwrap_or(AppType::Claude);
 
-    let mut config = state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-
-    let manager = config
-        .get_manager_mut(&app_type)
-        .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
-
-    if manager.current == id {
-        return Err("不能删除当前正在使用的供应商".to_string());
+    {
+        let mut config = state
+            .config
+            .lock()
+            .map_err(|e| format!("获取锁失败: {}", e))?;
+        ProviderService::delete(&mut config, app_type, &id).map_err(|e| e.to_string())?;
     }
 
-    let provider = manager
-        .providers
-        .get(&id)
-        .ok_or_else(|| format!("供应商不存在: {}", id))?
-        .clone();
-
-    match app_type {
-        AppType::Codex => {
-            codex_config::delete_codex_provider_config(&id, &provider.name)?;
-        }
-        AppType::Claude => {
-            use crate::config::{delete_file, get_provider_config_path};
-            let by_name = get_provider_config_path(&id, Some(&provider.name));
-            let by_id = get_provider_config_path(&id, None);
-            delete_file(&by_name)?;
-            delete_file(&by_id)?;
-        }
-    }
-
-    manager.providers.remove(&id);
-
-    drop(config);
     state.save()?;
 
     Ok(true)
@@ -313,10 +286,7 @@ pub async fn delete_provider(
 
 /// 切换供应商
 fn switch_provider_internal(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
-    let mut config = state
-        .config
-        .lock()
-        .map_err(AppError::from)?;
+    let mut config = state.config.lock().map_err(AppError::from)?;
 
     ProviderService::switch(&mut config, app_type, id)?;
 
@@ -351,6 +321,65 @@ pub async fn switch_provider(
         .map_err(|e| e.to_string())
 }
 
+fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result<(), AppError> {
+    {
+        let config = state.config.lock()?;
+        if let Some(manager) = config.get_manager(&app_type) {
+            if !manager.get_all_providers().is_empty() {
+                // 已存在供应商则视为已导入，保持与原逻辑一致
+                return Ok(());
+            }
+        }
+    }
+
+    let settings_config = match app_type {
+        AppType::Codex => {
+            let auth_path = codex_config::get_codex_auth_path();
+            if !auth_path.exists() {
+                return Err(AppError::Message("Codex 配置文件不存在".to_string()));
+            }
+            let auth: serde_json::Value = crate::config::read_json_file(&auth_path)?;
+            let config_str = crate::codex_config::read_and_validate_codex_config_text()?;
+            serde_json::json!({ "auth": auth, "config": config_str })
+        }
+        AppType::Claude => {
+            let settings_path = get_claude_settings_path();
+            if !settings_path.exists() {
+                return Err(AppError::Message("Claude Code 配置文件不存在".to_string()));
+            }
+            crate::config::read_json_file(&settings_path)?
+        }
+    };
+
+    let provider = Provider::with_id(
+        "default".to_string(),
+        "default".to_string(),
+        settings_config,
+        None,
+    );
+
+    let mut config = state.config.lock()?;
+    let manager = config
+        .get_manager_mut(&app_type)
+        .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
+
+    manager.providers.insert(provider.id.clone(), provider);
+    manager.current = "default".to_string();
+
+    drop(config);
+    state.save()?;
+
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn import_default_config_test_hook(
+    state: &AppState,
+    app_type: AppType,
+) -> Result<(), AppError> {
+    import_default_config_internal(state, app_type)
+}
+
 /// 导入当前配置为默认供应商
 #[tauri::command]
 pub async fn import_default_config(
@@ -364,62 +393,9 @@ pub async fn import_default_config(
         .or_else(|| appType.as_deref().map(|s| s.into()))
         .unwrap_or(AppType::Claude);
 
-    {
-        let config = state
-            .config
-            .lock()
-            .map_err(|e| format!("获取锁失败: {}", e))?;
-
-        if let Some(manager) = config.get_manager(&app_type) {
-            if !manager.get_all_providers().is_empty() {
-                return Ok(true);
-            }
-        }
-    }
-
-    let settings_config = match app_type {
-        AppType::Codex => {
-            let auth_path = codex_config::get_codex_auth_path();
-            if !auth_path.exists() {
-                return Err("Codex 配置文件不存在".to_string());
-            }
-            let auth: serde_json::Value =
-                crate::config::read_json_file::<serde_json::Value>(&auth_path)?;
-            let config_str = crate::codex_config::read_and_validate_codex_config_text()?;
-            serde_json::json!({ "auth": auth, "config": config_str })
-        }
-        AppType::Claude => {
-            let settings_path = get_claude_settings_path();
-            if !settings_path.exists() {
-                return Err("Claude Code 配置文件不存在".to_string());
-            }
-            crate::config::read_json_file::<serde_json::Value>(&settings_path)?
-        }
-    };
-
-    let provider = Provider::with_id(
-        "default".to_string(),
-        "default".to_string(),
-        settings_config,
-        None,
-    );
-
-    let mut config = state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
-
-    let manager = config
-        .get_manager_mut(&app_type)
-        .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
-
-    manager.providers.insert(provider.id.clone(), provider);
-    manager.current = "default".to_string();
-
-    drop(config);
-    state.save()?;
-
-    Ok(true)
+    import_default_config_internal(&*state, app_type)
+        .map(|_| true)
+        .map_err(Into::into)
 }
 
 /// 查询供应商用量

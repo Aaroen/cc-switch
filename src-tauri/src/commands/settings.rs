@@ -11,8 +11,7 @@ pub async fn get_settings() -> Result<crate::settings::AppSettings, String> {
 /// 保存设置
 #[tauri::command]
 pub async fn save_settings(settings: crate::settings::AppSettings) -> Result<bool, String> {
-    crate::settings::update_settings(settings)
-        .map_err(|e| e.to_string())?;
+    crate::settings::update_settings(settings).map_err(|e| e.to_string())?;
     Ok(true)
 }
 

@@ -44,7 +44,10 @@ pub fn get_codex_provider_paths(
 }
 
 /// 删除 Codex 供应商配置文件
-pub fn delete_codex_provider_config(provider_id: &str, provider_name: &str) -> Result<(), AppError> {
+pub fn delete_codex_provider_config(
+    provider_id: &str,
+    provider_name: &str,
+) -> Result<(), AppError> {
     let (auth_path, config_path) = get_codex_provider_paths(provider_id, Some(provider_name));
 
     delete_file(&auth_path).ok();
@@ -56,7 +59,10 @@ pub fn delete_codex_provider_config(provider_id: &str, provider_name: &str) -> R
 //（移除未使用的备份/保存/恢复/导入函数，避免 dead_code 告警）
 
 /// 原子写 Codex 的 `auth.json` 与 `config.toml`，在第二步失败时回滚第一步
-pub fn write_codex_live_atomic(auth: &Value, config_text_opt: Option<&str>) -> Result<(), AppError> {
+pub fn write_codex_live_atomic(
+    auth: &Value,
+    config_text_opt: Option<&str>,
+) -> Result<(), AppError> {
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
 
@@ -70,12 +76,11 @@ pub fn write_codex_live_atomic(auth: &Value, config_text_opt: Option<&str>) -> R
     } else {
         None
     };
-    let _old_config =
-        if config_path.exists() {
-            Some(fs::read(&config_path).map_err(|e| AppError::io(&config_path, e))?)
-        } else {
-            None
-        };
+    let _old_config = if config_path.exists() {
+        Some(fs::read(&config_path).map_err(|e| AppError::io(&config_path, e))?)
+    } else {
+        None
+    };
 
     // 准备写入内容
     let cfg_text = match config_text_opt {
@@ -83,8 +88,7 @@ pub fn write_codex_live_atomic(auth: &Value, config_text_opt: Option<&str>) -> R
         None => String::new(),
     };
     if !cfg_text.trim().is_empty() {
-        toml::from_str::<toml::Table>(&cfg_text)
-            .map_err(|e| AppError::toml(&config_path, e))?;
+        toml::from_str::<toml::Table>(&cfg_text).map_err(|e| AppError::toml(&config_path, e))?;
     }
 
     // 第一步：写 auth.json

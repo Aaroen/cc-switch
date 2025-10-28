@@ -1,6 +1,6 @@
+use serde_json::json;
 use std::{fs, path::Path, sync::Mutex};
 use tauri::async_runtime;
-use serde_json::json;
 
 use cc_switch_lib::{
     create_backup, get_claude_settings_path, import_config_from_path, read_json_file,
@@ -77,22 +77,18 @@ fn sync_codex_provider_writes_auth_and_config() {
     let mut config = MultiAppConfig::default();
 
     // 添加入测 MCP 启用项，确保 sync_enabled_to_codex 会写入 TOML
-    config
-        .mcp
-        .codex
-        .servers
-        .insert(
-            "echo-server".into(),
-            json!({
-                "id": "echo-server",
-                "enabled": true,
-                "server": {
-                    "type": "stdio",
-                    "command": "echo",
-                    "args": ["hello"]
-                }
-            }),
-        );
+    config.mcp.codex.servers.insert(
+        "echo-server".into(),
+        json!({
+            "id": "echo-server",
+            "enabled": true,
+            "server": {
+                "type": "stdio",
+                "command": "echo",
+                "args": ["hello"]
+            }
+        }),
+    );
 
     let provider_config = json!({
         "auth": {
@@ -143,9 +139,7 @@ fn sync_codex_provider_writes_auth_and_config() {
     );
 
     // 当前供应商应同步最新 config 文本
-    let manager = config
-        .get_manager(&AppType::Codex)
-        .expect("codex manager");
+    let manager = config.get_manager(&AppType::Codex).expect("codex manager");
     let synced = manager.providers.get("codex-1").expect("codex provider");
     let synced_cfg = synced
         .settings_config
@@ -161,22 +155,18 @@ fn sync_enabled_to_codex_writes_enabled_servers() {
     reset_test_fs();
 
     let mut config = MultiAppConfig::default();
-    config
-        .mcp
-        .codex
-        .servers
-        .insert(
-            "stdio-enabled".into(),
-            json!({
-                "id": "stdio-enabled",
-                "enabled": true,
-                "server": {
-                    "type": "stdio",
-                    "command": "echo",
-                    "args": ["ok"],
-                }
-            }),
-        );
+    config.mcp.codex.servers.insert(
+        "stdio-enabled".into(),
+        json!({
+            "id": "stdio-enabled",
+            "enabled": true,
+            "server": {
+                "type": "stdio",
+                "command": "echo",
+                "args": ["ok"],
+            }
+        }),
+    );
 
     cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex");
 
@@ -241,10 +231,16 @@ fn sync_enabled_to_codex_returns_error_on_invalid_toml() {
     let err = cc_switch_lib::sync_enabled_to_codex(&config).expect_err("sync should fail");
     match err {
         cc_switch_lib::AppError::Toml { path, .. } => {
-            assert!(path.ends_with("config.toml"), "path should reference config.toml");
+            assert!(
+                path.ends_with("config.toml"),
+                "path should reference config.toml"
+            );
         }
         cc_switch_lib::AppError::McpValidation(msg) => {
-            assert!(msg.contains("config.toml"), "error message should mention config.toml");
+            assert!(
+                msg.contains("config.toml"),
+                "error message should mention config.toml"
+            );
         }
         other => panic!("unexpected error: {other:?}"),
     }
@@ -400,16 +396,31 @@ url = "https://example.com"
     assert!(changed >= 2, "should import both servers");
 
     let servers = &config.mcp.codex.servers;
-    let echo = servers.get("echo_server").and_then(|v| v.as_object()).expect("echo server");
+    let echo = servers
+        .get("echo_server")
+        .and_then(|v| v.as_object())
+        .expect("echo server");
     assert_eq!(echo.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let server_spec = echo.get("server").and_then(|v| v.as_object()).expect("server spec");
+    let server_spec = echo
+        .get("server")
+        .and_then(|v| v.as_object())
+        .expect("server spec");
     assert_eq!(
-        server_spec.get("command").and_then(|v| v.as_str()).unwrap_or(""),
+        server_spec
+            .get("command")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
         "echo"
     );
 
-    let http = servers.get("http_server").and_then(|v| v.as_object()).expect("http server");
-    let http_spec = http.get("server").and_then(|v| v.as_object()).expect("http spec");
+    let http = servers
+        .get("http_server")
+        .and_then(|v| v.as_object())
+        .expect("http server");
+    let http_spec = http
+        .get("server")
+        .and_then(|v| v.as_object())
+        .expect("http spec");
     assert_eq!(
         http_spec.get("url").and_then(|v| v.as_str()).unwrap_or(""),
         "https://example.com"
@@ -434,22 +445,18 @@ command = "echo"
     .expect("write codex config");
 
     let mut config = MultiAppConfig::default();
-    config
-        .mcp
-        .codex
-        .servers
-        .insert(
-            "existing".into(),
-            json!({
-                "id": "existing",
-                "name": "existing",
-                "enabled": false,
-                "server": {
-                    "type": "stdio",
-                    "command": "prev"
-                }
-            }),
-        );
+    config.mcp.codex.servers.insert(
+        "existing".into(),
+        json!({
+            "id": "existing",
+            "name": "existing",
+            "enabled": false,
+            "server": {
+                "type": "stdio",
+                "command": "prev"
+            }
+        }),
+    );
 
     let changed = cc_switch_lib::import_from_codex(&mut config).expect("import codex");
     assert!(changed >= 1, "should mark change for enabled flag");
@@ -462,7 +469,10 @@ command = "echo"
         .and_then(|v| v.as_object())
         .expect("existing entry");
     assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let spec = entry.get("server").and_then(|v| v.as_object()).expect("server spec");
+    let spec = entry
+        .get("server")
+        .and_then(|v| v.as_object())
+        .expect("server spec");
     // 保留原 command，确保导入不会覆盖现有 server 细节
     assert_eq!(spec.get("command").and_then(|v| v.as_str()), Some("prev"));
 }
@@ -542,11 +552,9 @@ fn import_from_claude_merges_into_config() {
     .expect("write claude json");
 
     let mut config = MultiAppConfig::default();
-    config
-        .mcp
-        .claude
-        .servers
-        .insert("stdio-enabled".into(), json!({
+    config.mcp.claude.servers.insert(
+        "stdio-enabled".into(),
+        json!({
             "id": "stdio-enabled",
             "name": "stdio-enabled",
             "enabled": false,
@@ -554,7 +562,8 @@ fn import_from_claude_merges_into_config() {
                 "type": "stdio",
                 "command": "prev"
             }
-        }));
+        }),
+    );
 
     let changed = cc_switch_lib::import_from_claude(&mut config).expect("import from claude");
     assert!(changed >= 1, "should mark at least one change");
@@ -567,7 +576,10 @@ fn import_from_claude_merges_into_config() {
         .and_then(|v| v.as_object())
         .expect("entry exists");
     assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let server = entry.get("server").and_then(|v| v.as_object()).expect("server obj");
+    let server = entry
+        .get("server")
+        .and_then(|v| v.as_object())
+        .expect("server obj");
     assert_eq!(
         server.get("command").and_then(|v| v.as_str()).unwrap_or(""),
         "prev",
@@ -745,10 +757,7 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
         "saved config should record new current provider"
     );
 
-    let guard = app_state
-        .config
-        .lock()
-        .expect("lock state after import");
+    let guard = app_state.config.lock().expect("lock state after import");
     let claude_manager = guard
         .get_manager(&AppType::Claude)
         .expect("claude manager in state");
@@ -778,8 +787,7 @@ fn import_config_from_path_invalid_json_returns_error() {
         config: Mutex::new(MultiAppConfig::default()),
     };
 
-    let err =
-        import_config_from_path(&invalid_path, &app_state).expect_err("import should fail");
+    let err = import_config_from_path(&invalid_path, &app_state).expect_err("import should fail");
     match err {
         AppError::Json { .. } => {}
         other => panic!("expected json error, got {other:?}"),
@@ -825,10 +833,7 @@ fn export_config_to_file_writes_target_path() {
         export_path.to_string_lossy().to_string(),
     ))
     .expect("export should succeed");
-    assert_eq!(
-        result.get("success").and_then(|v| v.as_bool()),
-        Some(true)
-    );
+    assert_eq!(result.get("success").and_then(|v| v.as_bool()), Some(true));
 
     let exported = fs::read_to_string(&export_path).expect("read exported file");
     assert!(

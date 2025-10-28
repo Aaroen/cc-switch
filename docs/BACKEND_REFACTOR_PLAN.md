@@ -76,7 +76,7 @@
   - 已将单一 `src-tauri/src/commands.rs` 拆分为 `commands/{provider,mcp,config,settings,misc,plugin}.rs` 并通过 `commands/mod.rs` 统一导出，保持对外 API 不变。  
   - 每个文件聚焦单一功能域（供应商、MCP、配置、设置、杂项、插件），命令函数平均 150-250 行，可读性与后续维护性显著提升。  
   - 相关依赖调整后 `cargo check` 通过，静态巡检确认无重复定义或未注册命令。
-- **阶段 3：补充测试 🚧**  
+- **阶段 3：补充测试 ✅**  
   - `tests/import_export_sync.rs` 集成测试涵盖配置备份、Claude/Codex live 同步、MCP 投影与 Codex/Claude 双向导入流程，并新增启用项清理、非法 TOML 抛错等失败场景验证；统一使用隔离 HOME 目录避免污染真实用户环境。  
   - 扩展 `lib.rs` re-export，暴露 `AppType`、`MultiAppConfig`、`AppError`、配置 IO 以及 Codex/Claude MCP 路径与同步函数，方便服务层及测试直接复用核心逻辑。  
   - 新增负向测试验证 Codex 供应商缺少 `auth` 字段时的错误返回，并补充备份数量上限测试；顺带修复 `create_backup` 采用内存读写避免拷贝继承旧的修改时间，确保最新备份不会在清理阶段被误删。  
@@ -85,9 +85,10 @@
   - 补充 Claude 切换集成测试，验证 live `settings.json` 覆写、新旧供应商快照回填以及 `.cc-switch/config.json` 持久化结果，确保阶段四提取服务层时拥有可回归的用例。  
   - 增加 Codex 缺失 `auth` 场景测试，确认 `switch_provider_internal` 在关键字段缺失时返回带上下文的 `AppError`，同时保持内存状态未被污染。  
   - 为配置导入命令抽取复用逻辑 `import_config_from_path` 并补充成功/失败集成测试，校验备份生成、状态同步、JSON 解析与文件缺失等错误回退路径；`export_config_to_file` 亦具备成功/缺失源文件的命令级回归。  
-  - 当前已覆盖配置、Codex/Claude MCP 核心路径及关键错误分支，后续仍需补齐命令层边界与导入导出异常回滚测试。
+  - 新增 `tests/mcp_commands.rs`，通过测试钩子覆盖 `import_default_config`、`import_mcp_from_claude`、`set_mcp_enabled` 等命令层行为，验证缺失文件/非法 JSON 的错误回滚以及成功路径落盘效果；阶段三目标达成，命令层关键边界已具备回归保障。
 - **阶段 4：服务层抽象 🚧**  
   - 新增 `services/provider.rs` 并实现 `ProviderService::switch`，负责供应商切换时的业务流程（live 回填、持久化、MCP 同步），命令层通过薄封装调用并负责状态持久化。  
+  - 扩展 `ProviderService` 提供 `delete` 能力，统一 Codex/Claude 清理逻辑；`tests/provider_service.rs` 校验切换与删除在成功/失败场景（包括缺失供应商、缺少 auth、删除当前供应商）下的行为，确保命令/托盘复用时拥有回归护栏。  
 
 ## 渐进式重构路线
 

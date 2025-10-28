@@ -7,6 +7,7 @@ use tauri::State;
 
 use crate::app_config::AppType;
 use crate::claude_mcp;
+use crate::error::AppError;
 use crate::mcp;
 use crate::store::AppState;
 
@@ -159,15 +160,8 @@ pub async fn set_mcp_enabled(
     id: String,
     enabled: bool,
 ) -> Result<bool, String> {
-    let mut cfg = state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
-    let changed = mcp::set_enabled_and_sync_for(&mut cfg, &app_ty, &id, enabled)?;
-    drop(cfg);
-    state.save()?;
-    Ok(changed)
+    set_mcp_enabled_internal(&*state, app_ty, &id, enabled).map_err(Into::into)
 }
 
 /// 手动同步：将启用的 MCP 投影到 ~/.claude.json
@@ -207,10 +201,40 @@ pub async fn sync_enabled_mcp_to_codex(state: State<'_, AppState>) -> Result<boo
 /// 从 ~/.claude.json 导入 MCP 定义到 config.json
 #[tauri::command]
 pub async fn import_mcp_from_claude(state: State<'_, AppState>) -> Result<usize, String> {
-    let mut cfg = state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
+    import_mcp_from_claude_internal(&*state).map_err(Into::into)
+}
+
+/// 从 ~/.codex/config.toml 导入 MCP 定义到 config.json
+#[tauri::command]
+pub async fn import_mcp_from_codex(state: State<'_, AppState>) -> Result<usize, String> {
+    import_mcp_from_codex_internal(&*state).map_err(Into::into)
+}
+
+fn set_mcp_enabled_internal(
+    state: &AppState,
+    app_ty: AppType,
+    id: &str,
+    enabled: bool,
+) -> Result<bool, AppError> {
+    let mut cfg = state.config.lock()?;
+    let changed = mcp::set_enabled_and_sync_for(&mut cfg, &app_ty, id, enabled)?;
+    drop(cfg);
+    state.save()?;
+    Ok(changed)
+}
+
+#[doc(hidden)]
+pub fn set_mcp_enabled_test_hook(
+    state: &AppState,
+    app_ty: AppType,
+    id: &str,
+    enabled: bool,
+) -> Result<bool, AppError> {
+    set_mcp_enabled_internal(state, app_ty, id, enabled)
+}
+
+fn import_mcp_from_claude_internal(state: &AppState) -> Result<usize, AppError> {
+    let mut cfg = state.config.lock()?;
     let changed = mcp::import_from_claude(&mut cfg)?;
     drop(cfg);
     if changed > 0 {
@@ -219,17 +243,22 @@ pub async fn import_mcp_from_claude(state: State<'_, AppState>) -> Result<usize,
     Ok(changed)
 }
 
-/// 从 ~/.codex/config.toml 导入 MCP 定义到 config.json
-#[tauri::command]
-pub async fn import_mcp_from_codex(state: State<'_, AppState>) -> Result<usize, String> {
-    let mut cfg = state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
+#[doc(hidden)]
+pub fn import_mcp_from_claude_test_hook(state: &AppState) -> Result<usize, AppError> {
+    import_mcp_from_claude_internal(state)
+}
+
+fn import_mcp_from_codex_internal(state: &AppState) -> Result<usize, AppError> {
+    let mut cfg = state.config.lock()?;
     let changed = mcp::import_from_codex(&mut cfg)?;
     drop(cfg);
     if changed > 0 {
         state.save()?;
     }
     Ok(changed)
+}
+
+#[doc(hidden)]
+pub fn import_mcp_from_codex_test_hook(state: &AppState) -> Result<usize, AppError> {
+    import_mcp_from_codex_internal(state)
 }

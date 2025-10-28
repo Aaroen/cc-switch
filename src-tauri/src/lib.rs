@@ -10,25 +10,27 @@ mod import_export;
 mod mcp;
 mod migration;
 mod provider;
+mod services;
 mod settings;
 mod speedtest;
 mod store;
-mod services;
 mod usage_script;
 
 pub use app_config::{AppType, MultiAppConfig};
 pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
+pub use commands::*;
 pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
+pub use error::AppError;
 pub use import_export::{
     create_backup, export_config_to_file, import_config_from_path, sync_current_providers_to_live,
 };
+pub use mcp::{
+    import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
+};
 pub use provider::Provider;
-pub use settings::{update_settings, AppSettings};
-pub use mcp::{import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex};
-pub use error::AppError;
-pub use store::AppState;
 pub use services::ProviderService;
-pub use commands::*;
+pub use settings::{update_settings, AppSettings};
+pub use store::AppState;
 
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
@@ -43,10 +45,7 @@ fn create_tray_menu(
     app: &tauri::AppHandle,
     app_state: &AppState,
 ) -> Result<Menu<tauri::Wry>, AppError> {
-    let config = app_state
-        .config
-        .lock()
-        .map_err(AppError::from)?;
+    let config = app_state.config.lock().map_err(AppError::from)?;
 
     let mut menu_builder = MenuBuilder::new(app);
 

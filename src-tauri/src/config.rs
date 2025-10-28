@@ -150,10 +150,7 @@ pub fn get_provider_config_path(provider_id: &str, provider_name: Option<&str>) 
 /// 读取 JSON 配置文件
 pub fn read_json_file<T: for<'a> Deserialize<'a>>(path: &Path) -> Result<T, AppError> {
     if !path.exists() {
-        return Err(AppError::Config(format!(
-            "文件不存在: {}",
-            path.display()
-        )));
+        return Err(AppError::Config(format!("文件不存在: {}", path.display())));
     }
 
     let content = fs::read_to_string(path).map_err(|e| AppError::io(path, e))?;
@@ -168,8 +165,8 @@ pub fn write_json_file<T: Serialize>(path: &Path, data: &T) -> Result<(), AppErr
         fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
 
-    let json = serde_json::to_string_pretty(data)
-        .map_err(|e| AppError::JsonSerialize { source: e })?;
+    let json =
+        serde_json::to_string_pretty(data).map_err(|e| AppError::JsonSerialize { source: e })?;
 
     atomic_write(path, json.as_bytes())
 }
@@ -204,8 +201,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), AppError> {
     tmp.push(format!("{}.tmp.{}", file_name, ts));
 
     {
-        let mut f =
-            fs::File::create(&tmp).map_err(|e| AppError::io(&tmp, e))?;
+        let mut f = fs::File::create(&tmp).map_err(|e| AppError::io(&tmp, e))?;
         f.write_all(data).map_err(|e| AppError::io(&tmp, e))?;
         f.flush().map_err(|e| AppError::io(&tmp, e))?;
     }
@@ -226,11 +222,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), AppError> {
             let _ = fs::remove_file(path);
         }
         fs::rename(&tmp, path).map_err(|e| AppError::IoContext {
-            context: format!(
-                "原子替换失败: {} -> {}",
-                tmp.display(),
-                path.display()
-            ),
+            context: format!("原子替换失败: {} -> {}", tmp.display(), path.display()),
             source: e,
         })?;
     }
@@ -238,11 +230,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), AppError> {
     #[cfg(not(windows))]
     {
         fs::rename(&tmp, path).map_err(|e| AppError::IoContext {
-            context: format!(
-                "原子替换失败: {} -> {}",
-                tmp.display(),
-                path.display()
-            ),
+            context: format!("原子替换失败: {} -> {}", tmp.display(), path.display()),
             source: e,
         })?;
     }
@@ -287,11 +275,7 @@ mod tests {
 /// 复制文件
 pub fn copy_file(from: &Path, to: &Path) -> Result<(), AppError> {
     fs::copy(from, to).map_err(|e| AppError::IoContext {
-        context: format!(
-            "复制文件失败 ({} -> {})",
-            from.display(),
-            to.display()
-        ),
+        context: format!("复制文件失败 ({} -> {})", from.display(), to.display()),
         source: e,
     })?;
     Ok(())

@@ -149,8 +149,7 @@ pub fn migrate_copies_into_config(config: &mut MultiAppConfig) -> Result<bool, A
     // 如果已迁移过则跳过；若目录不存在则先创建，避免新装用户写入标记时失败
     let marker = get_marker_path();
     if let Some(parent) = marker.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| AppError::io(parent, e))?;
+        std::fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
     if marker.exists() {
         return Ok(false);

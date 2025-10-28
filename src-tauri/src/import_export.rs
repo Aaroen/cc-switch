@@ -131,23 +131,15 @@ fn sync_codex_live(
 ) -> Result<(), AppError> {
     use serde_json::Value;
 
-    let settings = provider
-        .settings_config
-        .as_object()
-        .ok_or_else(|| {
-            AppError::Config(format!(
-                "供应商 {} 的 Codex 配置必须是对象",
-                provider_id
-            ))
-        })?;
-    let auth = settings
-        .get("auth")
-        .ok_or_else(|| {
-            AppError::Config(format!(
-                "供应商 {} 的 Codex 配置缺少 auth 字段",
-                provider_id
-            ))
-        })?;
+    let settings = provider.settings_config.as_object().ok_or_else(|| {
+        AppError::Config(format!("供应商 {} 的 Codex 配置必须是对象", provider_id))
+    })?;
+    let auth = settings.get("auth").ok_or_else(|| {
+        AppError::Config(format!(
+            "供应商 {} 的 Codex 配置缺少 auth 字段",
+            provider_id
+        ))
+    })?;
     if !auth.is_object() {
         return Err(AppError::Config(format!(
             "供应商 {} 的 Codex auth 配置必须是 JSON 对象",
@@ -203,12 +195,11 @@ fn sync_claude_live(
 pub async fn export_config_to_file(file_path: String) -> Result<Value, String> {
     // 读取当前配置文件
     let config_path = crate::config::get_app_config_path();
-    let config_content = fs::read_to_string(&config_path)
-        .map_err(|e| AppError::io(&config_path, e).to_string())?;
+    let config_content =
+        fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e).to_string())?;
 
     // 写入到指定文件
-    fs::write(&file_path, &config_content)
-        .map_err(|e| AppError::io(&file_path, e).to_string())?;
+    fs::write(&file_path, &config_content).map_err(|e| AppError::io(&file_path, e).to_string())?;
 
     Ok(json!({
         "success": true,
@@ -239,18 +230,15 @@ pub fn import_config_from_path(
     file_path: &Path,
     state: &crate::store::AppState,
 ) -> Result<String, AppError> {
-    let import_content =
-        fs::read_to_string(file_path).map_err(|e| AppError::io(file_path, e))?;
+    let import_content = fs::read_to_string(file_path).map_err(|e| AppError::io(file_path, e))?;
 
     let new_config: crate::app_config::MultiAppConfig =
-        serde_json::from_str(&import_content)
-            .map_err(|e| AppError::json(file_path, e))?;
+        serde_json::from_str(&import_content).map_err(|e| AppError::json(file_path, e))?;
 
     let config_path = crate::config::get_app_config_path();
     let backup_id = create_backup(&config_path)?;
 
-    fs::write(&config_path, &import_content)
-        .map_err(|e| AppError::io(&config_path, e))?;
+    fs::write(&config_path, &import_content).map_err(|e| AppError::io(&config_path, e))?;
 
     {
         let mut guard = state.config.lock().map_err(AppError::from)?;

@@ -90,8 +90,8 @@ impl MultiAppConfig {
         }
 
         // 尝试读取文件
-        let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| AppError::io(&config_path, e))?;
+        let content =
+            std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
 
         // 检查是否是旧版本格式（v1）
         if let Ok(v1_config) = serde_json::from_str::<ProviderManager>(&content) {

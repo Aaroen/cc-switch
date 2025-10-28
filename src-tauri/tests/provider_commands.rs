@@ -88,17 +88,13 @@ command = "say"
         "live auth.json should reflect new provider"
     );
 
-    let config_text =
-        std::fs::read_to_string(get_codex_config_path()).expect("read config.toml");
+    let config_text = std::fs::read_to_string(get_codex_config_path()).expect("read config.toml");
     assert!(
         config_text.contains("mcp_servers.echo-server"),
         "config.toml should contain synced MCP servers"
     );
 
-    let locked = app_state
-        .config
-        .lock()
-        .expect("lock config after switch");
+    let locked = app_state.config.lock().expect("lock config after switch");
     let manager = locked
         .get_manager(&AppType::Codex)
         .expect("codex manager after switch");
@@ -231,10 +227,7 @@ fn switch_provider_updates_claude_live_and_state() {
         "live settings.json should reflect new provider auth"
     );
 
-    let locked = app_state
-        .config
-        .lock()
-        .expect("lock config after switch");
+    let locked = app_state.config.lock().expect("lock config after switch");
     let manager = locked
         .get_manager(&AppType::Claude)
         .expect("claude manager after switch");
@@ -265,8 +258,7 @@ fn switch_provider_updates_claude_live_and_state() {
 
     drop(locked);
 
-    let home_dir =
-        std::env::var("HOME").expect("HOME should be set by ensure_test_home");
+    let home_dir = std::env::var("HOME").expect("HOME should be set by ensure_test_home");
     let config_path = std::path::Path::new(&home_dir)
         .join(".cc-switch")
         .join("config.json");
@@ -325,13 +317,8 @@ fn switch_provider_codex_missing_auth_returns_error_and_keeps_state() {
         other => panic!("expected config error, got {other:?}"),
     }
 
-    let locked = app_state
-        .config
-        .lock()
-        .expect("lock config after failure");
-    let manager = locked
-        .get_manager(&AppType::Codex)
-        .expect("codex manager");
+    let locked = app_state.config.lock().expect("lock config after failure");
+    let manager = locked.get_manager(&AppType::Codex).expect("codex manager");
     assert!(
         manager.current.is_empty(),
         "current provider should remain empty on failure"

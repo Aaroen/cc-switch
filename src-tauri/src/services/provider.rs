@@ -1,8 +1,11 @@
 use serde_json::{json, Value};
 
 use crate::app_config::{AppType, MultiAppConfig};
-use crate::config::{get_claude_settings_path, read_json_file, write_json_file};
 use crate::codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
+use crate::config::{
+    delete_file, get_claude_settings_path, get_provider_config_path, read_json_file,
+    write_json_file,
+};
 use crate::error::AppError;
 use crate::mcp;
 
@@ -46,10 +49,7 @@ impl ProviderService {
         if let Some(manager) = config.get_manager_mut(&AppType::Codex) {
             if let Some(target) = manager.providers.get_mut(provider_id) {
                 if let Some(obj) = target.settings_config.as_object_mut() {
-                    obj.insert(
-                        "config".to_string(),
-                        Value::String(cfg_text_after),
-                    );
+                    obj.insert("config".to_string(), Value::String(cfg_text_after));
                 }
             }
         }
@@ -102,9 +102,9 @@ impl ProviderService {
             .settings_config
             .as_object()
             .ok_or_else(|| AppError::Config("Codex 配置必须是 JSON 对象".into()))?;
-        let auth = settings.get("auth").ok_or_else(|| {
-            AppError::Config(format!("供应商 {} 缺少 auth 配置", provider.id))
-        })?;
+        let auth = settings
+            .get("auth")
+            .ok_or_else(|| AppError::Config(format!("供应商 {} 缺少 auth 配置", provider.id)))?;
         if !auth.is_object() {
             return Err(AppError::Config(format!(
                 "供应商 {} 的 auth 必须是对象",
@@ -179,6 +179,46 @@ impl ProviderService {
         }
 
         write_json_file(&settings_path, &provider.settings_config)?;
+        Ok(())
+    }
+
+    pub fn delete(
+        config: &mut MultiAppConfig,
+        app_type: AppType,
+        provider_id: &str,
+    ) -> Result<(), AppError> {
+        let current_matches = config
+            .get_manager(&app_type)
+            .map(|m| m.current == provider_id)
+            .unwrap_or(false);
+        if current_matches {
+            return Err(AppError::Config("不能删除当前正在使用的供应商".into()));
+        }
+
+        let provider = config
+            .get_manager(&app_type)
+            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?
+            .providers
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+
+        match app_type {
+            AppType::Codex => {
+                crate::codex_config::delete_codex_provider_config(provider_id, &provider.name)?;
+            }
+            AppType::Claude => {
+                let by_name = get_provider_config_path(provider_id, Some(&provider.name));
+                let by_id = get_provider_config_path(provider_id, None);
+                delete_file(&by_name)?;
+                delete_file(&by_id)?;
+            }
+        }
+
+        if let Some(manager) = config.get_manager_mut(&app_type) {
+            manager.providers.remove(provider_id);
+        }
+
         Ok(())
     }
 }

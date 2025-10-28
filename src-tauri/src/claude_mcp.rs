@@ -66,8 +66,7 @@ fn read_json_value(path: &Path) -> Result<Value, AppError> {
         return Ok(serde_json::json!({}));
     }
     let content = fs::read_to_string(path).map_err(|e| AppError::io(path, e))?;
-    let value: Value =
-        serde_json::from_str(&content).map_err(|e| AppError::json(path, e))?;
+    let value: Value = serde_json::from_str(&content).map_err(|e| AppError::json(path, e))?;
     Ok(value)
 }
 
@@ -108,9 +107,7 @@ pub fn read_mcp_json() -> Result<Option<String>, AppError> {
 
 pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "MCP 服务器 ID 不能为空".into(),
-        ));
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     // 基础字段校验（尽量宽松）
     if !spec.is_object() {
@@ -179,9 +176,7 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
 
 pub fn delete_mcp_server(id: &str) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "MCP 服务器 ID 不能为空".into(),
-        ));
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     let path = user_config_path();
     if !path.exists() {
@@ -261,15 +256,9 @@ pub fn set_mcp_servers_map(
         };
 
         if let Some(server_val) = obj.remove("server") {
-            let server_obj = server_val
-                .as_object()
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::McpValidation(format!(
-                        "MCP 服务器 '{}' server 字段不是对象",
-                        id
-                    ))
-                })?;
+            let server_obj = server_val.as_object().cloned().ok_or_else(|| {
+                AppError::McpValidation(format!("MCP 服务器 '{}' server 字段不是对象", id))
+            })?;
             obj = server_obj;
         }
 
