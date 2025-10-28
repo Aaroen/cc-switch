@@ -82,7 +82,12 @@
   - 新增负向测试验证 Codex 供应商缺少 `auth` 字段时的错误返回，并补充备份数量上限测试；顺带修复 `create_backup` 采用内存读写避免拷贝继承旧的修改时间，确保最新备份不会在清理阶段被误删。  
   - 针对 `codex_config::write_codex_live_atomic` 补充成功与失败场景测试，覆盖 auth/config 原子写入与失败回滚逻辑（模拟目标路径为目录时的 rename 失败），降低 Codex live 写入回归风险。  
   - 新增 `tests/provider_commands.rs` 覆盖 `switch_provider` 的 Codex 正常流程与供应商缺失分支，并抽取 `switch_provider_internal` 以复用 `AppError`，通过 `switch_provider_test_hook` 暴露测试入口；同时共享 `tests/support.rs` 提供隔离 HOME / 互斥工具函数。  
+  - 补充 Claude 切换集成测试，验证 live `settings.json` 覆写、新旧供应商快照回填以及 `.cc-switch/config.json` 持久化结果，确保阶段四提取服务层时拥有可回归的用例。  
+  - 增加 Codex 缺失 `auth` 场景测试，确认 `switch_provider_internal` 在关键字段缺失时返回带上下文的 `AppError`，同时保持内存状态未被污染。  
+  - 为配置导入命令抽取复用逻辑 `import_config_from_path` 并补充成功/失败集成测试，校验备份生成、状态同步、JSON 解析与文件缺失等错误回退路径；`export_config_to_file` 亦具备成功/缺失源文件的命令级回归。  
   - 当前已覆盖配置、Codex/Claude MCP 核心路径及关键错误分支，后续仍需补齐命令层边界与导入导出异常回滚测试。
+- **阶段 4：服务层抽象 🚧**  
+  - 新增 `services/provider.rs` 并实现 `ProviderService::switch`，负责供应商切换时的业务流程（live 回填、持久化、MCP 同步），命令层通过薄封装调用并负责状态持久化。  
 
 ## 渐进式重构路线
 

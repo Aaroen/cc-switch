@@ -4,7 +4,7 @@ use crate::provider::Provider;
 use chrono::Utc;
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // 默认仅保留最近 10 份备份，避免目录无限膨胀
 const MAX_BACKUPS: usize = 10;
@@ -223,38 +223,41 @@ pub async fn import_config_from_file(
     file_path: String,
     state: tauri::State<'_, crate::store::AppState>,
 ) -> Result<Value, String> {
-    // 读取导入的文件
-    let file_path_ref = std::path::Path::new(&file_path);
-    let import_content = fs::read_to_string(file_path_ref)
-        .map_err(|e| AppError::io(file_path_ref, e).to_string())?;
+    import_config_from_path(Path::new(&file_path), &state)
+        .map_err(|e| e.to_string())
+        .map(|backup_id| {
+            json!({
+                "success": true,
+                "message": "Configuration imported successfully",
+                "backupId": backup_id
+            })
+        })
+}
 
-    // 验证并解析为配置对象
+/// 从文件导入配置的核心逻辑，供命令及测试复用。
+pub fn import_config_from_path(
+    file_path: &Path,
+    state: &crate::store::AppState,
+) -> Result<String, AppError> {
+    let import_content =
+        fs::read_to_string(file_path).map_err(|e| AppError::io(file_path, e))?;
+
     let new_config: crate::app_config::MultiAppConfig =
         serde_json::from_str(&import_content)
-            .map_err(|e| AppError::json(file_path_ref, e).to_string())?;
+            .map_err(|e| AppError::json(file_path, e))?;
 
-    // 备份当前配置
     let config_path = crate::config::get_app_config_path();
-    let backup_id = create_backup(&config_path).map_err(|e| e.to_string())?;
+    let backup_id = create_backup(&config_path)?;
 
-    // 写入新配置到磁盘
     fs::write(&config_path, &import_content)
-        .map_err(|e| AppError::io(&config_path, e).to_string())?;
+        .map_err(|e| AppError::io(&config_path, e))?;
 
-    // 更新内存中的状态
     {
-        let mut config_state = state
-            .config
-            .lock()
-            .map_err(|e| AppError::from(e).to_string())?;
-        *config_state = new_config;
+        let mut guard = state.config.lock().map_err(AppError::from)?;
+        *guard = new_config;
     }
 
-    Ok(json!({
-        "success": true,
-        "message": "Configuration imported successfully",
-        "backupId": backup_id
-    }))
+    Ok(backup_id)
 }
 
 /// 同步当前供应商配置到对应的 live 文件

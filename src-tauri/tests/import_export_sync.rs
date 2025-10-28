@@ -1,9 +1,10 @@
-use std::fs;
+use std::{fs, path::Path, sync::Mutex};
+use tauri::async_runtime;
 use serde_json::json;
 
 use cc_switch_lib::{
-    create_backup, get_claude_settings_path, read_json_file, sync_current_providers_to_live, AppType,
-    MultiAppConfig, Provider,
+    create_backup, get_claude_settings_path, import_config_from_path, read_json_file,
+    sync_current_providers_to_live, AppError, AppState, AppType, MultiAppConfig, Provider,
 };
 
 #[path = "support.rs"]
@@ -669,5 +670,190 @@ fn create_backup_retains_only_latest_entries() {
     assert!(
         manual_kept,
         "cleanup should keep part of the older backups to maintain history"
+    );
+}
+
+#[test]
+fn import_config_from_path_overwrites_state_and_creates_backup() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let config_dir = home.join(".cc-switch");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    let config_path = config_dir.join("config.json");
+    fs::write(&config_path, r#"{"version":1}"#).expect("seed original config");
+
+    let import_payload = serde_json::json!({
+        "version": 2,
+        "claude": {
+            "providers": {
+                "p-new": {
+                    "id": "p-new",
+                    "name": "Test Claude",
+                    "settingsConfig": {
+                        "env": { "ANTHROPIC_API_KEY": "new-key" }
+                    }
+                }
+            },
+            "current": "p-new"
+        },
+        "codex": {
+            "providers": {},
+            "current": ""
+        },
+        "mcp": {
+            "claude": { "servers": {} },
+            "codex": { "servers": {} }
+        }
+    });
+
+    let import_path = config_dir.join("import.json");
+    fs::write(
+        &import_path,
+        serde_json::to_string_pretty(&import_payload).expect("serialize import payload"),
+    )
+    .expect("write import file");
+
+    let app_state = AppState {
+        config: Mutex::new(MultiAppConfig::default()),
+    };
+
+    let backup_id =
+        import_config_from_path(&import_path, &app_state).expect("import should succeed");
+    assert!(
+        !backup_id.is_empty(),
+        "expected backup id when original config exists"
+    );
+
+    let backup_path = config_dir.join("backups").join(format!("{backup_id}.json"));
+    assert!(
+        backup_path.exists(),
+        "backup file should exist at {}",
+        backup_path.display()
+    );
+
+    let updated_content = fs::read_to_string(&config_path).expect("read updated config");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&updated_content).expect("parse updated config");
+    assert_eq!(
+        parsed
+            .get("claude")
+            .and_then(|c| c.get("current"))
+            .and_then(|c| c.as_str()),
+        Some("p-new"),
+        "saved config should record new current provider"
+    );
+
+    let guard = app_state
+        .config
+        .lock()
+        .expect("lock state after import");
+    let claude_manager = guard
+        .get_manager(&AppType::Claude)
+        .expect("claude manager in state");
+    assert_eq!(
+        claude_manager.current, "p-new",
+        "state should reflect new current provider"
+    );
+    assert!(
+        claude_manager.providers.contains_key("p-new"),
+        "new provider should exist in state"
+    );
+}
+
+#[test]
+fn import_config_from_path_invalid_json_returns_error() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let config_dir = home.join(".cc-switch");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+
+    let invalid_path = config_dir.join("broken.json");
+    fs::write(&invalid_path, "{ not-json ").expect("write invalid json");
+
+    let app_state = AppState {
+        config: Mutex::new(MultiAppConfig::default()),
+    };
+
+    let err =
+        import_config_from_path(&invalid_path, &app_state).expect_err("import should fail");
+    match err {
+        AppError::Json { .. } => {}
+        other => panic!("expected json error, got {other:?}"),
+    }
+}
+
+#[test]
+fn import_config_from_path_missing_file_produces_io_error() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let _home = ensure_test_home();
+
+    let missing_path = Path::new("/nonexistent/import.json");
+    let app_state = AppState {
+        config: Mutex::new(MultiAppConfig::default()),
+    };
+
+    let err = import_config_from_path(missing_path, &app_state)
+        .expect_err("import should fail for missing file");
+    match err {
+        AppError::Io { .. } => {}
+        other => panic!("expected io error, got {other:?}"),
+    }
+}
+
+#[test]
+fn export_config_to_file_writes_target_path() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let config_dir = home.join(".cc-switch");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    let config_path = config_dir.join("config.json");
+    fs::write(&config_path, r#"{"version":42,"flag":true}"#).expect("write config");
+
+    let export_path = home.join("exported-config.json");
+    if export_path.exists() {
+        fs::remove_file(&export_path).expect("cleanup export target");
+    }
+
+    let result = async_runtime::block_on(cc_switch_lib::export_config_to_file(
+        export_path.to_string_lossy().to_string(),
+    ))
+    .expect("export should succeed");
+    assert_eq!(
+        result.get("success").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+
+    let exported = fs::read_to_string(&export_path).expect("read exported file");
+    assert!(
+        exported.contains(r#""version":42"#) && exported.contains(r#""flag":true"#),
+        "exported file should mirror source config content"
+    );
+}
+
+#[test]
+fn export_config_to_file_returns_error_when_source_missing() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let export_path = home.join("export-missing.json");
+    if export_path.exists() {
+        fs::remove_file(&export_path).expect("cleanup export target");
+    }
+
+    let err = async_runtime::block_on(cc_switch_lib::export_config_to_file(
+        export_path.to_string_lossy().to_string(),
+    ))
+    .expect_err("export should fail when config.json missing");
+    assert!(
+        err.contains("IO 错误"),
+        "expected IO error message, got {err}"
     );
 }
