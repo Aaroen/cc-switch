@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, sync::RwLock};
 
 use serde_json::json;
 
@@ -37,14 +37,14 @@ fn import_default_config_claude_persists_provider() {
     let mut config = MultiAppConfig::default();
     config.ensure_app(&AppType::Claude);
     let state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     import_default_config_test_hook(&state, AppType::Claude)
         .expect("import default config succeeds");
 
     // 验证内存状态
-    let guard = state.config.lock().expect("lock config");
+    let guard = state.config.read().expect("lock config");
     let manager = guard
         .get_manager(&AppType::Claude)
         .expect("claude manager present");
@@ -71,7 +71,7 @@ fn import_default_config_without_live_file_returns_error() {
     let home = ensure_test_home();
 
     let state = AppState {
-        config: std::sync::Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let err = import_default_config_test_hook(&state, AppType::Claude)
@@ -113,7 +113,7 @@ fn import_mcp_from_claude_creates_config_and_enables_servers() {
     .expect("seed ~/.claude.json");
 
     let state = AppState {
-        config: std::sync::Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let changed =
@@ -123,7 +123,7 @@ fn import_mcp_from_claude_creates_config_and_enables_servers() {
         "import should report inserted or normalized entries"
     );
 
-    let guard = state.config.lock().expect("lock config");
+    let guard = state.config.read().expect("lock config");
     let claude_servers = &guard.mcp.claude.servers;
     let entry = claude_servers
         .get("echo")
@@ -155,7 +155,7 @@ fn import_mcp_from_claude_invalid_json_preserves_state() {
         .expect("seed invalid ~/.claude.json");
 
     let state = AppState {
-        config: std::sync::Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let err =
@@ -197,13 +197,13 @@ fn set_mcp_enabled_for_codex_writes_live_config() {
     );
 
     let state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     set_mcp_enabled_test_hook(&state, AppType::Codex, "codex-server", true)
         .expect("set enabled should succeed");
 
-    let guard = state.config.lock().expect("lock config");
+    let guard = state.config.read().expect("lock config");
     let entry = guard
         .mcp
         .codex

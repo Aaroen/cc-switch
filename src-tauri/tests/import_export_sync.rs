@@ -1,5 +1,5 @@
 use serde_json::json;
-use std::{fs, path::Path, sync::Mutex};
+use std::{fs, path::Path, sync::RwLock};
 use tauri::async_runtime;
 
 use cc_switch_lib::{
@@ -728,7 +728,7 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
     .expect("write import file");
 
     let app_state = AppState {
-        config: Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let backup_id =
@@ -757,7 +757,7 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
         "saved config should record new current provider"
     );
 
-    let guard = app_state.config.lock().expect("lock state after import");
+    let guard = app_state.config.read().expect("lock state after import");
     let claude_manager = guard
         .get_manager(&AppType::Claude)
         .expect("claude manager in state");
@@ -784,7 +784,7 @@ fn import_config_from_path_invalid_json_returns_error() {
     fs::write(&invalid_path, "{ not-json ").expect("write invalid json");
 
     let app_state = AppState {
-        config: Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let err = import_config_from_path(&invalid_path, &app_state).expect_err("import should fail");
@@ -802,7 +802,7 @@ fn import_config_from_path_missing_file_produces_io_error() {
 
     let missing_path = Path::new("/nonexistent/import.json");
     let app_state = AppState {
-        config: Mutex::new(MultiAppConfig::default()),
+        config: RwLock::new(MultiAppConfig::default()),
     };
 
     let err = import_config_from_path(missing_path, &app_state)

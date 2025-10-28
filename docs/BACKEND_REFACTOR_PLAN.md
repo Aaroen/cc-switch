@@ -89,6 +89,11 @@
 - **阶段 4：服务层抽象 🚧**  
   - 新增 `services/provider.rs` 并实现 `ProviderService::switch`，负责供应商切换时的业务流程（live 回填、持久化、MCP 同步），命令层通过薄封装调用并负责状态持久化。  
   - 扩展 `ProviderService` 提供 `delete` 能力，统一 Codex/Claude 清理逻辑；`tests/provider_service.rs` 校验切换与删除在成功/失败场景（包括缺失供应商、缺少 auth、删除当前供应商）下的行为，确保命令/托盘复用时拥有回归护栏。  
+- **阶段 5：锁与阻塞优化 🚧**  
+  - `AppState` 由 `Mutex<MultiAppConfig>` 切换为 `RwLock<MultiAppConfig>`，命令层根据读/写语义分别使用 `read()` 与 `write()`，避免查询场景被多余互斥阻塞。  
+  - 配套更新托盘初始化、服务层、MCP/Provider/Import Export 命令及所有集成测试，确保新锁语义下的并发安全；`cargo test` 全量通过（含命令、服务层集成用例）。  
+  - 针对可能耗时的配置导入/导出命令，抽取 `load_config_for_import` 负责文件 IO 与备份逻辑，并在命令层通过 `tauri::async_runtime::spawn_blocking` 下沉至阻塞线程执行，主线程仅负责状态写入与响应组装。  
+  - 其余命令（如设置查询、单文件读写）评估后维持同步执行，以免引入不必要的线程切换；后续若新增批量 IO 场景，再按同一模式挂载到阻塞线程。  
 
 ## 渐进式重构路线
 

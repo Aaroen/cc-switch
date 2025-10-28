@@ -45,7 +45,7 @@ fn create_tray_menu(
     app: &tauri::AppHandle,
     app_state: &AppState,
 ) -> Result<Menu<tauri::Wry>, AppError> {
-    let config = app_state.config.lock().map_err(AppError::from)?;
+    let config = app_state.config.read().map_err(AppError::from)?;
 
     let mut menu_builder = MenuBuilder::new(app);
 
@@ -433,7 +433,7 @@ pub fn run() {
 
             // 首次启动迁移：扫描副本文件，合并到 config.json，并归档副本；旧 config.json 先归档
             {
-                let mut config_guard = app_state.config.lock().unwrap();
+                let mut config_guard = app_state.config.write().unwrap();
                 let migrated = migration::migrate_copies_into_config(&mut config_guard)?;
                 if migrated {
                     log::info!("已将副本文件导入到 config.json，并完成归档");

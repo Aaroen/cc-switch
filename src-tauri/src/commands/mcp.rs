@@ -58,7 +58,7 @@ pub async fn get_mcp_config(
         .to_string();
     let mut cfg = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
     let (servers, normalized) = mcp::get_servers_snapshot_for(&mut cfg, &app_ty);
@@ -84,7 +84,7 @@ pub async fn upsert_mcp_server_in_config(
 ) -> Result<bool, String> {
     let mut cfg = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
     let mut sync_targets: Vec<AppType> = Vec::new();
@@ -115,7 +115,7 @@ pub async fn upsert_mcp_server_in_config(
 
     let cfg2 = state
         .config
-        .lock()
+        .read()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     for app_ty_to_sync in sync_targets {
         match app_ty_to_sync {
@@ -135,7 +135,7 @@ pub async fn delete_mcp_server_in_config(
 ) -> Result<bool, String> {
     let mut cfg = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
     let existed = mcp::delete_in_config_for(&mut cfg, &app_ty, &id)?;
@@ -143,7 +143,7 @@ pub async fn delete_mcp_server_in_config(
     state.save()?;
     let cfg2 = state
         .config
-        .lock()
+        .read()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     match app_ty {
         AppType::Claude => mcp::sync_enabled_to_claude(&cfg2)?,
@@ -169,7 +169,7 @@ pub async fn set_mcp_enabled(
 pub async fn sync_enabled_mcp_to_claude(state: State<'_, AppState>) -> Result<bool, String> {
     let mut cfg = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let normalized = mcp::normalize_servers_for(&mut cfg, &AppType::Claude);
     mcp::sync_enabled_to_claude(&cfg)?;
@@ -186,7 +186,7 @@ pub async fn sync_enabled_mcp_to_claude(state: State<'_, AppState>) -> Result<bo
 pub async fn sync_enabled_mcp_to_codex(state: State<'_, AppState>) -> Result<bool, String> {
     let mut cfg = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let normalized = mcp::normalize_servers_for(&mut cfg, &AppType::Codex);
     mcp::sync_enabled_to_codex(&cfg)?;
@@ -216,7 +216,7 @@ fn set_mcp_enabled_internal(
     id: &str,
     enabled: bool,
 ) -> Result<bool, AppError> {
-    let mut cfg = state.config.lock()?;
+    let mut cfg = state.config.write()?;
     let changed = mcp::set_enabled_and_sync_for(&mut cfg, &app_ty, id, enabled)?;
     drop(cfg);
     state.save()?;
@@ -234,7 +234,7 @@ pub fn set_mcp_enabled_test_hook(
 }
 
 fn import_mcp_from_claude_internal(state: &AppState) -> Result<usize, AppError> {
-    let mut cfg = state.config.lock()?;
+    let mut cfg = state.config.write()?;
     let changed = mcp::import_from_claude(&mut cfg)?;
     drop(cfg);
     if changed > 0 {
@@ -249,7 +249,7 @@ pub fn import_mcp_from_claude_test_hook(state: &AppState) -> Result<usize, AppEr
 }
 
 fn import_mcp_from_codex_internal(state: &AppState) -> Result<usize, AppError> {
-    let mut cfg = state.config.lock()?;
+    let mut cfg = state.config.write()?;
     let changed = mcp::import_from_codex(&mut cfg)?;
     drop(cfg);
     if changed > 0 {

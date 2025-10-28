@@ -60,7 +60,7 @@ pub async fn get_providers(
 
     let config = state
         .config
-        .lock()
+        .read()
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = config
@@ -85,7 +85,7 @@ pub async fn get_current_provider(
 
     let config = state
         .config
-        .lock()
+        .read()
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = config
@@ -114,7 +114,7 @@ pub async fn add_provider(
     let is_current = {
         let config = state
             .config
-            .lock()
+            .read()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         let manager = config
             .get_manager(&app_type)
@@ -145,7 +145,7 @@ pub async fn add_provider(
     {
         let mut config = state
             .config
-            .lock()
+            .write()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         let manager = config
             .get_manager_mut(&app_type)
@@ -178,7 +178,7 @@ pub async fn update_provider(
     let (exists, is_current) = {
         let config = state
             .config
-            .lock()
+            .read()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         let manager = config
             .get_manager(&app_type)
@@ -215,7 +215,7 @@ pub async fn update_provider(
     {
         let mut config = state
             .config
-            .lock()
+            .write()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         let manager = config
             .get_manager_mut(&app_type)
@@ -274,7 +274,7 @@ pub async fn delete_provider(
     {
         let mut config = state
             .config
-            .lock()
+            .write()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         ProviderService::delete(&mut config, app_type, &id).map_err(|e| e.to_string())?;
     }
@@ -286,7 +286,7 @@ pub async fn delete_provider(
 
 /// 切换供应商
 fn switch_provider_internal(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
-    let mut config = state.config.lock().map_err(AppError::from)?;
+    let mut config = state.config.write().map_err(AppError::from)?;
 
     ProviderService::switch(&mut config, app_type, id)?;
 
@@ -323,7 +323,7 @@ pub async fn switch_provider(
 
 fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result<(), AppError> {
     {
-        let config = state.config.lock()?;
+        let config = state.config.read()?;
         if let Some(manager) = config.get_manager(&app_type) {
             if !manager.get_all_providers().is_empty() {
                 // 已存在供应商则视为已导入，保持与原逻辑一致
@@ -358,7 +358,7 @@ fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result
         None,
     );
 
-    let mut config = state.config.lock()?;
+    let mut config = state.config.write()?;
     let manager = config
         .get_manager_mut(&app_type)
         .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
@@ -420,7 +420,7 @@ pub async fn query_provider_usage(
     let (api_key, base_url, usage_script_code, timeout) = {
         let config = state
             .config
-            .lock()
+            .read()
             .map_err(|e| format!("获取锁失败: {}", e))?;
 
         let manager = config.get_manager(&app_type).ok_or("应用类型不存在")?;
@@ -601,7 +601,7 @@ pub async fn get_custom_endpoints(
         .ok_or_else(|| "缺少 providerId".to_string())?;
     let mut cfg_guard = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = cfg_guard
@@ -647,7 +647,7 @@ pub async fn add_custom_endpoint(
 
     let mut cfg_guard = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let manager = cfg_guard
         .get_manager_mut(&app_type)
@@ -696,7 +696,7 @@ pub async fn remove_custom_endpoint(
 
     let mut cfg_guard = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let manager = cfg_guard
         .get_manager_mut(&app_type)
@@ -734,7 +734,7 @@ pub async fn update_endpoint_last_used(
 
     let mut cfg_guard = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
     let manager = cfg_guard
         .get_manager_mut(&app_type)
@@ -779,7 +779,7 @@ pub async fn update_providers_sort_order(
 
     let mut config = state
         .config
-        .lock()
+        .write()
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = config

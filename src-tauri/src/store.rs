@@ -1,10 +1,10 @@
 use crate::app_config::MultiAppConfig;
 use crate::error::AppError;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 /// 全局应用状态
 pub struct AppState {
-    pub config: Mutex<MultiAppConfig>,
+    pub config: RwLock<MultiAppConfig>,
 }
 
 impl AppState {
@@ -16,13 +16,13 @@ impl AppState {
         });
 
         Self {
-            config: Mutex::new(config),
+            config: RwLock::new(config),
         }
     }
 
     /// 保存配置到文件
     pub fn save(&self) -> Result<(), AppError> {
-        let config = self.config.lock().map_err(AppError::from)?;
+        let config = self.config.read().map_err(AppError::from)?;
 
         config.save()
     }

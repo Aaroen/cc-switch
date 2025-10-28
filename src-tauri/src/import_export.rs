@@ -193,19 +193,23 @@ fn sync_claude_live(
 /// 导出配置文件
 #[tauri::command]
 pub async fn export_config_to_file(file_path: String) -> Result<Value, String> {
-    // 读取当前配置文件
-    let config_path = crate::config::get_app_config_path();
-    let config_content =
-        fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e).to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let config_path = crate::config::get_app_config_path();
+        let config_content =
+            fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
 
-    // 写入到指定文件
-    fs::write(&file_path, &config_content).map_err(|e| AppError::io(&file_path, e).to_string())?;
+        let target_path = PathBuf::from(&file_path);
+        fs::write(&target_path, &config_content).map_err(|e| AppError::io(&target_path, e))?;
 
-    Ok(json!({
-        "success": true,
-        "message": "Configuration exported successfully",
-        "filePath": file_path
-    }))
+        Ok::<_, AppError>(json!({
+            "success": true,
+            "message": "Configuration exported successfully",
+            "filePath": file_path
+        }))
+    })
+    .await
+    .map_err(|e| format!("导出配置失败: {}", e))?
+    .map_err(|e: AppError| e.to_string())
 }
 
 /// 从文件导入配置
@@ -214,15 +218,26 @@ pub async fn import_config_from_file(
     file_path: String,
     state: tauri::State<'_, crate::store::AppState>,
 ) -> Result<Value, String> {
-    import_config_from_path(Path::new(&file_path), &state)
-        .map_err(|e| e.to_string())
-        .map(|backup_id| {
-            json!({
-                "success": true,
-                "message": "Configuration imported successfully",
-                "backupId": backup_id
-            })
-        })
+    let path_buf = PathBuf::from(&file_path);
+    let (new_config, backup_id) =
+        tauri::async_runtime::spawn_blocking(move || load_config_for_import(&path_buf))
+            .await
+            .map_err(|e| format!("导入配置失败: {}", e))?
+            .map_err(|e| e.to_string())?;
+
+    {
+        let mut guard = state
+            .config
+            .write()
+            .map_err(|e| AppError::from(e).to_string())?;
+        *guard = new_config;
+    }
+
+    Ok(json!({
+        "success": true,
+        "message": "Configuration imported successfully",
+        "backupId": backup_id
+    }))
 }
 
 /// 从文件导入配置的核心逻辑，供命令及测试复用。
@@ -230,6 +245,17 @@ pub fn import_config_from_path(
     file_path: &Path,
     state: &crate::store::AppState,
 ) -> Result<String, AppError> {
+    let (new_config, backup_id) = load_config_for_import(file_path)?;
+
+    {
+        let mut guard = state.config.write().map_err(AppError::from)?;
+        *guard = new_config;
+    }
+
+    Ok(backup_id)
+}
+
+fn load_config_for_import(file_path: &Path) -> Result<(MultiAppConfig, String), AppError> {
     let import_content = fs::read_to_string(file_path).map_err(|e| AppError::io(file_path, e))?;
 
     let new_config: crate::app_config::MultiAppConfig =
@@ -240,12 +266,7 @@ pub fn import_config_from_path(
 
     fs::write(&config_path, &import_content).map_err(|e| AppError::io(&config_path, e))?;
 
-    {
-        let mut guard = state.config.lock().map_err(AppError::from)?;
-        *guard = new_config;
-    }
-
-    Ok(backup_id)
+    Ok((new_config, backup_id))
 }
 
 /// 同步当前供应商配置到对应的 live 文件
@@ -256,7 +277,7 @@ pub async fn sync_current_providers_live(
     {
         let mut config_state = state
             .config
-            .lock()
+            .write()
             .map_err(|e| AppError::from(e).to_string())?;
         sync_current_providers_to_live(&mut config_state).map_err(|e| e.to_string())?;
     }

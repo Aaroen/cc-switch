@@ -1,4 +1,5 @@
 use serde_json::json;
+use std::sync::RwLock;
 
 use cc_switch_lib::{
     get_codex_auth_path, get_codex_config_path, read_json_file, switch_provider_test_hook,
@@ -71,7 +72,7 @@ command = "say"
     );
 
     let app_state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     switch_provider_test_hook(&app_state, AppType::Codex, "new-provider")
@@ -94,7 +95,7 @@ command = "say"
         "config.toml should contain synced MCP servers"
     );
 
-    let locked = app_state.config.lock().expect("lock config after switch");
+    let locked = app_state.config.read().expect("lock config after switch");
     let manager = locked
         .get_manager(&AppType::Codex)
         .expect("codex manager after switch");
@@ -142,7 +143,7 @@ fn switch_provider_missing_provider_returns_error() {
         .current = "does-not-exist".to_string();
 
     let app_state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     let err = switch_provider_test_hook(&app_state, AppType::Claude, "missing-provider")
@@ -210,7 +211,7 @@ fn switch_provider_updates_claude_live_and_state() {
     }
 
     let app_state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     switch_provider_test_hook(&app_state, AppType::Claude, "new-provider")
@@ -227,7 +228,7 @@ fn switch_provider_updates_claude_live_and_state() {
         "live settings.json should reflect new provider auth"
     );
 
-    let locked = app_state.config.lock().expect("lock config after switch");
+    let locked = app_state.config.read().expect("lock config after switch");
     let manager = locked
         .get_manager(&AppType::Claude)
         .expect("claude manager after switch");
@@ -304,7 +305,7 @@ fn switch_provider_codex_missing_auth_returns_error_and_keeps_state() {
     }
 
     let app_state = AppState {
-        config: std::sync::Mutex::new(config),
+        config: RwLock::new(config),
     };
 
     let err = switch_provider_test_hook(&app_state, AppType::Codex, "invalid")
@@ -317,7 +318,7 @@ fn switch_provider_codex_missing_auth_returns_error_and_keeps_state() {
         other => panic!("expected config error, got {other:?}"),
     }
 
-    let locked = app_state.config.lock().expect("lock config after failure");
+    let locked = app_state.config.read().expect("lock config after failure");
     let manager = locked.get_manager(&AppType::Codex).expect("codex manager");
     assert!(
         manager.current.is_empty(),
