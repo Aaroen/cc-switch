@@ -1,7 +1,8 @@
 use serde_json::json;
+use std::sync::RwLock;
 
 use cc_switch_lib::{
-    get_claude_settings_path, read_json_file, write_codex_live_atomic, AppError, AppType,
+    get_claude_settings_path, read_json_file, write_codex_live_atomic, AppError, AppState, AppType,
     MultiAppConfig, Provider, ProviderService,
 };
 
@@ -33,9 +34,9 @@ command = "echo"
     write_codex_live_atomic(&legacy_auth, Some(legacy_config))
         .expect("seed existing codex live config");
 
-    let mut config = MultiAppConfig::default();
+    let mut initial_config = MultiAppConfig::default();
     {
-        let manager = config
+        let manager = initial_config
             .get_manager_mut(&AppType::Codex)
             .expect("codex manager");
         manager.current = "old-provider".to_string();
@@ -68,7 +69,7 @@ command = "say"
         );
     }
 
-    config.mcp.codex.servers.insert(
+    initial_config.mcp.codex.servers.insert(
         "echo-server".into(),
         json!({
             "id": "echo-server",
@@ -80,7 +81,11 @@ command = "say"
         }),
     );
 
-    ProviderService::switch(&mut config, AppType::Codex, "new-provider")
+    let state = AppState {
+        config: RwLock::new(initial_config),
+    };
+
+    ProviderService::switch(&state, AppType::Codex, "new-provider")
         .expect("switch provider should succeed");
 
     let auth_value: serde_json::Value =
@@ -98,7 +103,8 @@ command = "say"
         "config.toml should contain synced MCP servers"
     );
 
-    let manager = config
+    let guard = state.config.read().expect("read config after switch");
+    let manager = guard
         .get_manager(&AppType::Codex)
         .expect("codex manager after switch");
     assert_eq!(manager.current, "new-provider", "current provider updated");
@@ -188,7 +194,11 @@ fn provider_service_switch_claude_updates_live_and_state() {
         );
     }
 
-    ProviderService::switch(&mut config, AppType::Claude, "new-provider")
+    let state = AppState {
+        config: RwLock::new(config),
+    };
+
+    ProviderService::switch(&state, AppType::Claude, "new-provider")
         .expect("switch provider should succeed");
 
     let live_after: serde_json::Value =
@@ -202,7 +212,11 @@ fn provider_service_switch_claude_updates_live_and_state() {
         "live settings.json should reflect new provider auth"
     );
 
-    let manager = config
+    let guard = state
+        .config
+        .read()
+        .expect("read claude config after switch");
+    let manager = guard
         .get_manager(&AppType::Claude)
         .expect("claude manager after switch");
     assert_eq!(manager.current, "new-provider", "current provider updated");
@@ -219,9 +233,11 @@ fn provider_service_switch_claude_updates_live_and_state() {
 
 #[test]
 fn provider_service_switch_missing_provider_returns_error() {
-    let mut config = MultiAppConfig::default();
+    let state = AppState {
+        config: RwLock::new(MultiAppConfig::default()),
+    };
 
-    let err = ProviderService::switch(&mut config, AppType::Claude, "missing")
+    let err = ProviderService::switch(&state, AppType::Claude, "missing")
         .expect_err("switching missing provider should fail");
     match err {
         AppError::ProviderNotFound(id) => assert_eq!(id, "missing"),
@@ -249,7 +265,11 @@ fn provider_service_switch_codex_missing_auth_returns_error() {
         );
     }
 
-    let err = ProviderService::switch(&mut config, AppType::Codex, "invalid")
+    let state = AppState {
+        config: RwLock::new(config),
+    };
+
+    let err = ProviderService::switch(&state, AppType::Codex, "invalid")
         .expect_err("switching should fail without auth");
     match err {
         AppError::Config(msg) => assert!(
@@ -404,6 +424,10 @@ fn provider_service_delete_current_provider_returns_error() {
     let err = ProviderService::delete(&mut config, AppType::Claude, "keep")
         .expect_err("deleting current provider should fail");
     match err {
+        AppError::Localized { zh, .. } => assert!(
+            zh.contains("不能删除当前正在使用的供应商"),
+            "unexpected message: {zh}"
+        ),
         AppError::Config(msg) => assert!(
             msg.contains("不能删除当前正在使用的供应商"),
             "unexpected message: {msg}"

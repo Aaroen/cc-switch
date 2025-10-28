@@ -46,6 +46,12 @@ pub enum AppError {
     McpValidation(String),
     #[error("{0}")]
     Message(String),
+    #[error("{zh} ({en})")]
+    Localized {
+        key: &'static str,
+        zh: String,
+        en: String,
+    },
 }
 
 impl AppError {
@@ -67,6 +73,14 @@ impl AppError {
         Self::Toml {
             path: path.as_ref().display().to_string(),
             source,
+        }
+    }
+
+    pub fn localized(key: &'static str, zh: impl Into<String>, en: impl Into<String>) -> Self {
+        Self::Localized {
+            key,
+            zh: zh.into(),
+            en: en.into(),
         }
     }
 }

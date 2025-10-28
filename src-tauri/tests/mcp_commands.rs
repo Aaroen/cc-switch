@@ -76,6 +76,10 @@ fn import_default_config_without_live_file_returns_error() {
     let err = import_default_config_test_hook(&state, AppType::Claude)
         .expect_err("missing live file should error");
     match err {
+        AppError::Localized { zh, .. } => assert!(
+            zh.contains("Claude Code 配置文件不存在"),
+            "unexpected error message: {zh}"
+        ),
         AppError::Message(msg) => assert!(
             msg.contains("Claude Code 配置文件不存在"),
             "unexpected error message: {msg}"

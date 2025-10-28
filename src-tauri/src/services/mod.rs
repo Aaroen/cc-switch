@@ -5,5 +5,5 @@ pub mod speedtest;
 
 pub use config::ConfigService;
 pub use mcp::McpService;
-pub use provider::ProviderService;
+pub use provider::{ProviderService, ProviderSortUpdate};
 pub use speedtest::{EndpointLatency, SpeedtestService};
