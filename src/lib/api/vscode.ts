@@ -11,11 +11,7 @@ export interface EndpointLatencyResult {
 
 export const vscodeApi = {
   async getLiveProviderSettings(appType: AppType) {
-    return await invoke("read_live_provider_settings", {
-      app_type: appType,
-      app: appType,
-      appType,
-    });
+    return await invoke("read_live_provider_settings", { app_type: appType });
   },
 
   async testApiEndpoints(
@@ -34,10 +30,7 @@ export const vscodeApi = {
   ): Promise<CustomEndpoint[]> {
     return await invoke("get_custom_endpoints", {
       app_type: appType,
-      app: appType,
-      appType,
       provider_id: providerId,
-      providerId,
     });
   },
 
@@ -48,10 +41,7 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("add_custom_endpoint", {
       app_type: appType,
-      app: appType,
-      appType,
       provider_id: providerId,
-      providerId,
       url,
     });
   },
@@ -63,10 +53,7 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("remove_custom_endpoint", {
       app_type: appType,
-      app: appType,
-      appType,
       provider_id: providerId,
-      providerId,
       url,
     });
   },
@@ -78,10 +65,7 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("update_endpoint_last_used", {
       app_type: appType,
-      app: appType,
-      appType,
       provider_id: providerId,
-      providerId,
       url,
     });
   },

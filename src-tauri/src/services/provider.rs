@@ -1043,50 +1043,63 @@ impl ProviderService {
             .as_millis() as i64
     }
 
-    pub fn delete(
-        config: &mut MultiAppConfig,
-        app_type: AppType,
-        provider_id: &str,
-    ) -> Result<(), AppError> {
-        let current_matches = config
-            .get_manager(&app_type)
-            .map(|m| m.current == provider_id)
-            .unwrap_or(false);
-        if current_matches {
-            return Err(AppError::localized(
-                "provider.delete.current",
-                "不能删除当前正在使用的供应商",
-                "Cannot delete the provider currently in use",
-            ));
-        }
+    pub fn delete(state: &AppState, app_type: AppType, provider_id: &str) -> Result<(), AppError> {
+        let provider_snapshot = {
+            let config = state.config.read().map_err(AppError::from)?;
+            let manager = config
+                .get_manager(&app_type)
+                .ok_or_else(|| Self::app_not_found(&app_type))?;
 
-        let provider = config
-            .get_manager(&app_type)
-            .ok_or_else(|| Self::app_not_found(&app_type))?
-            .providers
-            .get(provider_id)
-            .cloned()
-            .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+            if manager.current == provider_id {
+                return Err(AppError::localized(
+                    "provider.delete.current",
+                    "不能删除当前正在使用的供应商",
+                    "Cannot delete the provider currently in use",
+                ));
+            }
+
+            manager
+                .providers
+                .get(provider_id)
+                .cloned()
+                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?
+        };
 
         match app_type {
             AppType::Codex => {
-                crate::codex_config::delete_codex_provider_config(provider_id, &provider.name)?;
+                crate::codex_config::delete_codex_provider_config(
+                    provider_id,
+                    &provider_snapshot.name,
+                )?;
             }
             AppType::Claude => {
                 // 兼容旧版本：历史上会在 Claude 目录内为每个供应商生成 settings-*.json 副本
                 // 这里继续清理这些遗留文件，避免堆积过期配置。
-                let by_name = get_provider_config_path(provider_id, Some(&provider.name));
+                let by_name = get_provider_config_path(provider_id, Some(&provider_snapshot.name));
                 let by_id = get_provider_config_path(provider_id, None);
                 delete_file(&by_name)?;
                 delete_file(&by_id)?;
             }
         }
 
-        if let Some(manager) = config.get_manager_mut(&app_type) {
+        {
+            let mut config = state.config.write().map_err(AppError::from)?;
+            let manager = config
+                .get_manager_mut(&app_type)
+                .ok_or_else(|| Self::app_not_found(&app_type))?;
+
+            if manager.current == provider_id {
+                return Err(AppError::localized(
+                    "provider.delete.current",
+                    "不能删除当前正在使用的供应商",
+                    "Cannot delete the provider currently in use",
+                ));
+            }
+
             manager.providers.remove(provider_id);
         }
 
-        Ok(())
+        state.save()
     }
 }
 

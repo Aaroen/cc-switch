@@ -326,10 +326,15 @@ fn provider_service_delete_codex_removes_provider_and_files() {
     std::fs::write(&auth_path, "{}").expect("seed auth file");
     std::fs::write(&cfg_path, "base_url = \"https://example\"").expect("seed config file");
 
-    ProviderService::delete(&mut config, AppType::Codex, "to-delete")
+    let app_state = AppState {
+        config: RwLock::new(config),
+    };
+
+    ProviderService::delete(&app_state, AppType::Codex, "to-delete")
         .expect("delete provider should succeed");
 
-    let manager = config.get_manager(&AppType::Codex).expect("codex manager");
+    let locked = app_state.config.read().expect("lock config after delete");
+    let manager = locked.get_manager(&AppType::Codex).expect("codex manager");
     assert!(
         !manager.providers.contains_key("to-delete"),
         "provider entry should be removed"
@@ -384,10 +389,14 @@ fn provider_service_delete_claude_removes_provider_files() {
     std::fs::write(&by_name, "{}").expect("seed settings by name");
     std::fs::write(&by_id, "{}").expect("seed settings by id");
 
-    ProviderService::delete(&mut config, AppType::Claude, "delete")
-        .expect("delete claude provider");
+    let app_state = AppState {
+        config: RwLock::new(config),
+    };
 
-    let manager = config
+    ProviderService::delete(&app_state, AppType::Claude, "delete").expect("delete claude provider");
+
+    let locked = app_state.config.read().expect("lock config after delete");
+    let manager = locked
         .get_manager(&AppType::Claude)
         .expect("claude manager");
     assert!(
@@ -421,7 +430,11 @@ fn provider_service_delete_current_provider_returns_error() {
         );
     }
 
-    let err = ProviderService::delete(&mut config, AppType::Claude, "keep")
+    let app_state = AppState {
+        config: RwLock::new(config),
+    };
+
+    let err = ProviderService::delete(&app_state, AppType::Claude, "keep")
         .expect_err("deleting current provider should fail");
     match err {
         AppError::Localized { zh, .. } => assert!(

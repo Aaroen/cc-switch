@@ -221,14 +221,12 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             // 执行切换
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::spawn_blocking(move || {
                 if let Err(e) = switch_provider_internal(
                     &app_handle,
                     crate::app_config::AppType::Claude,
                     provider_id,
-                )
-                .await
-                {
+                ) {
                     log::error!("切换Claude供应商失败: {}", e);
                 }
             });
@@ -240,14 +238,12 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             // 执行切换
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::spawn_blocking(move || {
                 if let Err(e) = switch_provider_internal(
                     &app_handle,
                     crate::app_config::AppType::Codex,
                     provider_id,
-                )
-                .await
-                {
+                ) {
                     log::error!("切换Codex供应商失败: {}", e);
                 }
             });
@@ -261,7 +257,7 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
 //
 
 /// 内部切换供应商函数
-async fn switch_provider_internal(
+fn switch_provider_internal(
     app: &tauri::AppHandle,
     app_type: crate::app_config::AppType,
     provider_id: String,
@@ -271,15 +267,8 @@ async fn switch_provider_internal(
         let app_type_str = app_type.as_str().to_string();
         let provider_id_clone = provider_id.clone();
 
-        crate::commands::switch_provider(
-            app_state.clone(),
-            Some(app_type),
-            None,
-            None,
-            provider_id,
-        )
-        .await
-        .map_err(AppError::Message)?;
+        crate::commands::switch_provider(app_state.clone(), Some(app_type), provider_id)
+            .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
@@ -366,8 +355,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
-            // 设置全局 AppHandle 以供 Store 使用
-            app_store::set_app_handle(app.handle().clone());
             // 注册 Updater 插件（桌面端）
             #[cfg(desktop)]
             {
@@ -417,6 +404,9 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // 预先刷新 Store 覆盖配置，确保 AppState 初始化时可读取到最新路径
+            app_store::refresh_app_config_dir_override(app.handle());
 
             // 初始化应用状态（仅创建一次，并在本函数末尾注入 manage）
             let app_state = AppState::new();

@@ -126,7 +126,7 @@ mod tests {
         );
         assert_eq!(
             SpeedtestService::sanitize_timeout(Some(10)),
-            10.min(MAX_TIMEOUT_SECS).max(MIN_TIMEOUT_SECS)
+            10.clamp(MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS)
         );
         assert_eq!(
             SpeedtestService::sanitize_timeout(None),
