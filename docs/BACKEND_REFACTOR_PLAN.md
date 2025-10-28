@@ -90,7 +90,9 @@
   - 新增 `services/provider.rs` 并实现 `ProviderService::switch` / `delete`，集中处理供应商切换、回填、MCP 同步等核心业务；命令层改为薄封装并在 `tests/provider_service.rs`、`tests/provider_commands.rs` 中完成成功与失败路径的集成验证。  
   - 新增 `services/mcp.rs` 提供 `McpService`，封装 MCP 服务器的查询、增删改、启用同步与导入流程；命令层改为参数解析 + 调用服务，`tests/mcp_commands.rs` 直接使用 `McpService` 验证成功与失败路径，阶段三测试继续适配。  
   - `McpService` 在内部先复制内存快照、释放写锁，再执行文件同步，避免阶段五升级后的 `RwLock` 在 I/O 场景被长时间占用；`upsert/delete/set_enabled/sync_enabled` 均已修正。  
-  - 仍待拆分的领域服务：配置导入导出、应用设置等命令需进一步抽象，以便统一封装文件 IO 与状态同步后再收尾阶段四。  
+  - 新增 `services/config.rs` 提供 `ConfigService`，统一处理配置导入导出、备份与 live 同步；命令层迁移至 `commands/import_export.rs`，在落盘操作前释放锁并复用现有集成测试。  
+  - 新增 `services/speedtest.rs` 并实现 `SpeedtestService::test_endpoints`，将 URL 校验、超时裁剪与网络请求封装在服务层，命令改为薄封装；补充单元测试覆盖空列表与非法 URL 分支。  
+  - 后续可选：应用设置（Store）命令仍较薄，可按需评估是否抽象；当前阶段四核心服务已基本齐备。  
 - **阶段 5：锁与阻塞优化 ✅（首轮）**  
   - `AppState` 已由 `Mutex<MultiAppConfig>` 切换为 `RwLock<MultiAppConfig>`，托盘、命令与测试均按读写语义区分 `read()` / `write()`；`cargo test` 全量通过验证并未破坏现有流程。  
   - 针对高开销 IO 的配置导入/导出命令提取 `load_config_for_import`，并通过 `tauri::async_runtime::spawn_blocking` 将文件读写与备份迁至阻塞线程，保持命令处理线程轻量。  

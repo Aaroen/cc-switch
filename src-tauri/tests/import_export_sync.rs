@@ -3,8 +3,8 @@ use std::{fs, path::Path, sync::RwLock};
 use tauri::async_runtime;
 
 use cc_switch_lib::{
-    create_backup, get_claude_settings_path, import_config_from_path, read_json_file,
-    sync_current_providers_to_live, AppError, AppState, AppType, MultiAppConfig, Provider,
+    get_claude_settings_path, read_json_file, AppError, AppState, AppType, ConfigService,
+    MultiAppConfig, Provider,
 };
 
 #[path = "support.rs"]
@@ -41,7 +41,7 @@ fn sync_claude_provider_writes_live_settings() {
     manager.providers.insert("prov-1".to_string(), provider);
     manager.current = "prov-1".to_string();
 
-    sync_current_providers_to_live(&mut config).expect("sync live settings");
+    ConfigService::sync_current_providers_to_live(&mut config).expect("sync live settings");
 
     let settings_path = get_claude_settings_path();
     assert!(
@@ -110,7 +110,7 @@ fn sync_codex_provider_writes_auth_and_config() {
     manager.providers.insert("codex-1".to_string(), provider);
     manager.current = "codex-1".to_string();
 
-    sync_current_providers_to_live(&mut config).expect("sync codex live");
+    ConfigService::sync_current_providers_to_live(&mut config).expect("sync codex live");
 
     let auth_path = cc_switch_lib::get_codex_auth_path();
     let config_path = cc_switch_lib::get_codex_config_path();
@@ -266,7 +266,7 @@ fn sync_codex_provider_missing_auth_returns_error() {
     manager.providers.insert(provider.id.clone(), provider);
     manager.current = "codex-missing-auth".to_string();
 
-    let err = sync_current_providers_to_live(&mut config)
+    let err = ConfigService::sync_current_providers_to_live(&mut config)
         .expect_err("sync should fail when auth missing");
     match err {
         cc_switch_lib::AppError::Config(msg) => {
@@ -595,7 +595,7 @@ fn create_backup_skips_missing_file() {
     let config_path = home.join(".cc-switch").join("config.json");
 
     // 未创建文件时应返回空字符串，不报错
-    let result = create_backup(&config_path).expect("create backup");
+    let result = ConfigService::create_backup(&config_path).expect("create backup");
     assert!(
         result.is_empty(),
         "expected empty backup id when config file missing"
@@ -612,7 +612,7 @@ fn create_backup_generates_snapshot_file() {
     fs::create_dir_all(&config_dir).expect("prepare config dir");
     fs::write(&config_path, r#"{"version":2}"#).expect("write config file");
 
-    let backup_id = create_backup(&config_path).expect("backup success");
+    let backup_id = ConfigService::create_backup(&config_path).expect("backup success");
     assert!(
         !backup_id.is_empty(),
         "backup id should contain timestamp information"
@@ -651,7 +651,8 @@ fn create_backup_retains_only_latest_entries() {
 
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    let latest_backup_id = create_backup(&config_path).expect("create backup with cleanup");
+    let latest_backup_id =
+        ConfigService::create_backup(&config_path).expect("create backup with cleanup");
     assert!(
         !latest_backup_id.is_empty(),
         "backup id should not be empty when config exists"
@@ -731,8 +732,8 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
         config: RwLock::new(MultiAppConfig::default()),
     };
 
-    let backup_id =
-        import_config_from_path(&import_path, &app_state).expect("import should succeed");
+    let backup_id = ConfigService::import_config_from_path(&import_path, &app_state)
+        .expect("import should succeed");
     assert!(
         !backup_id.is_empty(),
         "expected backup id when original config exists"
@@ -787,7 +788,8 @@ fn import_config_from_path_invalid_json_returns_error() {
         config: RwLock::new(MultiAppConfig::default()),
     };
 
-    let err = import_config_from_path(&invalid_path, &app_state).expect_err("import should fail");
+    let err = ConfigService::import_config_from_path(&invalid_path, &app_state)
+        .expect_err("import should fail");
     match err {
         AppError::Json { .. } => {}
         other => panic!("expected json error, got {other:?}"),
@@ -805,7 +807,7 @@ fn import_config_from_path_missing_file_produces_io_error() {
         config: RwLock::new(MultiAppConfig::default()),
     };
 
-    let err = import_config_from_path(missing_path, &app_state)
+    let err = ConfigService::import_config_from_path(missing_path, &app_state)
         .expect_err("import should fail for missing file");
     match err {
         AppError::Io { .. } => {}

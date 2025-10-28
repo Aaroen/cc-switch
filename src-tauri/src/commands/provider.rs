@@ -10,8 +10,7 @@ use crate::codex_config;
 use crate::config::get_claude_settings_path;
 use crate::error::AppError;
 use crate::provider::{Provider, ProviderMeta};
-use crate::services::ProviderService;
-use crate::speedtest;
+use crate::services::{EndpointLatency, ProviderService, SpeedtestService};
 use crate::store::AppState;
 
 fn validate_provider_settings(app_type: &AppType, provider: &Provider) -> Result<(), String> {
@@ -572,12 +571,8 @@ pub async fn read_live_provider_settings(
 pub async fn test_api_endpoints(
     urls: Vec<String>,
     timeout_secs: Option<u64>,
-) -> Result<Vec<speedtest::EndpointLatency>, String> {
-    let filtered: Vec<String> = urls
-        .into_iter()
-        .filter(|url| !url.trim().is_empty())
-        .collect();
-    speedtest::test_endpoints(filtered, timeout_secs)
+) -> Result<Vec<EndpointLatency>, String> {
+    SpeedtestService::test_endpoints(urls, timeout_secs)
         .await
         .map_err(|e| e.to_string())
 }

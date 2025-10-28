@@ -6,13 +6,11 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
-mod import_export;
 mod mcp;
 mod migration;
 mod provider;
 mod services;
 mod settings;
-mod speedtest;
 mod store;
 mod usage_script;
 
@@ -21,14 +19,11 @@ pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_l
 pub use commands::*;
 pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
 pub use error::AppError;
-pub use import_export::{
-    create_backup, export_config_to_file, import_config_from_path, sync_current_providers_to_live,
-};
 pub use mcp::{
     import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
 };
 pub use provider::Provider;
-pub use services::{McpService, ProviderService};
+pub use services::{ConfigService, EndpointLatency, McpService, ProviderService, SpeedtestService};
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
 
@@ -526,11 +521,11 @@ pub fn run() {
             // provider sort order management
             commands::update_providers_sort_order,
             // theirs: config import/export and dialogs
-            import_export::export_config_to_file,
-            import_export::import_config_from_file,
-            import_export::save_file_dialog,
-            import_export::open_file_dialog,
-            import_export::sync_current_providers_live,
+            commands::export_config_to_file,
+            commands::import_config_from_file,
+            commands::save_file_dialog,
+            commands::open_file_dialog,
+            commands::sync_current_providers_live,
             update_tray_menu,
         ]);
 
