@@ -79,6 +79,9 @@
 - **阶段 3：补充测试 🚧**  
   - `tests/import_export_sync.rs` 集成测试涵盖配置备份、Claude/Codex live 同步、MCP 投影与 Codex/Claude 双向导入流程，并新增启用项清理、非法 TOML 抛错等失败场景验证；统一使用隔离 HOME 目录避免污染真实用户环境。  
   - 扩展 `lib.rs` re-export，暴露 `AppType`、`MultiAppConfig`、`AppError`、配置 IO 以及 Codex/Claude MCP 路径与同步函数，方便服务层及测试直接复用核心逻辑。  
+  - 新增负向测试验证 Codex 供应商缺少 `auth` 字段时的错误返回，并补充备份数量上限测试；顺带修复 `create_backup` 采用内存读写避免拷贝继承旧的修改时间，确保最新备份不会在清理阶段被误删。  
+  - 针对 `codex_config::write_codex_live_atomic` 补充成功与失败场景测试，覆盖 auth/config 原子写入与失败回滚逻辑（模拟目标路径为目录时的 rename 失败），降低 Codex live 写入回归风险。  
+  - 新增 `tests/provider_commands.rs` 覆盖 `switch_provider` 的 Codex 正常流程与供应商缺失分支，并抽取 `switch_provider_internal` 以复用 `AppError`，通过 `switch_provider_test_hook` 暴露测试入口；同时共享 `tests/support.rs` 提供隔离 HOME / 互斥工具函数。  
   - 当前已覆盖配置、Codex/Claude MCP 核心路径及关键错误分支，后续仍需补齐命令层边界与导入导出异常回滚测试。
 
 ## 渐进式重构路线

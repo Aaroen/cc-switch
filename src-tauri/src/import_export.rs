@@ -28,8 +28,8 @@ pub fn create_backup(config_path: &PathBuf) -> Result<String, AppError> {
 
     let backup_path = backup_dir.join(format!("{}.json", backup_id));
 
-    // 复制配置文件到备份
-    fs::copy(config_path, &backup_path).map_err(|e| AppError::io(&backup_path, e))?;
+    let contents = fs::read(config_path).map_err(|e| AppError::io(config_path, e))?;
+    fs::write(&backup_path, contents).map_err(|e| AppError::io(&backup_path, e))?;
 
     // 备份完成后清理旧的备份文件（仅保留最近 MAX_BACKUPS 份）
     cleanup_old_backups(&backup_dir, MAX_BACKUPS)?;

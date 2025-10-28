@@ -1,52 +1,14 @@
 use std::fs;
-use std::path::Path;
 use serde_json::json;
-use std::sync::{Mutex, OnceLock};
 
 use cc_switch_lib::{
-    create_backup, get_claude_settings_path, read_json_file, sync_current_providers_to_live,
-    update_settings, AppSettings, AppType, MultiAppConfig, Provider,
+    create_backup, get_claude_settings_path, read_json_file, sync_current_providers_to_live, AppType,
+    MultiAppConfig, Provider,
 };
 
-fn ensure_test_home() -> &'static Path {
-    static HOME: OnceLock<std::path::PathBuf> = OnceLock::new();
-    HOME.get_or_init(|| {
-        let base = std::env::temp_dir().join("cc-switch-test-home");
-        if base.exists() {
-            let _ = std::fs::remove_dir_all(&base);
-        }
-        std::fs::create_dir_all(&base).expect("create test home");
-        std::env::set_var("HOME", &base);
-        #[cfg(windows)]
-        std::env::set_var("USERPROFILE", &base);
-        base
-    })
-    .as_path()
-}
-
-fn reset_test_fs() {
-    let home = ensure_test_home();
-    for sub in [".claude", ".codex", ".cc-switch"] {
-        let path = home.join(sub);
-        if path.exists() {
-            if let Err(err) = fs::remove_dir_all(&path) {
-                eprintln!("failed to clean {}: {}", path.display(), err);
-            }
-        }
-    }
-    let claude_json = home.join(".claude.json");
-    if claude_json.exists() {
-        let _ = fs::remove_file(&claude_json);
-    }
-    // 重置内存中的设置缓存，确保测试环境不受上一次调用影响
-    // 写入默认设置即可刷新 OnceLock 中的缓存数据
-    let _ = update_settings(AppSettings::default());
-}
-
-fn test_mutex() -> &'static Mutex<()> {
-    static MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
-    MUTEX.get_or_init(|| Mutex::new(()))
-}
+#[path = "support.rs"]
+mod support;
+use support::{ensure_test_home, reset_test_fs, test_mutex};
 
 #[test]
 fn sync_claude_provider_writes_live_settings() {
@@ -285,6 +247,129 @@ fn sync_enabled_to_codex_returns_error_on_invalid_toml() {
         }
         other => panic!("unexpected error: {other:?}"),
     }
+}
+
+#[test]
+fn sync_codex_provider_missing_auth_returns_error() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    let mut config = MultiAppConfig::default();
+    let provider = Provider::with_id(
+        "codex-missing-auth".to_string(),
+        "No Auth".to_string(),
+        json!({
+            "config": "model = \"test\""
+        }),
+        None,
+    );
+    let manager = config
+        .get_manager_mut(&AppType::Codex)
+        .expect("codex manager");
+    manager.providers.insert(provider.id.clone(), provider);
+    manager.current = "codex-missing-auth".to_string();
+
+    let err = sync_current_providers_to_live(&mut config)
+        .expect_err("sync should fail when auth missing");
+    match err {
+        cc_switch_lib::AppError::Config(msg) => {
+            assert!(msg.contains("auth"), "error message should mention auth");
+        }
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+
+    // 确认未产生任何 live 配置文件
+    assert!(
+        !cc_switch_lib::get_codex_auth_path().exists(),
+        "auth.json should not be created on failure"
+    );
+    assert!(
+        !cc_switch_lib::get_codex_config_path().exists(),
+        "config.toml should not be created on failure"
+    );
+}
+
+#[test]
+fn write_codex_live_atomic_persists_auth_and_config() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    let auth = json!({ "OPENAI_API_KEY": "dev-key" });
+    let config_text = r#"
+[mcp_servers.echo]
+type = "stdio"
+command = "echo"
+args = ["ok"]
+"#;
+
+    cc_switch_lib::write_codex_live_atomic(&auth, Some(config_text))
+        .expect("atomic write should succeed");
+
+    let auth_path = cc_switch_lib::get_codex_auth_path();
+    let config_path = cc_switch_lib::get_codex_config_path();
+    assert!(auth_path.exists(), "auth.json should be created");
+    assert!(config_path.exists(), "config.toml should be created");
+
+    let stored_auth: serde_json::Value =
+        cc_switch_lib::read_json_file(&auth_path).expect("read auth");
+    assert_eq!(stored_auth, auth, "auth.json should match input");
+
+    let stored_config = std::fs::read_to_string(&config_path).expect("read config");
+    assert!(
+        stored_config.contains("mcp_servers.echo"),
+        "config.toml should contain serialized table"
+    );
+}
+
+#[test]
+fn write_codex_live_atomic_rolls_back_auth_when_config_write_fails() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    let auth_path = cc_switch_lib::get_codex_auth_path();
+    if let Some(parent) = auth_path.parent() {
+        std::fs::create_dir_all(parent).expect("create codex dir");
+    }
+    std::fs::write(&auth_path, r#"{"OPENAI_API_KEY":"legacy"}"#).expect("seed auth");
+
+    let config_path = cc_switch_lib::get_codex_config_path();
+    std::fs::create_dir_all(&config_path).expect("create blocking directory");
+
+    let auth = json!({ "OPENAI_API_KEY": "new-key" });
+    let config_text = r#"[mcp_servers.sample]
+type = "stdio"
+command = "noop"
+"#;
+
+    let err = cc_switch_lib::write_codex_live_atomic(&auth, Some(config_text))
+        .expect_err("config write should fail when target is directory");
+    match err {
+        cc_switch_lib::AppError::Io { path, .. } => {
+            assert!(
+                path.ends_with("config.toml"),
+                "io error path should point to config.toml"
+            );
+        }
+        cc_switch_lib::AppError::IoContext { context, .. } => {
+            assert!(
+                context.contains("config.toml"),
+                "error context should mention config path"
+            );
+        }
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+
+    let stored = std::fs::read_to_string(&auth_path).expect("read existing auth");
+    assert!(
+        stored.contains("legacy"),
+        "auth.json should roll back to legacy content"
+    );
+    assert!(
+        std::fs::metadata(&config_path)
+            .expect("config path metadata")
+            .is_dir(),
+        "config path should remain a directory after failure"
+    );
 }
 
 #[test]
@@ -531,5 +616,58 @@ fn create_backup_generates_snapshot_file() {
     assert!(
         backup_content.contains(r#""version":2"#),
         "backup content should match original config"
+    );
+}
+
+#[test]
+fn create_backup_retains_only_latest_entries() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+    let config_dir = home.join(".cc-switch");
+    let config_path = config_dir.join("config.json");
+    fs::create_dir_all(&config_dir).expect("prepare config dir");
+    fs::write(&config_path, r#"{"version":3}"#).expect("write config file");
+
+    let backups_dir = config_dir.join("backups");
+    fs::create_dir_all(&backups_dir).expect("create backups dir");
+    for idx in 0..12 {
+        let manual = backups_dir.join(format!("manual_{idx:02}.json"));
+        fs::write(&manual, format!("{{\"idx\":{idx}}}")).expect("seed manual backup");
+    }
+
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let latest_backup_id = create_backup(&config_path).expect("create backup with cleanup");
+    assert!(
+        !latest_backup_id.is_empty(),
+        "backup id should not be empty when config exists"
+    );
+
+    let entries: Vec<_> = fs::read_dir(&backups_dir)
+        .expect("read backups dir")
+        .filter_map(|entry| entry.ok())
+        .collect();
+    assert!(
+        entries.len() <= 10,
+        "expected backups to be trimmed to at most 10 files, got {}",
+        entries.len()
+    );
+
+    let latest_path = backups_dir.join(format!("{latest_backup_id}.json"));
+    assert!(
+        latest_path.exists(),
+        "latest backup {} should be preserved",
+        latest_path.display()
+    );
+
+    // 进一步确认保留的条目包含一些历史文件，说明清理逻辑仅裁剪多余部分
+    let manual_kept = entries
+        .iter()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .any(|name| name.starts_with("manual_"));
+    assert!(
+        manual_kept,
+        "cleanup should keep part of the older backups to maintain history"
     );
 }

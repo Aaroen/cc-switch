@@ -8,6 +8,7 @@ use tauri::State;
 use crate::app_config::AppType;
 use crate::codex_config;
 use crate::config::get_claude_settings_path;
+use crate::error::AppError;
 use crate::provider::{Provider, ProviderMeta};
 use crate::speedtest;
 use crate::store::AppState;
@@ -310,44 +311,32 @@ pub async fn delete_provider(
 }
 
 /// 切换供应商
-#[tauri::command]
-pub async fn switch_provider(
-    state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
-    appType: Option<String>,
-    id: String,
-) -> Result<bool, String> {
-    let app_type = app_type
-        .or_else(|| app.as_deref().map(|s| s.into()))
-        .or_else(|| appType.as_deref().map(|s| s.into()))
-        .unwrap_or(AppType::Claude);
+fn switch_provider_internal(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
+    use serde_json::Value;
 
     let mut config = state
         .config
         .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
+        .map_err(|e| AppError::Message(format!("获取锁失败: {}", e)))?;
 
     let provider = {
         let manager = config
             .get_manager_mut(&app_type)
-            .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
 
         manager
             .providers
-            .get(&id)
-            .ok_or_else(|| format!("供应商不存在: {}", id))?
-            .clone()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| AppError::Message(format!("供应商不存在: {}", id)))?
     };
 
     match app_type {
         AppType::Codex => {
-            use serde_json::Value;
-
             if !{
                 let cur = config
                     .get_manager_mut(&app_type)
-                    .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                    .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
                 cur.current.is_empty()
             } {
                 let auth_path = codex_config::get_codex_auth_path();
@@ -356,7 +345,11 @@ pub async fn switch_provider(
                     let auth: Value = crate::config::read_json_file(&auth_path)?;
                     let config_str = if config_path.exists() {
                         std::fs::read_to_string(&config_path).map_err(|e| {
-                            format!("读取 config.toml 失败: {}: {}", config_path.display(), e)
+                            AppError::Message(format!(
+                                "读取 config.toml 失败: {}: {}",
+                                config_path.display(),
+                                e
+                            ))
                         })?
                     } else {
                         String::new()
@@ -370,12 +363,12 @@ pub async fn switch_provider(
                     let cur_id2 = {
                         let m = config
                             .get_manager(&app_type)
-                            .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
                         m.current.clone()
                     };
                     let m = config
                         .get_manager_mut(&app_type)
-                        .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                        .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
                     if let Some(cur) = m.providers.get_mut(&cur_id2) {
                         cur.settings_config = live;
                     }
@@ -385,7 +378,7 @@ pub async fn switch_provider(
             let auth = provider
                 .settings_config
                 .get("auth")
-                .ok_or_else(|| "目标供应商缺少 auth 配置".to_string())?;
+                .ok_or_else(|| AppError::Message("目标供应商缺少 auth 配置".to_string()))?;
             let cfg_text = provider
                 .settings_config
                 .get("config")
@@ -401,14 +394,14 @@ pub async fn switch_provider(
                 let cur_id = {
                     let m = config
                         .get_manager(&app_type)
-                        .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                        .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
                     m.current.clone()
                 };
                 if !cur_id.is_empty() {
                     if let Ok(live) = read_json_file::<serde_json::Value>(&settings_path) {
                         let m = config
                             .get_manager_mut(&app_type)
-                            .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
                         if let Some(cur) = m.providers.get_mut(&cur_id) {
                             cur.settings_config = live;
                         }
@@ -417,7 +410,8 @@ pub async fn switch_provider(
             }
 
             if let Some(parent) = settings_path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| AppError::Message(format!("创建目录失败: {}", e)))?;
             }
 
             write_json_file(&settings_path, &provider.settings_config)?;
@@ -426,8 +420,8 @@ pub async fn switch_provider(
                 if let Ok(live_after) = read_json_file::<serde_json::Value>(&settings_path) {
                     let m = config
                         .get_manager_mut(&app_type)
-                        .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
-                    if let Some(target) = m.providers.get_mut(&id) {
+                        .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
+                    if let Some(target) = m.providers.get_mut(id) {
                         target.settings_config = live_after;
                     }
                 }
@@ -438,8 +432,8 @@ pub async fn switch_provider(
     {
         let manager = config
             .get_manager_mut(&app_type)
-            .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
-        manager.current = id;
+            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
+        manager.current = id.to_string();
     }
 
     if let AppType::Codex = app_type {
@@ -450,12 +444,12 @@ pub async fn switch_provider(
         let cur_id = {
             let m = config
                 .get_manager(&app_type)
-                .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+                .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
             m.current.clone()
         };
         let m = config
             .get_manager_mut(&app_type)
-            .ok_or_else(|| format!("应用类型不存在: {:?}", app_type))?;
+            .ok_or_else(|| AppError::Message(format!("应用类型不存在: {:?}", app_type)))?;
         if let Some(p) = m.providers.get_mut(&cur_id) {
             if let Some(obj) = p.settings_config.as_object_mut() {
                 obj.insert(
@@ -471,7 +465,34 @@ pub async fn switch_provider(
     drop(config);
     state.save()?;
 
-    Ok(true)
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn switch_provider_test_hook(
+    state: &AppState,
+    app_type: AppType,
+    id: &str,
+) -> Result<(), AppError> {
+    switch_provider_internal(state, app_type, id)
+}
+
+#[tauri::command]
+pub async fn switch_provider(
+    state: State<'_, AppState>,
+    app_type: Option<AppType>,
+    app: Option<String>,
+    appType: Option<String>,
+    id: String,
+) -> Result<bool, String> {
+    let app_type = app_type
+        .or_else(|| app.as_deref().map(|s| s.into()))
+        .or_else(|| appType.as_deref().map(|s| s.into()))
+        .unwrap_or(AppType::Claude);
+
+    switch_provider_internal(&state, app_type, &id)
+        .map(|_| true)
+        .map_err(|e| e.to_string())
 }
 
 /// 导入当前配置为默认供应商
