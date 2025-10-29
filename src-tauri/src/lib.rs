@@ -273,7 +273,7 @@ fn switch_provider_internal(
             Some(app_type_str.clone()),
             provider_id,
         )
-            .map_err(AppError::Message)?;
+        .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {

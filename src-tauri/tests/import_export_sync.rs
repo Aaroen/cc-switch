@@ -180,6 +180,100 @@ fn sync_enabled_to_codex_writes_enabled_servers() {
 }
 
 #[test]
+fn sync_enabled_to_codex_preserves_non_mcp_content_and_style() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+
+    // 预置含有顶层注释与非 MCP 键的 config.toml
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    let seed = r#"# top-comment
+title = "keep-me"
+
+[profile]
+mode = "dev"
+"#;
+    fs::write(&path, seed).expect("seed config.toml");
+
+    // 启用一个 MCP 项，触发增量写入
+    let mut config = MultiAppConfig::default();
+    config.mcp.codex.servers.insert(
+        "echo".into(),
+        json!({
+            "id": "echo",
+            "enabled": true,
+            "server": { "type": "stdio", "command": "echo" }
+        }),
+    );
+
+    cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex");
+
+    let text = fs::read_to_string(&path).expect("read config.toml");
+    // 顶层注释与非 MCP 键应保留
+    assert!(
+        text.contains("# top-comment"),
+        "top comment should be preserved"
+    );
+    assert!(
+        text.contains("title = \"keep-me\""),
+        "top key should be preserved"
+    );
+    assert!(
+        text.contains("[profile]"),
+        "non-MCP table should be preserved"
+    );
+    // 新增的 mcp_servers/或 mcp.servers 应存在并包含 echo
+    assert!(
+        text.contains("mcp_servers") || text.contains("[mcp.servers]"),
+        "one server table style should be present"
+    );
+    assert!(
+        text.contains("echo") && text.contains("command = \"echo\""),
+        "echo server should be serialized"
+    );
+}
+
+#[test]
+fn sync_enabled_to_codex_keeps_existing_style_mcp_dot_servers() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let path = cc_switch_lib::get_codex_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create codex dir");
+    }
+    // 预置 mcp.servers 风格
+    let seed = r#"[mcp]
+  other = "keep"
+  [mcp.servers]
+"#;
+    fs::write(&path, seed).expect("seed config.toml");
+
+    let mut config = MultiAppConfig::default();
+    config.mcp.codex.servers.insert(
+        "echo".into(),
+        json!({
+            "id": "echo",
+            "enabled": true,
+            "server": { "type": "stdio", "command": "echo" }
+        }),
+    );
+
+    cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex");
+    let text = fs::read_to_string(&path).expect("read config.toml");
+    // 仍应采用 mcp.servers 风格
+    assert!(
+        text.contains("[mcp.servers]"),
+        "should keep mcp.servers style"
+    );
+    assert!(
+        !text.contains("mcp_servers"),
+        "should not switch to mcp_servers"
+    );
+}
+
+#[test]
 fn sync_enabled_to_codex_removes_servers_when_none_enabled() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
