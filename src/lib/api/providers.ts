@@ -15,31 +15,31 @@ export interface ProviderSwitchEvent {
 
 export const providersApi = {
   async getAll(appType: AppType): Promise<Record<string, Provider>> {
-    return await invoke("get_providers", { app_type: appType });
+    return await invoke("get_providers", { app: appType });
   },
 
   async getCurrent(appType: AppType): Promise<string> {
-    return await invoke("get_current_provider", { app_type: appType });
+    return await invoke("get_current_provider", { app: appType });
   },
 
   async add(provider: Provider, appType: AppType): Promise<boolean> {
-    return await invoke("add_provider", { provider, app_type: appType });
+    return await invoke("add_provider", { provider, app: appType });
   },
 
   async update(provider: Provider, appType: AppType): Promise<boolean> {
-    return await invoke("update_provider", { provider, app_type: appType });
+    return await invoke("update_provider", { provider, app: appType });
   },
 
   async delete(id: string, appType: AppType): Promise<boolean> {
-    return await invoke("delete_provider", { id, app_type: appType });
+    return await invoke("delete_provider", { id, app: appType });
   },
 
   async switch(id: string, appType: AppType): Promise<boolean> {
-    return await invoke("switch_provider", { id, app_type: appType });
+    return await invoke("switch_provider", { id, app: appType });
   },
 
   async importDefault(appType: AppType): Promise<boolean> {
-    return await invoke("import_default_config", { app_type: appType });
+    return await invoke("import_default_config", { app: appType });
   },
 
   async updateTrayMenu(): Promise<boolean> {
@@ -50,10 +50,7 @@ export const providersApi = {
     updates: ProviderSortUpdate[],
     appType: AppType,
   ): Promise<boolean> {
-    return await invoke("update_providers_sort_order", {
-      updates,
-      app_type: appType,
-    });
+    return await invoke("update_providers_sort_order", { updates, app: appType });
   },
 
   async onSwitched(
