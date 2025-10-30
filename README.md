@@ -1,12 +1,10 @@
 # Claude Code & Codex 供应商切换器
 
-[![Version](https://img.shields.io/badge/version-3.5.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Version](https://img.shields.io/badge/version-3.5.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
 
 一个用于管理和切换 Claude Code 与 Codex 不同供应商配置的桌面应用。
-
-> **📢 重要通知**：CC Switch 即将进行大规模重构，请暂缓提交新的 PR，感谢理解与配合！
 
 > v3.5.0 ：新增 **MCP 管理**、**配置导入/导出**、**端点速度测试**功能，完善国际化覆盖，新增 Longcat、kat-coder 预设，标准化发布文件命名规范。
 
@@ -97,6 +95,15 @@ brew upgrade --cask cc-switch
 4. 重启或新开终端以确保生效
 5. 若需切回官方登录，在预设中选择“官方登录”并切换即可；重启终端后按官方流程登录
 
+### MCP 配置说明（v3.5.x）
+
+- 管理位置：所有 MCP 服务器定义集中保存在 `~/.cc-switch/config.json`（按客户端 `claude` / `codex` 分类）
+- 同步机制：
+  - 启用的 Claude MCP 会投影到 `~/.claude.json`（路径可随覆盖目录而变化）
+  - 启用的 Codex MCP 会投影到 `~/.codex/config.toml`
+- 校验与归一化：新增/导入时自动校验字段合法性（stdio/http），并自动修复/填充 `id` 等键名
+- 导入来源：支持从 `~/.claude.json` 与 `~/.codex/config.toml` 导入；已存在条目只强制 `enabled=true`，不覆盖其他字段
+
 ### 检查更新
 
 - 在“设置”中点击“检查更新”，若内置 Updater 配置可用将直接检测与下载；否则会回退打开 Releases 页面
@@ -137,6 +144,32 @@ brew upgrade --cask cc-switch
 - v1 → v2 结构升级：会额外生成 `~/.cc-switch/config.v1.backup.<timestamp>.json` 以便回滚
 - 注意：迁移后不再持续归档日常切换/编辑操作，如需长期审计请自备备份方案
 
+## 架构总览（v3.5.x）
+
+- 前端（Renderer）
+  - 技术栈：TypeScript + React 18 + Vite + TailwindCSS
+  - 数据层：TanStack React Query 统一查询与变更（`@/lib/query`），Tauri API 统一封装（`@/lib/api`）
+  - 事件流：监听后端 `provider-switched` 事件，驱动 UI 刷新与托盘状态一致
+  - 组织结构：按领域拆分组件（providers/settings/mcp），动作逻辑下沉至 Hooks（如 `useProviderActions`）
+
+- 后端（Tauri + Rust）
+  - Commands（接口层）：`src-tauri/src/commands/*` 按领域拆分（provider/config/mcp 等）
+  - Services（业务层）：`src-tauri/src/services/*` 承载核心逻辑（Provider/MCP/Config/Speedtest）
+  - 模型与状态：`provider.rs`（领域模型）+ `app_config.rs`（多应用配置）+ `store.rs`（全局 RwLock）
+  - 可靠性：
+    - 统一错误类型 `AppError`（包含本地化消息）
+    - 事务式变更（配置快照 + 失败回滚）与原子写入（避免半写入）
+    - 托盘菜单与事件：切换后重建菜单并向前端发射 `provider-switched` 事件
+
+- 设计要点（SSOT）
+  - 单一事实源：供应商配置集中存放于 `~/.cc-switch/config.json`
+  - 切换时仅写 live 配置（Claude: `settings.json`；Codex: `auth.json` + `config.toml`）
+  - 首次缺省导入：当某应用无任何供应商时，会从已有 live 配置生成默认项
+
+- 兼容性与变更
+  - 命令参数统一：Tauri 命令仅接受 `app`（值为 `claude` / `codex`）
+  - 前端类型统一：使用 `AppId` 表达应用标识（替代历史 `AppType` 导出）
+
 ## 开发
 
 ### 环境要求
@@ -163,6 +196,12 @@ pnpm format
 
 # 检查代码格式
 pnpm format:check
+
+# 运行前端单元测试
+pnpm test:unit
+
+# 监听模式运行测试
+pnpm test:unit:watch
 
 # 构建应用
 pnpm build
@@ -193,15 +232,21 @@ cargo test
 - **[TypeScript](https://www.typescriptlang.org/)** - 类型安全的 JavaScript
 - **[Vite](https://vitejs.dev/)** - 极速的前端构建工具
 - **[Rust](https://www.rust-lang.org/)** - 系统级编程语言（后端）
+- **[TanStack Query](https://tanstack.com/query/latest)** - 前端数据获取与缓存
+- **[i18next](https://www.i18next.com/)** - 国际化框架
 
 ## 项目结构
 
 ```
-├── src/                   # 前端代码 (React + TypeScript)
-│   ├── components/       # React 组件
-│   ├── config/          # 预设供应商配置
-│   ├── lib/             # Tauri API 封装
-│   └── utils/           # 工具函数
+├── src/                    # 前端代码 (React + TypeScript)
+│   ├── components/         # React 组件（providers/settings/mcp/ui 等）
+│   ├── hooks/              # 领域动作与状态（如 useProviderActions）
+│   ├── lib/
+│   │   ├── api/            # Tauri API 封装（providers/settings/mcp 等）
+│   │   └── query/          # TanStack Query 查询/变更与 client
+│   ├── i18n/               # 国际化资源
+│   ├── config/             # 供应商/MCP 预设
+│   └── utils/              # 工具函数
 ├── src-tauri/            # 后端代码 (Rust)
 │   ├── src/             # Rust 源代码
 │   │   ├── commands/    # Tauri 命令定义（按域拆分）
@@ -229,6 +274,11 @@ cargo test
 ## 贡献
 
 欢迎提交 Issue 反馈问题和建议！
+
+提交 PR 前请确保：
+- 通过类型检查：`pnpm typecheck`
+- 通过格式检查：`pnpm format:check`
+- 通过单元测试：`pnpm test:unit`
 
 ## Star History
 
