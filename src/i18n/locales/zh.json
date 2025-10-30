@@ -84,19 +84,30 @@
     "configJsonHint": "请填写完整的 Claude Code 配置",
     "editCommonConfigTitle": "编辑通用配置片段",
     "editCommonConfigHint": "通用配置片段将合并到所有启用它的供应商配置中",
-    "addProvider": "添加供应商"
+    "addProvider": "添加供应商",
+    "sortUpdated": "排序已更新",
+    "usageSaved": "用量查询配置已保存",
+    "usageSaveFailed": "用量查询配置保存失败"
   },
   "notifications": {
+    "providerAdded": "供应商已添加",
     "providerSaved": "供应商配置已保存",
     "providerDeleted": "供应商删除成功",
     "switchSuccess": "切换成功！请重启 {{appName}} 终端以生效",
     "switchFailed": "切换失败，请检查配置",
     "autoImported": "已从现有配置创建默认供应商",
+    "addFailed": "添加供应商失败：{{error}}",
     "saveFailed": "保存失败：{{error}}",
     "saveFailedGeneric": "保存失败，请重试",
     "appliedToClaudePlugin": "已应用到 Claude 插件",
     "removedFromClaudePlugin": "已从 Claude 插件移除",
-    "syncClaudePluginFailed": "同步 Claude 插件失败"
+    "syncClaudePluginFailed": "同步 Claude 插件失败",
+    "updateSuccess": "供应商更新成功",
+    "updateFailed": "更新供应商失败：{{error}}",
+    "deleteSuccess": "供应商已删除",
+    "deleteFailed": "删除供应商失败：{{error}}",
+    "settingsSaved": "设置已保存",
+    "settingsSaveFailed": "保存设置失败：{{error}}"
   },
   "confirm": {
     "deleteProvider": "删除供应商",
@@ -167,6 +178,7 @@
     "releaseNotes": "更新日志",
     "viewReleaseNotes": "查看该版本更新日志",
     "viewCurrentReleaseNotes": "查看当前版本更新日志",
+    "importFailedError": "导入配置失败：{{message}}",
     "exportFailedError": "导出配置失败:",
     "restartRequired": "需要重启应用",
     "restartRequiredMessage": "修改 CC-Switch 配置目录后需要重启应用才能生效，是否立即重启？",

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { settingsApi, type AppId } from "@/lib/api";
+import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import { useSettingsQuery, useSaveSettingsMutation } from "@/lib/query";
 import type { Settings } from "@/types";
 import { useSettingsForm, type SettingsFormState } from "./useSettingsForm";
@@ -159,6 +159,12 @@ export function useSettings(): UseSettingsResult {
           "[useSettings] Failed to persist language preference",
           error,
         );
+      }
+
+      try {
+        await providersApi.updateTrayMenu();
+      } catch (error) {
+        console.warn("[useSettings] Failed to refresh tray menu", error);
       }
 
       const appDirChanged = sanitizedAppDir !== (previousAppDir ?? undefined);

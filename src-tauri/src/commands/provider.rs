@@ -25,10 +25,7 @@ pub fn get_providers(
 
 /// 获取当前供应商ID
 #[tauri::command]
-pub fn get_current_provider(
-    state: State<'_, AppState>,
-    app: String,
-) -> Result<String, String> {
+pub fn get_current_provider(state: State<'_, AppState>, app: String) -> Result<String, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::current(state.inner(), app_type).map_err(|e| e.to_string())
 }
@@ -108,10 +105,7 @@ pub fn import_default_config_test_hook(
 
 /// 导入当前配置为默认供应商
 #[tauri::command]
-pub fn import_default_config(
-    state: State<'_, AppState>,
-    app: String,
-) -> Result<bool, String> {
+pub fn import_default_config(state: State<'_, AppState>, app: String) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     import_default_config_internal(&state, app_type)
         .map(|_| true)

@@ -84,19 +84,30 @@
     "configJsonHint": "Please fill in complete Claude Code configuration",
     "editCommonConfigTitle": "Edit common config snippet",
     "editCommonConfigHint": "Common config snippet will be merged into all providers that enable it",
-    "addProvider": "Add Provider"
+    "addProvider": "Add Provider",
+    "sortUpdated": "Sort order updated",
+    "usageSaved": "Usage query configuration saved",
+    "usageSaveFailed": "Failed to save usage query configuration"
   },
   "notifications": {
+    "providerAdded": "Provider added",
     "providerSaved": "Provider configuration saved",
     "providerDeleted": "Provider deleted successfully",
     "switchSuccess": "Switch successful! Please restart {{appName}} terminal to take effect",
     "switchFailed": "Switch failed, please check configuration",
     "autoImported": "Default provider created from existing configuration",
+    "addFailed": "Failed to add provider: {{error}}",
     "saveFailed": "Save failed: {{error}}",
     "saveFailedGeneric": "Save failed, please try again",
     "appliedToClaudePlugin": "Applied to Claude plugin",
     "removedFromClaudePlugin": "Removed from Claude plugin",
-    "syncClaudePluginFailed": "Sync Claude plugin failed"
+    "syncClaudePluginFailed": "Sync Claude plugin failed",
+    "updateSuccess": "Provider updated successfully",
+    "updateFailed": "Failed to update provider: {{error}}",
+    "deleteSuccess": "Provider deleted",
+    "deleteFailed": "Failed to delete provider: {{error}}",
+    "settingsSaved": "Settings saved",
+    "settingsSaveFailed": "Failed to save settings: {{error}}"
   },
   "confirm": {
     "deleteProvider": "Delete Provider",
@@ -167,6 +178,7 @@
     "releaseNotes": "Release Notes",
     "viewReleaseNotes": "View release notes for this version",
     "viewCurrentReleaseNotes": "View current version release notes",
+    "importFailedError": "Import config failed: {{message}}",
     "exportFailedError": "Export config failed:",
     "restartRequired": "Restart Required",
     "restartRequiredMessage": "Modifying the CC-Switch configuration directory requires restarting the application to take effect. Restart now?",

@@ -35,18 +35,46 @@ use tauri::{
 use tauri::{ActivationPolicy, RunEvent};
 use tauri::{Emitter, Manager};
 
+#[derive(Clone, Copy)]
+struct TrayTexts {
+    show_main: &'static str,
+    no_provider_hint: &'static str,
+    quit: &'static str,
+}
+
+impl TrayTexts {
+    fn from_language(language: &str) -> Self {
+        match language {
+            "en" => Self {
+                show_main: "Open main window",
+                no_provider_hint: "  (No providers yet, please add them from the main window)",
+                quit: "Quit",
+            },
+            _ => Self {
+                show_main: "打开主界面",
+                no_provider_hint: "  (无供应商，请在主界面添加)",
+                quit: "退出",
+            },
+        }
+    }
+}
+
 /// 创建动态托盘菜单
 fn create_tray_menu(
     app: &tauri::AppHandle,
     app_state: &AppState,
 ) -> Result<Menu<tauri::Wry>, AppError> {
+    let app_settings = crate::settings::get_settings();
+    let tray_texts = TrayTexts::from_language(app_settings.language.as_deref().unwrap_or("zh"));
+
     let config = app_state.config.read().map_err(AppError::from)?;
 
     let mut menu_builder = MenuBuilder::new(app);
 
     // 顶部：打开主界面
-    let show_main_item = MenuItem::with_id(app, "show_main", "打开主界面", true, None::<&str>)
-        .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {}", e)))?;
+    let show_main_item =
+        MenuItem::with_id(app, "show_main", tray_texts.show_main, true, None::<&str>)
+            .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {}", e)))?;
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
@@ -97,7 +125,7 @@ fn create_tray_menu(
             let empty_hint = MenuItem::with_id(
                 app,
                 "claude_empty",
-                "  (无供应商，请在主界面添加)",
+                tray_texts.no_provider_hint,
                 false,
                 None::<&str>,
             )
@@ -153,7 +181,7 @@ fn create_tray_menu(
             let empty_hint = MenuItem::with_id(
                 app,
                 "codex_empty",
-                "  (无供应商，请在主界面添加)",
+                tray_texts.no_provider_hint,
                 false,
                 None::<&str>,
             )
@@ -163,7 +191,7 @@ fn create_tray_menu(
     }
 
     // 分隔符和退出菜单
-    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
+    let quit_item = MenuItem::with_id(app, "quit", tray_texts.quit, true, None::<&str>)
         .map_err(|e| AppError::Message(format!("创建退出菜单失败: {}", e)))?;
 
     menu_builder = menu_builder.separator().item(&quit_item);
@@ -268,7 +296,7 @@ fn switch_provider_internal(
         let provider_id_clone = provider_id.clone();
 
         crate::commands::switch_provider(app_state.clone(), app_type_str.clone(), provider_id)
-        .map_err(AppError::Message)?;
+            .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
