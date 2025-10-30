@@ -166,18 +166,18 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "PackyCode",
-    websiteUrl: "https://www.packycode.com",
-    apiKeyUrl: "https://www.packycode.com/",
+    websiteUrl: "https://www.packyapi.com",
+    apiKeyUrl: "https://www.packyapi.com",
     settingsConfig: {
       env: {
-        ANTHROPIC_BASE_URL: "https://api.packycode.com",
+        ANTHROPIC_BASE_URL: "https://www.packyapi.com",
         ANTHROPIC_AUTH_TOKEN: "",
       },
     },
     // 请求地址候选（用于地址管理/测速）
     endpointCandidates: [
-      "https://api.packycode.com",
-      "https://api-slb.packycode.com",
+      "https://www.packyapi.com",
+      "https://api-slb.packyapi.com",
     ],
     category: "third_party",
   },

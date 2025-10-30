@@ -36,7 +36,7 @@ import {
   useCodexTomlValidation,
 } from "./hooks";
 
-const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {}, config: {} }, null, 2);
+const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
 
 type PresetEntry = {
