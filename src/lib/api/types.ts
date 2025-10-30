@@ -1,3 +1,2 @@
-export type AppType = "claude" | "codex";
-// 为避免与后端 Rust `AppType` 枚举语义混淆，可使用更贴近“标识符”的别名
-export type AppId = AppType;
+// 前端统一使用 AppId 作为应用标识（与后端命令参数 `app` 一致）
+export type AppId = "claude" | "codex";

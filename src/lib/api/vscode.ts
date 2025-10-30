@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CustomEndpoint } from "@/types";
-import type { AppType } from "./types";
+import type { AppId } from "./types";
 
 export interface EndpointLatencyResult {
   url: string;
@@ -10,8 +10,8 @@ export interface EndpointLatencyResult {
 }
 
 export const vscodeApi = {
-  async getLiveProviderSettings(appType: AppType) {
-    return await invoke("read_live_provider_settings", { app: appType });
+  async getLiveProviderSettings(appId: AppId) {
+    return await invoke("read_live_provider_settings", { app: appId });
   },
 
   async testApiEndpoints(
@@ -25,46 +25,46 @@ export const vscodeApi = {
   },
 
   async getCustomEndpoints(
-    appType: AppType,
+    appId: AppId,
     providerId: string,
   ): Promise<CustomEndpoint[]> {
     return await invoke("get_custom_endpoints", {
-      app: appType,
+      app: appId,
       provider_id: providerId,
     });
   },
 
   async addCustomEndpoint(
-    appType: AppType,
+    appId: AppId,
     providerId: string,
     url: string,
   ): Promise<void> {
     await invoke("add_custom_endpoint", {
-      app: appType,
+      app: appId,
       provider_id: providerId,
       url,
     });
   },
 
   async removeCustomEndpoint(
-    appType: AppType,
+    appId: AppId,
     providerId: string,
     url: string,
   ): Promise<void> {
     await invoke("remove_custom_endpoint", {
-      app: appType,
+      app: appId,
       provider_id: providerId,
       url,
     });
   },
 
   async updateEndpointLastUsed(
-    appType: AppType,
+    appId: AppId,
     providerId: string,
     url: string,
   ): Promise<void> {
     await invoke("update_endpoint_last_used", {
-      app: appType,
+      app: appId,
       provider_id: providerId,
       url,
     });

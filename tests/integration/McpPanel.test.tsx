@@ -139,7 +139,7 @@ const renderPanel = (props?: Partial<React.ComponentProps<typeof McpPanel>>) => 
   const client = createTestQueryClient();
   return render(
     <QueryClientProvider client={client}>
-      <McpPanel open onOpenChange={() => {}} appType="claude" {...props} />
+      <McpPanel open onOpenChange={() => {}} appId="claude" {...props} />
     </QueryClientProvider>,
   );
 };
@@ -229,4 +229,3 @@ describe("McpPanel integration", () => {
     await waitFor(() => expect(deleteServerMock).toHaveBeenCalledWith("sample"));
   });
 });
-

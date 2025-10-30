@@ -41,13 +41,13 @@ vi.mock("@/components/providers/ProviderList", () => ({
 }));
 
 vi.mock("@/components/providers/AddProviderDialog", () => ({
-  AddProviderDialog: ({ open, onOpenChange, onSubmit, appType }: any) =>
+  AddProviderDialog: ({ open, onOpenChange, onSubmit, appId }: any) =>
     open ? (
       <div data-testid="add-provider-dialog">
         <button
           onClick={() =>
             onSubmit({
-              name: `New ${appType} Provider`,
+              name: `New ${appId} Provider`,
               settingsConfig: {},
               category: "custom",
               sortIndex: 99,

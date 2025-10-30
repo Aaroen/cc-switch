@@ -114,7 +114,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
   const onClose = overrideOnClose ?? vi.fn();
   render(
     <McpFormModal
-      appType="claude"
+      appId="claude"
       onSave={onSave}
       onClose={onClose}
       existingIds={[]}
@@ -260,7 +260,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
   });
 
   it("TOML 模式下自动提取 ID 并成功保存", async () => {
-    const { onSave } = renderForm({ appType: "codex" });
+    const { onSave } = renderForm({ appId: "codex" });
 
     const configTextarea = screen.getByPlaceholderText(
       "mcp.form.tomlPlaceholder",
@@ -288,7 +288,7 @@ command = "run"
   });
 
   it("TOML 模式下缺少命令时展示错误提示并阻止提交", async () => {
-    const { onSave } = renderForm({ appType: "codex" });
+    const { onSave } = renderForm({ appId: "codex" });
 
     const configTextarea = screen.getByPlaceholderText(
       "mcp.form.tomlPlaceholder",
@@ -319,7 +319,7 @@ type = "stdio"
     } as McpServer;
 
     const { onSave } = renderForm({
-      appType: "claude",
+      appId: "claude",
       editingId: "existing",
       initialData,
     });

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Provider, CustomEndpoint } from "@/types";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import {
   ProviderForm,
   type ProviderFormValues,
@@ -22,14 +22,14 @@ import { codexProviderPresets } from "@/config/codexProviderPresets";
 interface AddProviderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  appType: AppType;
+  appId: AppId;
   onSubmit: (provider: Omit<Provider, "id">) => Promise<void> | void;
 }
 
 export function AddProviderDialog({
   open,
   onOpenChange,
-  appType,
+  appId,
   onSubmit,
 }: AddProviderDialogProps) {
   const { t } = useTranslation();
@@ -68,7 +68,7 @@ export function AddProviderDialog({
         };
 
         if (values.presetId) {
-          if (appType === "claude") {
+          if (appId === "claude") {
             const presets = providerPresets;
             const presetIndex = parseInt(
               values.presetId.replace("claude-", ""),
@@ -83,7 +83,7 @@ export function AddProviderDialog({
                 preset.endpointCandidates.forEach(addUrl);
               }
             }
-          } else if (appType === "codex") {
+          } else if (appId === "codex") {
             const presets = codexProviderPresets;
             const presetIndex = parseInt(
               values.presetId.replace("codex-", ""),
@@ -101,12 +101,12 @@ export function AddProviderDialog({
           }
         }
 
-        if (appType === "claude") {
+        if (appId === "claude") {
           const env = parsedConfig.env as Record<string, any> | undefined;
           if (env?.ANTHROPIC_BASE_URL) {
             addUrl(env.ANTHROPIC_BASE_URL);
           }
-        } else if (appType === "codex") {
+        } else if (appId === "codex") {
           const config = parsedConfig.config as string | undefined;
           if (config) {
             const baseUrlMatch =
@@ -139,11 +139,11 @@ export function AddProviderDialog({
       await onSubmit(providerData);
       onOpenChange(false);
     },
-    [appType, onSubmit, onOpenChange],
+    [appId, onSubmit, onOpenChange],
   );
 
   const submitLabel =
-    appType === "claude"
+    appId === "claude"
       ? t("provider.addClaudeProvider")
       : t("provider.addCodexProvider");
 
@@ -157,7 +157,7 @@ export function AddProviderDialog({
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
-            appType={appType}
+            appId={appId}
             submitLabel={t("common.add")}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}

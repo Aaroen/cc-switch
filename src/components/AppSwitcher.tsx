@@ -1,13 +1,13 @@
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import { ClaudeIcon, CodexIcon } from "./BrandIcons";
 
 interface AppSwitcherProps {
-  activeApp: AppType;
-  onSwitch: (app: AppType) => void;
+  activeApp: AppId;
+  onSwitch: (app: AppId) => void;
 }
 
 export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
-  const handleSwitch = (app: AppType) => {
+  const handleSwitch = (app: AppId) => {
     if (app === activeApp) return;
     onSwitch(app);
   };

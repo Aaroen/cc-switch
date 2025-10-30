@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { ProviderCategory, ProviderMeta } from "@/types";
 import { providerPresets, type ProviderPreset } from "@/config/providerPresets";
 import {
@@ -45,7 +45,7 @@ type PresetEntry = {
 };
 
 interface ProviderFormProps {
-  appType: AppType;
+  appId: AppId;
   submitLabel: string;
   onSubmit: (values: ProviderFormValues) => void;
   onCancel: () => void;
@@ -60,7 +60,7 @@ interface ProviderFormProps {
 }
 
 export function ProviderForm({
-  appType,
+  appId,
   submitLabel,
   onSubmit,
   onCancel,
@@ -86,7 +86,7 @@ export function ProviderForm({
 
   // 使用 category hook
   const { category } = useProviderCategory({
-    appType,
+    appId,
     selectedPresetId,
     isEditMode,
     initialCategory: initialData?.category,
@@ -95,7 +95,7 @@ export function ProviderForm({
   useEffect(() => {
     setSelectedPresetId(initialData ? null : "custom");
     setActivePreset(null);
-  }, [appType, initialData]);
+  }, [appId, initialData]);
 
   const defaultValues: ProviderFormData = useMemo(
     () => ({
@@ -103,11 +103,11 @@ export function ProviderForm({
       websiteUrl: initialData?.websiteUrl ?? "",
       settingsConfig: initialData?.settingsConfig
         ? JSON.stringify(initialData.settingsConfig, null, 2)
-        : appType === "codex"
+        : appId === "codex"
           ? CODEX_DEFAULT_CONFIG
           : CLAUDE_DEFAULT_CONFIG,
     }),
-    [initialData, appType],
+    [initialData, appId],
   );
 
   const form = useForm<ProviderFormData>({
@@ -130,7 +130,7 @@ export function ProviderForm({
 
   // 使用 Base URL hook (仅 Claude 模式)
   const { baseUrl, handleClaudeBaseUrlChange } = useBaseUrlState({
-    appType,
+    appType: appId,
     category,
     settingsConfig: form.watch("settingsConfig"),
     codexConfig: "",
@@ -202,7 +202,7 @@ export function ProviderForm({
   );
 
   const presetEntries = useMemo(() => {
-    if (appType === "codex") {
+    if (appId === "codex") {
       return codexProviderPresets.map<PresetEntry>((preset, index) => ({
         id: `codex-${index}`,
         preset,
@@ -212,7 +212,7 @@ export function ProviderForm({
       id: `claude-${index}`,
       preset,
     }));
-  }, [appType]);
+  }, [appId]);
 
   // 使用 Kimi 模型选择器 hook
   const {
@@ -240,8 +240,8 @@ export function ProviderForm({
     handleTemplateValueChange,
     validateTemplateValues,
   } = useTemplateValues({
-    selectedPresetId: appType === "claude" ? selectedPresetId : null,
-    presetEntries: appType === "claude" ? presetEntries : [],
+    selectedPresetId: appId === "claude" ? selectedPresetId : null,
+    presetEntries: appId === "claude" ? presetEntries : [],
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
   });
@@ -256,7 +256,7 @@ export function ProviderForm({
   } = useCommonConfigSnippet({
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
-    initialData: appType === "claude" ? initialData : undefined,
+    initialData: appId === "claude" ? initialData : undefined,
   });
 
   // 使用 Codex 通用配置片段 hook (仅 Codex 模式)
@@ -269,14 +269,14 @@ export function ProviderForm({
   } = useCodexCommonConfig({
     codexConfig,
     onConfigChange: handleCodexConfigChange,
-    initialData: appType === "codex" ? initialData : undefined,
+    initialData: appId === "codex" ? initialData : undefined,
   });
 
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
   const handleSubmit = (values: ProviderFormData) => {
     // 验证模板变量（仅 Claude 模式）
-    if (appType === "claude" && templateValueEntries.length > 0) {
+    if (appId === "claude" && templateValueEntries.length > 0) {
       const validation = validateTemplateValues();
       if (!validation.isValid && validation.missingField) {
         form.setError("settingsConfig", {
@@ -293,7 +293,7 @@ export function ProviderForm({
     let settingsConfig: string;
 
     // Codex: 组合 auth 和 config
-    if (appType === "codex") {
+    if (appId === "codex") {
       try {
         const authJson = JSON.parse(codexAuth);
         const configObj = {
@@ -359,7 +359,7 @@ export function ProviderForm({
     shouldShowApiKeyLink: shouldShowClaudeApiKeyLink,
     websiteUrl: claudeWebsiteUrl,
   } = useApiKeyLink({
-    appType: "claude",
+    appId: "claude",
     category,
     selectedPresetId,
     presetEntries,
@@ -371,7 +371,7 @@ export function ProviderForm({
     shouldShowApiKeyLink: shouldShowCodexApiKeyLink,
     websiteUrl: codexWebsiteUrl,
   } = useApiKeyLink({
-    appType: "codex",
+    appId: "codex",
     category,
     selectedPresetId,
     presetEntries,
@@ -380,7 +380,7 @@ export function ProviderForm({
 
   // 使用自定义端点 hook
   const customEndpointsMap = useCustomEndpoints({
-    appType,
+    appId,
     selectedPresetId,
     presetEntries,
     draftCustomEndpoints,
@@ -390,7 +390,7 @@ export function ProviderForm({
 
   // 使用端点测速候选 hook
   const speedTestEndpoints = useSpeedTestEndpoints({
-    appType,
+    appId,
     selectedPresetId,
     presetEntries,
     baseUrl,
@@ -405,7 +405,7 @@ export function ProviderForm({
       form.reset(defaultValues);
 
       // Codex 自定义模式：重置为空配置
-      if (appType === "codex") {
+      if (appId === "codex") {
         resetCodexConfig({}, "");
       }
       return;
@@ -421,7 +421,7 @@ export function ProviderForm({
       category: entry.preset.category,
     });
 
-    if (appType === "codex") {
+    if (appId === "codex") {
       const preset = entry.preset as CodexProviderPreset;
       const auth = preset.auth ?? {};
       const config = preset.config ?? "";
@@ -474,7 +474,7 @@ export function ProviderForm({
         <BasicFormFields form={form} />
 
         {/* Claude 专属字段 */}
-        {appType === "claude" && (
+        {appId === "claude" && (
           <ClaudeFormFields
             shouldShowApiKey={shouldShowApiKey(
               form.watch("settingsConfig"),
@@ -510,7 +510,7 @@ export function ProviderForm({
         )}
 
         {/* Codex 专属字段 */}
-        {appType === "codex" && (
+        {appId === "codex" && (
           <CodexFormFields
             codexApiKey={codexApiKey}
             onApiKeyChange={handleCodexApiKeyChange}
@@ -528,7 +528,7 @@ export function ProviderForm({
         )}
 
         {/* 配置编辑器：Claude 使用通用配置编辑器，Codex 使用专用编辑器 */}
-        {appType === "codex" ? (
+        {appId === "codex" ? (
           <CodexConfigEditor
             authValue={codexAuth}
             configValue={codexConfig}

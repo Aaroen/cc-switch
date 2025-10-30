@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { providersApi, settingsApi, type AppType } from "@/lib/api";
+import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import type { Provider, UsageScript } from "@/types";
 import {
   useAddProviderMutation,
@@ -16,7 +16,7 @@ import { extractErrorMessage } from "@/utils/errorUtils";
  * Hook for managing provider actions (add, update, delete, switch)
  * Extracts business logic from App.tsx
  */
-export function useProviderActions(activeApp: AppType) {
+export function useProviderActions(activeApp: AppId) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 

@@ -15,14 +15,14 @@ import {
   ProviderForm,
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 
 interface EditProviderDialogProps {
   open: boolean;
   provider: Provider | null;
   onOpenChange: (open: boolean) => void;
   onSubmit: (provider: Provider) => Promise<void> | void;
-  appType: AppType;
+  appId: AppId;
 }
 
 export function EditProviderDialog({
@@ -30,7 +30,7 @@ export function EditProviderDialog({
   provider,
   onOpenChange,
   onSubmit,
-  appType,
+  appId,
 }: EditProviderDialogProps) {
   const { t } = useTranslation();
 
@@ -75,7 +75,7 @@ export function EditProviderDialog({
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
-            appType={appType}
+            appId={appId}
             submitLabel={t("common.save")}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}

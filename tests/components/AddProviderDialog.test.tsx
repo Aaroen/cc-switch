@@ -61,7 +61,7 @@ describe("AddProviderDialog", () => {
       <AddProviderDialog
         open
         onOpenChange={handleOpenChange}
-        appType="claude"
+        appId="claude"
         onSubmit={handleSubmit}
       />,
     );
@@ -97,7 +97,7 @@ describe("AddProviderDialog", () => {
       <AddProviderDialog
         open
         onOpenChange={vi.fn()}
-        appType="claude"
+        appId="claude"
         onSubmit={handleSubmit}
       />,
     );

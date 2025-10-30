@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { ProviderMeta, EndpointCandidate } from "@/types";
@@ -10,7 +10,7 @@ type PresetEntry = {
 };
 
 interface UseSpeedTestEndpointsProps {
-  appType: AppType;
+  appId: AppId;
   selectedPresetId: string | null;
   presetEntries: PresetEntry[];
   baseUrl: string;
@@ -31,7 +31,7 @@ interface UseSpeedTestEndpointsProps {
  * 4. 预设中的 endpointCandidates
  */
 export function useSpeedTestEndpoints({
-  appType,
+  appId,
   selectedPresetId,
   presetEntries,
   baseUrl,
@@ -39,7 +39,7 @@ export function useSpeedTestEndpoints({
   initialData,
 }: UseSpeedTestEndpointsProps) {
   const claudeEndpoints = useMemo<EndpointCandidate[]>(() => {
-    if (appType !== "claude") return [];
+    if (appId !== "claude") return [];
 
     const map = new Map<string, EndpointCandidate>();
     // 所有端点都标记为 isCustom: true，给用户完全的管理自由
@@ -94,10 +94,10 @@ export function useSpeedTestEndpoints({
     }
 
     return Array.from(map.values());
-  }, [appType, baseUrl, initialData, selectedPresetId, presetEntries]);
+  }, [appId, baseUrl, initialData, selectedPresetId, presetEntries]);
 
   const codexEndpoints = useMemo<EndpointCandidate[]>(() => {
-    if (appType !== "codex") return [];
+    if (appId !== "codex") return [];
 
     const map = new Map<string, EndpointCandidate>();
     // 所有端点都标记为 isCustom: true，给用户完全的管理自由
@@ -155,7 +155,7 @@ export function useSpeedTestEndpoints({
     }
 
     return Array.from(map.values());
-  }, [appType, codexBaseUrl, initialData, selectedPresetId, presetEntries]);
+  }, [appId, codexBaseUrl, initialData, selectedPresetId, presetEntries]);
 
-  return appType === "codex" ? codexEndpoints : claudeEndpoints;
+  return appId === "codex" ? codexEndpoints : claudeEndpoints;
 }

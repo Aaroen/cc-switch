@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { mcpApi, type AppType } from "@/lib/api";
+import { mcpApi, type AppId } from "@/lib/api";
 import type { McpServer } from "@/types";
 import {
   extractErrorMessage,
@@ -30,7 +30,7 @@ export interface UseMcpActionsResult {
  * - Delete server
  * - Error handling and toast notifications
  */
-export function useMcpActions(appType: AppType): UseMcpActionsResult {
+export function useMcpActions(appId: AppId): UseMcpActionsResult {
   const { t } = useTranslation();
   const [servers, setServers] = useState<Record<string, McpServer>>({});
   const [loading, setLoading] = useState(false);
@@ -38,7 +38,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const cfg = await mcpApi.getConfig(appType);
+      const cfg = await mcpApi.getConfig(appId);
       setServers(cfg.servers || {});
     } catch (error) {
       console.error("[useMcpActions] Failed to load MCP config", error);
@@ -50,7 +50,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
     } finally {
       setLoading(false);
     }
-  }, [appType, t]);
+  }, [appId, t]);
 
   const toggleEnabled = useCallback(
     async (id: string, enabled: boolean) => {
@@ -65,7 +65,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
       }));
 
       try {
-        await mcpApi.setEnabled(appType, id, enabled);
+        await mcpApi.setEnabled(appId, id, enabled);
         toast.success(enabled ? t("mcp.msg.enabled") : t("mcp.msg.disabled"), {
           duration: 1500,
         });
@@ -79,7 +79,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
         });
       }
     },
-    [appType, servers, t],
+    [appId, servers, t],
   );
 
   const saveServer = useCallback(
@@ -90,7 +90,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
     ) => {
       try {
         const payload: McpServer = { ...server, id };
-        await mcpApi.upsertServerInConfig(appType, id, payload, {
+        await mcpApi.upsertServerInConfig(appId, id, payload, {
           syncOtherSide: options?.syncOtherSide,
         });
         await reload();
@@ -104,13 +104,13 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
         throw error;
       }
     },
-    [appType, reload, t],
+    [appId, reload, t],
   );
 
   const deleteServer = useCallback(
     async (id: string) => {
       try {
-        await mcpApi.deleteServerInConfig(appType, id);
+        await mcpApi.deleteServerInConfig(appId, id);
         await reload();
         toast.success(t("mcp.msg.deleted"), { duration: 1500 });
       } catch (error) {
@@ -122,7 +122,7 @@ export function useMcpActions(appType: AppType): UseMcpActionsResult {
         throw error;
       }
     },
-    [appType, reload, t],
+    [appId, reload, t],
   );
 
   return {

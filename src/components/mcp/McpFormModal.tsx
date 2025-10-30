@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { mcpApi, type AppType } from "@/lib/api";
+import { mcpApi, type AppId } from "@/lib/api";
 import { McpServer, McpServerSpec } from "@/types";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import McpWizardModal from "./McpWizardModal";
@@ -35,7 +35,7 @@ import {
 import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
-  appType: AppType;
+  appId: AppId;
   editingId?: string;
   initialData?: McpServer;
   onSave: (
@@ -53,7 +53,7 @@ interface McpFormModalProps {
  * Codex: 使用 TOML 格式
  */
 const McpFormModal: React.FC<McpFormModalProps> = ({
-  appType,
+  appId,
   editingId,
   initialData,
   onSave,
@@ -91,11 +91,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     isEditing ? hasAdditionalInfo : false,
   );
 
-  // 根据 appType 决定初始格式
+  // 根据 appId 决定初始格式
   const [formConfig, setFormConfig] = useState(() => {
     const spec = initialData?.server;
     if (!spec) return "";
-    if (appType === "codex") {
+    if (appId === "codex") {
       return mcpServerToToml(spec);
     }
     return JSON.stringify(spec, null, 2);
@@ -109,11 +109,10 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [otherSideHasConflict, setOtherSideHasConflict] = useState(false);
 
   // 判断是否使用 TOML 格式
-  const useToml = appType === "codex";
-  const syncTargetLabel =
-    appType === "claude" ? t("apps.codex") : t("apps.claude");
-  const otherAppType: AppType = appType === "claude" ? "codex" : "claude";
-  const syncCheckboxId = useMemo(() => `sync-other-side-${appType}`, [appType]);
+  const useToml = appId === "codex";
+  const syncTargetLabel = appId === "claude" ? t("apps.codex") : t("apps.claude");
+  const otherAppType: AppId = appId === "claude" ? "codex" : "claude";
+  const syncCheckboxId = useMemo(() => `sync-other-side-${appId}`, [appId]);
 
   // 检测另一侧是否有同名 MCP
   useEffect(() => {
@@ -418,7 +417,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   };
 
   const getFormTitle = () => {
-    if (appType === "claude") {
+    if (appId === "claude") {
       return isEditing ? t("mcp.editClaudeServer") : t("mcp.addClaudeServer");
     } else {
       return isEditing ? t("mcp.editCodexServer") : t("mcp.addCodexServer");

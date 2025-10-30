@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { ProviderCategory } from "@/types";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
@@ -10,7 +10,7 @@ type PresetEntry = {
 };
 
 interface UseApiKeyLinkProps {
-  appType: AppType;
+  appId: AppId;
   category?: ProviderCategory;
   selectedPresetId: string | null;
   presetEntries: PresetEntry[];
@@ -21,7 +21,7 @@ interface UseApiKeyLinkProps {
  * 管理 API Key 获取链接的显示和 URL
  */
 export function useApiKeyLink({
-  appType,
+  appId,
   category,
   selectedPresetId,
   presetEntries,
@@ -53,12 +53,7 @@ export function useApiKeyLink({
   }, [selectedPresetId, presetEntries, formWebsiteUrl]);
 
   return {
-    shouldShowApiKeyLink:
-      appType === "claude"
-        ? shouldShowApiKeyLink
-        : appType === "codex"
-          ? shouldShowApiKeyLink
-          : false,
+    shouldShowApiKeyLink: appId === "claude" ? shouldShowApiKeyLink : appId === "codex" ? shouldShowApiKeyLink : false,
     websiteUrl: getWebsiteUrl,
   };
 }

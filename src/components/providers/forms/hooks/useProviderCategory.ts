@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import type { ProviderCategory } from "@/types";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import { providerPresets } from "@/config/providerPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
 
 interface UseProviderCategoryProps {
-  appType: AppType;
+  appId: AppId;
   selectedPresetId: string | null;
   isEditMode: boolean;
   initialCategory?: ProviderCategory;
@@ -16,7 +16,7 @@ interface UseProviderCategoryProps {
  * 根据选择的预设自动更新类别
  */
 export function useProviderCategory({
-  appType,
+  appId,
   selectedPresetId,
   isEditMode,
   initialCategory,
@@ -47,14 +47,14 @@ export function useProviderCategory({
     const [, type, indexStr] = match;
     const index = parseInt(indexStr, 10);
 
-    if (type === "codex" && appType === "codex") {
+    if (type === "codex" && appId === "codex") {
       const preset = codexProviderPresets[index];
       if (preset) {
         setCategory(
           preset.category || (preset.isOfficial ? "official" : undefined),
         );
       }
-    } else if (type === "claude" && appType === "claude") {
+    } else if (type === "claude" && appId === "claude") {
       const preset = providerPresets[index];
       if (preset) {
         setCategory(
@@ -62,7 +62,7 @@ export function useProviderCategory({
         );
       }
     }
-  }, [appType, selectedPresetId, isEditMode, initialCategory]);
+  }, [appId, selectedPresetId, isEditMode, initialCategory]);
 
   return { category, setCategory };
 }

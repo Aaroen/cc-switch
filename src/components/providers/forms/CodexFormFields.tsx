@@ -80,7 +80,7 @@ export function CodexFormFields({
       {/* 端点测速弹窗 - Codex */}
       {shouldShowSpeedTest && isEndpointModalOpen && (
         <EndpointSpeedTest
-          appType="codex"
+          appId="codex"
           value={codexBaseUrl}
           onChange={onBaseUrlChange}
           initialEndpoints={speedTestEndpoints}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { homeDir, join } from "@tauri-apps/api/path";
-import { settingsApi, type AppType } from "@/lib/api";
+import { settingsApi, type AppId } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
 
 type DirectoryKey = "appConfig" | "claude" | "codex";
@@ -33,7 +33,7 @@ const computeDefaultAppConfigDir = async (): Promise<string | undefined> => {
 };
 
 const computeDefaultConfigDir = async (
-  app: AppType,
+  app: AppId,
 ): Promise<string | undefined> => {
   try {
     const home = await homeDir();
@@ -58,11 +58,11 @@ export interface UseDirectorySettingsResult {
   resolvedDirs: ResolvedDirectories;
   isLoading: boolean;
   initialAppConfigDir?: string;
-  updateDirectory: (app: AppType, value?: string) => void;
+  updateDirectory: (app: AppId, value?: string) => void;
   updateAppConfigDir: (value?: string) => void;
-  browseDirectory: (app: AppType) => Promise<void>;
+  browseDirectory: (app: AppId) => Promise<void>;
   browseAppConfigDir: () => Promise<void>;
-  resetDirectory: (app: AppType) => Promise<void>;
+  resetDirectory: (app: AppId) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
   resetAllDirectories: (claudeDir?: string, codexDir?: string) => void;
 }
@@ -187,14 +187,14 @@ export function useDirectorySettings({
   );
 
   const updateDirectory = useCallback(
-    (app: AppType, value?: string) => {
+    (app: AppId, value?: string) => {
       updateDirectoryState(app === "claude" ? "claude" : "codex", value);
     },
     [updateDirectoryState],
   );
 
   const browseDirectory = useCallback(
-    async (app: AppType) => {
+    async (app: AppId) => {
       const key: DirectoryKey = app === "claude" ? "claude" : "codex";
       const currentValue =
         key === "claude"
@@ -239,7 +239,7 @@ export function useDirectorySettings({
   }, [appConfigDir, resolvedDirs.appConfig, t, updateDirectoryState]);
 
   const resetDirectory = useCallback(
-    async (app: AppType) => {
+    async (app: AppId) => {
       const key: DirectoryKey = app === "claude" ? "claude" : "codex";
       if (!defaultsRef.current[key]) {
         const fallback = await computeDefaultConfigDir(app);

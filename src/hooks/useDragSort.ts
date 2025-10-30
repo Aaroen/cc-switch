@@ -11,11 +11,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Provider } from "@/types";
-import { providersApi, type AppType } from "@/lib/api";
+import { providersApi, type AppId } from "@/lib/api";
 
 export function useDragSort(
   providers: Record<string, Provider>,
-  appType: AppType,
+  appId: AppId,
 ) {
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
@@ -73,9 +73,9 @@ export function useDragSort(
       }));
 
       try {
-        await providersApi.updateSortOrder(updates, appType);
+        await providersApi.updateSortOrder(updates, appId);
         await queryClient.invalidateQueries({
-          queryKey: ["providers", appType],
+          queryKey: ["providers", appId],
         });
         toast.success(
           t("provider.sortUpdated", {
@@ -91,7 +91,7 @@ export function useDragSort(
         );
       }
     },
-    [sortedProviders, appType, queryClient, t],
+    [sortedProviders, appId, queryClient, t],
   );
 
   return {

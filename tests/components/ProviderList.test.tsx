@@ -122,7 +122,7 @@ describe("ProviderList Component", () => {
       <ProviderList
         providers={{}}
         currentProviderId=""
-        appType="claude"
+        appId="claude"
         onSwitch={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -150,7 +150,7 @@ describe("ProviderList Component", () => {
       <ProviderList
         providers={{}}
         currentProviderId=""
-        appType="claude"
+        appId="claude"
         onSwitch={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -189,7 +189,7 @@ describe("ProviderList Component", () => {
       <ProviderList
         providers={{ a: providerA, b: providerB }}
         currentProviderId="b"
-        appType="claude"
+        appId="claude"
         isEditMode
         onSwitch={handleSwitch}
         onEdit={handleEdit}

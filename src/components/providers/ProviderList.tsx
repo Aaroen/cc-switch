@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/sortable";
 import type { CSSProperties } from "react";
 import type { Provider } from "@/types";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import { useDragSort } from "@/hooks/useDragSort";
 import { ProviderCard } from "@/components/providers/ProviderCard";
 import { ProviderEmptyState } from "@/components/providers/ProviderEmptyState";
@@ -15,7 +15,7 @@ import { ProviderEmptyState } from "@/components/providers/ProviderEmptyState";
 interface ProviderListProps {
   providers: Record<string, Provider>;
   currentProviderId: string;
-  appType: AppType;
+  appId: AppId;
   isEditMode?: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
@@ -30,7 +30,7 @@ interface ProviderListProps {
 export function ProviderList({
   providers,
   currentProviderId,
-  appType,
+  appId,
   isEditMode = false,
   onSwitch,
   onEdit,
@@ -43,7 +43,7 @@ export function ProviderList({
 }: ProviderListProps) {
   const { sortedProviders, sensors, handleDragEnd } = useDragSort(
     providers,
-    appType,
+    appId,
   );
 
   if (isLoading) {
@@ -79,7 +79,7 @@ export function ProviderList({
               key={provider.id}
               provider={provider}
               isCurrent={provider.id === currentProviderId}
-              appType={appType}
+              appId={appId}
               isEditMode={isEditMode}
               onSwitch={onSwitch}
               onEdit={onEdit}
@@ -98,7 +98,7 @@ export function ProviderList({
 interface SortableProviderCardProps {
   provider: Provider;
   isCurrent: boolean;
-  appType: AppType;
+  appId: AppId;
   isEditMode: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
@@ -111,7 +111,7 @@ interface SortableProviderCardProps {
 function SortableProviderCard({
   provider,
   isCurrent,
-  appType,
+  appId,
   isEditMode,
   onSwitch,
   onEdit,
@@ -139,7 +139,7 @@ function SortableProviderCard({
       <ProviderCard
         provider={provider}
         isCurrent={isCurrent}
-        appType={appType}
+        appId={appId}
         isEditMode={isEditMode}
         onSwitch={onSwitch}
         onEdit={onEdit}

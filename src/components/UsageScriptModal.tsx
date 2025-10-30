@@ -3,7 +3,7 @@ import { Play, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { Provider, UsageScript } from "../types";
-import { usageApi, type AppType } from "@/lib/api";
+import { usageApi, type AppId } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";
 import * as parserBabel from "prettier/parser-babel";
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 
 interface UsageScriptModalProps {
   provider: Provider;
-  appType: AppType;
+  appId: AppId;
   isOpen: boolean;
   onClose: () => void;
   onSave: (script: UsageScript) => void;
@@ -82,13 +82,7 @@ const PRESET_TEMPLATES: Record<string, string> = {
 })`,
 };
 
-const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
-  provider,
-  appType,
-  isOpen,
-  onClose,
-  onSave,
-}) => {
+const UsageScriptModal: React.FC<UsageScriptModalProps> = ({ provider, appId, isOpen, onClose, onSave }) => {
   const { t } = useTranslation();
   const [script, setScript] = useState<UsageScript>(() => {
     return (
@@ -127,7 +121,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleTest = async () => {
     setTesting(true);
     try {
-      const result = await usageApi.query(provider.id, appType);
+      const result = await usageApi.query(provider.id, appId);
       if (result.success && result.data && result.data.length > 0) {
         // 显示所有套餐数据
         const summary = result.data

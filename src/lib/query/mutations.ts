@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { providersApi, settingsApi, type AppType } from "@/lib/api";
+import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import type { Provider, Settings } from "@/types";
 
-export const useAddProviderMutation = (appType: AppType) => {
+export const useAddProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
@@ -15,11 +15,11 @@ export const useAddProviderMutation = (appType: AppType) => {
         id: crypto.randomUUID(),
         createdAt: Date.now(),
       };
-      await providersApi.add(newProvider, appType);
+      await providersApi.add(newProvider, appId);
       return newProvider;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["providers", appType] });
+      await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
       await providersApi.updateTrayMenu();
       toast.success(
         t("notifications.providerAdded", {
@@ -38,17 +38,17 @@ export const useAddProviderMutation = (appType: AppType) => {
   });
 };
 
-export const useUpdateProviderMutation = (appType: AppType) => {
+export const useUpdateProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
   return useMutation({
     mutationFn: async (provider: Provider) => {
-      await providersApi.update(provider, appType);
+      await providersApi.update(provider, appId);
       return provider;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["providers", appType] });
+      await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
       toast.success(
         t("notifications.updateSuccess", {
           defaultValue: "供应商更新成功",
@@ -66,16 +66,16 @@ export const useUpdateProviderMutation = (appType: AppType) => {
   });
 };
 
-export const useDeleteProviderMutation = (appType: AppType) => {
+export const useDeleteProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
   return useMutation({
     mutationFn: async (providerId: string) => {
-      await providersApi.delete(providerId, appType);
+      await providersApi.delete(providerId, appId);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["providers", appType] });
+      await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
       await providersApi.updateTrayMenu();
       toast.success(
         t("notifications.deleteSuccess", {
@@ -94,21 +94,21 @@ export const useDeleteProviderMutation = (appType: AppType) => {
   });
 };
 
-export const useSwitchProviderMutation = (appType: AppType) => {
+export const useSwitchProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
   return useMutation({
     mutationFn: async (providerId: string) => {
-      return await providersApi.switch(providerId, appType);
+      return await providersApi.switch(providerId, appId);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["providers", appType] });
+      await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
       await providersApi.updateTrayMenu();
       toast.success(
         t("notifications.switchSuccess", {
           defaultValue: "切换供应商成功",
-          appName: t(`apps.${appType}`, { defaultValue: appType }),
+          appName: t(`apps.${appId}`, { defaultValue: appId }),
         }),
       );
     },

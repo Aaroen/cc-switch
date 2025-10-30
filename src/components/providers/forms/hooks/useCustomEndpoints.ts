@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { CustomEndpoint } from "@/types";
 import type { ProviderPreset } from "@/config/providerPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
@@ -10,7 +10,7 @@ type PresetEntry = {
 };
 
 interface UseCustomEndpointsProps {
-  appType: AppType;
+  appId: AppId;
   selectedPresetId: string | null;
   presetEntries: PresetEntry[];
   draftCustomEndpoints: string[];
@@ -27,7 +27,7 @@ interface UseCustomEndpointsProps {
  * 3. 当前选中的 Base URL
  */
 export function useCustomEndpoints({
-  appType,
+  appId,
   selectedPresetId,
   presetEntries,
   draftCustomEndpoints,
@@ -58,7 +58,7 @@ export function useCustomEndpoints({
     }
 
     // 3. 当前 Base URL
-    if (appType === "codex") {
+    if (appId === "codex") {
       push(codexBaseUrl);
     } else {
       push(baseUrl);
@@ -80,7 +80,7 @@ export function useCustomEndpoints({
 
     return customMap;
   }, [
-    appType,
+    appId,
     selectedPresetId,
     presetEntries,
     draftCustomEndpoints,

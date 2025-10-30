@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { settingsApi, type AppType } from "@/lib/api";
+import { settingsApi, type AppId } from "@/lib/api";
 import { useSettingsQuery, useSaveSettingsMutation } from "@/lib/query";
 import type { Settings } from "@/types";
 import { useSettingsForm, type SettingsFormState } from "./useSettingsForm";
@@ -26,11 +26,11 @@ export interface UseSettingsResult {
   resolvedDirs: ResolvedDirectories;
   requiresRestart: boolean;
   updateSettings: (updates: Partial<SettingsFormState>) => void;
-  updateDirectory: (app: AppType, value?: string) => void;
+  updateDirectory: (app: AppId, value?: string) => void;
   updateAppConfigDir: (value?: string) => void;
-  browseDirectory: (app: AppType) => Promise<void>;
+  browseDirectory: (app: AppId) => Promise<void>;
   browseAppConfigDir: () => Promise<void>;
-  resetDirectory: (app: AppType) => Promise<void>;
+  resetDirectory: (app: AppId) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
   saveSettings: () => Promise<SaveResult | null>;
   resetSettings: () => void;

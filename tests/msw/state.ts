@@ -1,9 +1,9 @@
-import type { AppType } from "@/lib/api/types";
+import type { AppId } from "@/lib/api/types";
 import type { McpServer, Provider, Settings } from "@/types";
 
-type ProvidersByApp = Record<AppType, Record<string, Provider>>;
-type CurrentProviderState = Record<AppType, string>;
-type McpConfigState = Record<AppType, Record<string, McpServer>>;
+type ProvidersByApp = Record<AppId, Record<string, Provider>>;
+type CurrentProviderState = Record<AppId, string>;
+type McpConfigState = Record<AppId, Record<string, McpServer>>;
 
 const createDefaultProviders = (): ProvidersByApp => ({
   claude: {
@@ -126,29 +126,29 @@ export const resetProviderState = () => {
   };
 };
 
-export const getProviders = (appType: AppType) =>
+export const getProviders = (appType: AppId) =>
   cloneProviders(providers)[appType] ?? {};
 
-export const getCurrentProviderId = (appType: AppType) => current[appType] ?? "";
+export const getCurrentProviderId = (appType: AppId) => current[appType] ?? "";
 
-export const setCurrentProviderId = (appType: AppType, providerId: string) => {
+export const setCurrentProviderId = (appType: AppId, providerId: string) => {
   current[appType] = providerId;
 };
 
-export const updateProviders = (appType: AppType, data: Record<string, Provider>) => {
+export const updateProviders = (appType: AppId, data: Record<string, Provider>) => {
   providers[appType] = cloneProviders({ [appType]: data } as ProvidersByApp)[appType];
 };
 
-export const setProviders = (appType: AppType, data: Record<string, Provider>) => {
+export const setProviders = (appType: AppId, data: Record<string, Provider>) => {
   providers[appType] = JSON.parse(JSON.stringify(data)) as Record<string, Provider>;
 };
 
-export const addProvider = (appType: AppType, provider: Provider) => {
+export const addProvider = (appType: AppId, provider: Provider) => {
   providers[appType] = providers[appType] ?? {};
   providers[appType][provider.id] = provider;
 };
 
-export const updateProvider = (appType: AppType, provider: Provider) => {
+export const updateProvider = (appType: AppId, provider: Provider) => {
   if (!providers[appType]) return;
   providers[appType][provider.id] = {
     ...providers[appType][provider.id],
@@ -156,7 +156,7 @@ export const updateProvider = (appType: AppType, provider: Provider) => {
   };
 };
 
-export const deleteProvider = (appType: AppType, providerId: string) => {
+export const deleteProvider = (appType: AppId, providerId: string) => {
   if (!providers[appType]) return;
   delete providers[appType][providerId];
   if (current[appType] === providerId) {
@@ -166,7 +166,7 @@ export const deleteProvider = (appType: AppType, providerId: string) => {
 };
 
 export const updateSortOrder = (
-  appType: AppType,
+  appType: AppId,
   updates: { id: string; sortIndex: number }[],
 ) => {
   if (!providers[appType]) return;
@@ -178,7 +178,7 @@ export const updateSortOrder = (
   });
 };
 
-export const listProviders = (appType: AppType) =>
+export const listProviders = (appType: AppId) =>
   JSON.parse(JSON.stringify(providers[appType] ?? {})) as Record<string, Provider>;
 
 export const getSettings = () => JSON.parse(JSON.stringify(settingsState)) as Settings;
@@ -193,7 +193,7 @@ export const setAppConfigDirOverrideState = (value: string | null) => {
   appConfigDirOverride = value;
 };
 
-export const getMcpConfig = (appType: AppType) => {
+export const getMcpConfig = (appType: AppId) => {
   const servers = JSON.parse(
     JSON.stringify(mcpConfigs[appType] ?? {}),
   ) as Record<string, McpServer>;
@@ -203,12 +203,12 @@ export const getMcpConfig = (appType: AppType) => {
   };
 };
 
-export const setMcpConfig = (appType: AppType, value: Record<string, McpServer>) => {
+export const setMcpConfig = (appType: AppId, value: Record<string, McpServer>) => {
   mcpConfigs[appType] = JSON.parse(JSON.stringify(value)) as Record<string, McpServer>;
 };
 
 export const setMcpServerEnabled = (
-  appType: AppType,
+  appType: AppId,
   id: string,
   enabled: boolean,
 ) => {
@@ -220,7 +220,7 @@ export const setMcpServerEnabled = (
 };
 
 export const upsertMcpServer = (
-  appType: AppType,
+  appType: AppId,
   id: string,
   server: McpServer,
 ) => {
@@ -230,7 +230,7 @@ export const upsertMcpServer = (
   mcpConfigs[appType][id] = JSON.parse(JSON.stringify(server)) as McpServer;
 };
 
-export const deleteMcpServer = (appType: AppType, id: string) => {
+export const deleteMcpServer = (appType: AppId, id: string) => {
   if (!mcpConfigs[appType]) return;
   delete mcpConfigs[appType][id];
 };

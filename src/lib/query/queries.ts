@@ -3,7 +3,7 @@ import {
   type UseQueryResult,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { providersApi, settingsApi, usageApi, type AppType } from "@/lib/api";
+import { providersApi, settingsApi, usageApi, type AppId } from "@/lib/api";
 import type { Provider, Settings, UsageResult } from "@/types";
 
 const sortProviders = (
@@ -35,33 +35,33 @@ export interface ProvidersQueryData {
 }
 
 export const useProvidersQuery = (
-  appType: AppType,
+  appId: AppId,
 ): UseQueryResult<ProvidersQueryData> => {
   return useQuery({
-    queryKey: ["providers", appType],
+    queryKey: ["providers", appId],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let providers: Record<string, Provider> = {};
       let currentProviderId = "";
 
       try {
-        providers = await providersApi.getAll(appType);
+        providers = await providersApi.getAll(appId);
       } catch (error) {
         console.error("获取供应商列表失败:", error);
       }
 
       try {
-        currentProviderId = await providersApi.getCurrent(appType);
+        currentProviderId = await providersApi.getCurrent(appId);
       } catch (error) {
         console.error("获取当前供应商失败:", error);
       }
 
       if (Object.keys(providers).length === 0) {
         try {
-          const success = await providersApi.importDefault(appType);
+          const success = await providersApi.importDefault(appId);
           if (success) {
-            providers = await providersApi.getAll(appType);
-            currentProviderId = await providersApi.getCurrent(appType);
+            providers = await providersApi.getAll(appId);
+            currentProviderId = await providersApi.getCurrent(appId);
           }
         } catch (error) {
           console.error("导入默认配置失败:", error);
@@ -85,12 +85,12 @@ export const useSettingsQuery = (): UseQueryResult<Settings> => {
 
 export const useUsageQuery = (
   providerId: string,
-  appType: AppType,
+  appId: AppId,
   enabled: boolean = true,
 ): UseQueryResult<UsageResult> => {
   return useQuery({
-    queryKey: ["usage", providerId, appType],
-    queryFn: async () => usageApi.query(providerId, appType),
+    queryKey: ["usage", providerId, appId],
+    queryFn: async () => usageApi.query(providerId, appId),
     enabled: enabled && !!providerId,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000, // 5分钟

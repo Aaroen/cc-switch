@@ -149,7 +149,7 @@ export function ClaudeFormFields({
       {/* 端点测速弹窗 */}
       {shouldShowSpeedTest && isEndpointModalOpen && (
         <EndpointSpeedTest
-          appType="claude"
+          appId="claude"
           value={baseUrl}
           onChange={onBaseUrlChange}
           initialEndpoints={speedTestEndpoints}

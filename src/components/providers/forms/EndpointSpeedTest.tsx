@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Zap, Loader2, Plus, X, AlertCircle, Save } from "lucide-react";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import { vscodeApi } from "@/lib/api/vscode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ interface TestResult {
 }
 
 interface EndpointSpeedTestProps {
-  appType: AppType;
+  appId: AppId;
   providerId?: string;
   value: string;
   onChange: (url: string) => void;
@@ -82,7 +82,7 @@ const buildInitialEntries = (
 };
 
 const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
-  appType,
+  appId,
   providerId,
   value,
   onChange,
@@ -114,7 +114,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         if (!providerId) return;
 
         const customEndpoints = await vscodeApi.getCustomEndpoints(
-          appType,
+          appId,
           providerId,
         );
 
@@ -167,7 +167,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [appType, visible, providerId, t]);
+  }, [appId, visible, providerId, t]);
 
   useEffect(() => {
     setEntries((prev) => {
@@ -284,7 +284,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     // 保存到后端
     try {
       if (providerId) {
-        await vscodeApi.addCustomEndpoint(appType, providerId, sanitized);
+        await vscodeApi.addCustomEndpoint(appId, providerId, sanitized);
       }
 
       // 更新本地状态
@@ -318,7 +318,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     entries,
     normalizedSelected,
     onChange,
-    appType,
+    appId,
     providerId,
     t,
   ]);
@@ -331,7 +331,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       // 如果有 providerId，尝试从后端删除
       if (entry.isCustom && providerId) {
         try {
-          await vscodeApi.removeCustomEndpoint(appType, providerId, entry.url);
+          await vscodeApi.removeCustomEndpoint(appId, providerId, entry.url);
         } catch (error) {
           const errorMsg =
             error instanceof Error ? error.message : String(error);
@@ -362,7 +362,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         return next;
       });
     },
-    [normalizedSelected, onChange, appType, providerId, t],
+    [normalizedSelected, onChange, appId, providerId, t],
   );
 
   const runSpeedTest = useCallback(async () => {
@@ -387,7 +387,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
     try {
       const results = await vscodeApi.testApiEndpoints(urls, {
-        timeoutSecs: ENDPOINT_TIMEOUT_SECS[appType],
+        timeoutSecs: ENDPOINT_TIMEOUT_SECS[appId],
       });
 
       const resultMap = new Map(
@@ -437,7 +437,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     } finally {
       setIsTesting(false);
     }
-  }, [entries, autoSelect, appType, normalizedSelected, onChange, t]);
+  }, [entries, autoSelect, appId, normalizedSelected, onChange, t]);
 
   const handleSelect = useCallback(
     async (url: string) => {
@@ -447,7 +447,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       const entry = entries.find((e) => e.url === url);
       if (entry?.isCustom && providerId) {
         try {
-          await vscodeApi.updateEndpointLastUsed(appType, providerId, url);
+          await vscodeApi.updateEndpointLastUsed(appId, providerId, url);
         } catch (error) {
           console.error(t("endpointTest.updateLastUsedFailed"), error);
         }
@@ -455,7 +455,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
       onChange(url);
     },
-    [normalizedSelected, onChange, appType, entries, providerId, t],
+    [normalizedSelected, onChange, appId, entries, providerId, t],
   );
 
   return (

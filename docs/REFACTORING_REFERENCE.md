@@ -19,11 +19,11 @@
 
 ```typescript
 // 定义查询 Hook
-export const useProvidersQuery = (appType: AppType) => {
+export const useProvidersQuery = (appId: AppId) => {
   return useQuery({
-    queryKey: ['providers', appType],
+    queryKey: ['providers', appId],
     queryFn: async () => {
-      const data = await providersApi.getAll(appType)
+      const data = await providersApi.getAll(appId)
       return data
     },
   })
@@ -44,16 +44,16 @@ function MyComponent() {
 
 ```typescript
 // 定义 Mutation Hook
-export const useAddProviderMutation = (appType: AppType) => {
+export const useAddProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (provider: Provider) => {
-      return await providersApi.add(provider, appType)
+      return await providersApi.add(provider, appId)
     },
     onSuccess: () => {
       // 重新获取数据
-      queryClient.invalidateQueries({ queryKey: ['providers', appType] })
+      queryClient.invalidateQueries({ queryKey: ['providers', appId] })
       toast.success('添加成功')
     },
     onError: (error: Error) => {
@@ -64,7 +64,7 @@ export const useAddProviderMutation = (appType: AppType) => {
 
 // 在组件中使用
 function AddProviderDialog() {
-  const mutation = useAddProviderMutation('claude')
+const mutation = useAddProviderMutation('claude')
 
   const handleSubmit = (data: Provider) => {
     mutation.mutate(data)
@@ -84,23 +84,23 @@ function AddProviderDialog() {
 ### 乐观更新
 
 ```typescript
-export const useSwitchProviderMutation = (appType: AppType) => {
+export const useSwitchProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (providerId: string) => {
-      return await providersApi.switch(providerId, appType)
+      return await providersApi.switch(providerId, appId)
     },
     // 乐观更新: 在请求发送前立即更新 UI
     onMutate: async (providerId) => {
       // 取消正在进行的查询
-      await queryClient.cancelQueries({ queryKey: ['providers', appType] })
+      await queryClient.cancelQueries({ queryKey: ['providers', appId] })
 
       // 保存当前数据(以便回滚)
-      const previousData = queryClient.getQueryData(['providers', appType])
+      const previousData = queryClient.getQueryData(['providers', appId])
 
       // 乐观更新
-      queryClient.setQueryData(['providers', appType], (old: any) => ({
+      queryClient.setQueryData(['providers', appId], (old: any) => ({
         ...old,
         currentProviderId: providerId,
       }))
@@ -109,12 +109,12 @@ export const useSwitchProviderMutation = (appType: AppType) => {
     },
     // 如果失败，回滚
     onError: (err, providerId, context) => {
-      queryClient.setQueryData(['providers', appType], context?.previousData)
+      queryClient.setQueryData(['providers', appId], context?.previousData)
       toast.error('切换失败')
     },
     // 无论成功失败，都重新获取数据
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['providers', appType] })
+      queryClient.invalidateQueries({ queryKey: ['providers', appId] })
     },
   })
 }
@@ -124,7 +124,7 @@ export const useSwitchProviderMutation = (appType: AppType) => {
 
 ```typescript
 // 第二个查询依赖第一个查询的结果
-const { data: providers } = useProvidersQuery(appType)
+const { data: providers } = useProvidersQuery(appId)
 const currentProviderId = providers?.currentProviderId
 
 const { data: currentProvider } = useQuery({
@@ -432,13 +432,13 @@ useEffect(() => {
     }
   }
   load()
-}, [appType])
+}, [appId])
 ```
 
 **新代码** (React Query):
 
 ```typescript
-const { data, isLoading, error } = useProvidersQuery(appType)
+const { data, isLoading, error } = useProvidersQuery(appId)
 const providers = data?.providers || {}
 const currentProviderId = data?.currentProviderId || ''
 ```
@@ -688,7 +688,7 @@ const handleAdd = async (provider: Provider) => {
 
 ```typescript
 // 在组件中
-const addMutation = useAddProviderMutation(appType)
+const addMutation = useAddProviderMutation(appId)
 
 const handleAdd = (provider: Provider) => {
   addMutation.mutate(provider)
@@ -709,7 +709,7 @@ const handleAdd = (provider: Provider) => {
 ### Q: 如何在 mutation 成功后关闭对话框?
 
 ```typescript
-const mutation = useAddProviderMutation(appType)
+const mutation = useAddProviderMutation(appId)
 
 const handleSubmit = (data: Provider) => {
   mutation.mutate(data, {
@@ -741,13 +741,13 @@ const schema = z.object({
 const queryClient = useQueryClient()
 
 // 方式1: 使缓存失效，触发重新获取
-queryClient.invalidateQueries({ queryKey: ['providers', appType] })
+queryClient.invalidateQueries({ queryKey: ['providers', appId] })
 
 // 方式2: 直接刷新
-queryClient.refetchQueries({ queryKey: ['providers', appType] })
+queryClient.refetchQueries({ queryKey: ['providers', appId] })
 
 // 方式3: 更新缓存数据
-queryClient.setQueryData(['providers', appType], newData)
+queryClient.setQueryData(['providers', appId], newData)
 ```
 
 ### Q: 如何在组件外部使用 toast?
@@ -811,7 +811,7 @@ const sortedProviders = useMemo(
 
 ```typescript
 const { data } = useQuery({
-  queryKey: ['providers', appType],
+  queryKey: ['providers', appId],
   queryFn: fetchProviders,
   staleTime: 1000 * 60 * 5, // 5分钟内不重新获取
   gcTime: 1000 * 60 * 10, // 10分钟后清除缓存

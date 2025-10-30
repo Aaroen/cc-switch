@@ -6,7 +6,7 @@ import type {
   DraggableSyntheticListeners,
 } from "@dnd-kit/core";
 import type { Provider } from "@/types";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProviderActions } from "@/components/providers/ProviderActions";
@@ -21,7 +21,7 @@ interface DragHandleProps {
 interface ProviderCardProps {
   provider: Provider;
   isCurrent: boolean;
-  appType: AppType;
+  appId: AppId;
   isEditMode?: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
@@ -61,7 +61,7 @@ const extractApiUrl = (provider: Provider, fallbackText: string) => {
 export function ProviderCard({
   provider,
   isCurrent,
-  appType,
+  appId,
   isEditMode = false,
   onSwitch,
   onEdit,
@@ -179,11 +179,7 @@ export function ProviderCard({
         />
       </div>
 
-      <UsageFooter
-        providerId={provider.id}
-        appType={appType}
-        usageEnabled={usageEnabled}
-      />
+      <UsageFooter providerId={provider.id} appId={appId} usageEnabled={usageEnabled} />
     </div>
   );
 }

@@ -192,7 +192,7 @@ if (typeof window !== "undefined") {
 }
 
 // 问题 2: 无缓存机制
-getProviders: async (app?: AppType) => {
+getProviders: async (app?: AppId) => {
   try {
     return await invoke("get_providers", { app });
   } catch (error) {
@@ -794,7 +794,7 @@ export function ProviderList({ providers, currentProviderId, appType }) {
 ```typescript
 export function useDragSort(
   providers: Record<string, Provider>,
-  appType: AppType
+  appType: AppId
 ) {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
@@ -1133,36 +1133,35 @@ export const queryClient = new QueryClient({
 ```typescript
 import { invoke } from "@tauri-apps/api/core";
 import { Provider } from "@/types";
-
-export type AppType = "claude" | "codex";
+import type { AppId } from "@/lib/api";
 
 export const providersApi = {
-  getAll: async (appType: AppType): Promise<Record<string, Provider>> => {
-    return await invoke("get_providers", { app: appType });
+  getAll: async (appId: AppId): Promise<Record<string, Provider>> => {
+    return await invoke("get_providers", { app: appId });
   },
 
-  getCurrent: async (appType: AppType): Promise<string> => {
-    return await invoke("get_current_provider", { app: appType });
+  getCurrent: async (appId: AppId): Promise<string> => {
+    return await invoke("get_current_provider", { app: appId });
   },
 
-  add: async (provider: Provider, appType: AppType): Promise<boolean> => {
-    return await invoke("add_provider", { provider, app: appType });
+  add: async (provider: Provider, appId: AppId): Promise<boolean> => {
+    return await invoke("add_provider", { provider, app: appId });
   },
 
-  update: async (provider: Provider, appType: AppType): Promise<boolean> => {
-    return await invoke("update_provider", { provider, app: appType });
+  update: async (provider: Provider, appId: AppId): Promise<boolean> => {
+    return await invoke("update_provider", { provider, app: appId });
   },
 
-  delete: async (id: string, appType: AppType): Promise<boolean> => {
-    return await invoke("delete_provider", { id, app: appType });
+  delete: async (id: string, appId: AppId): Promise<boolean> => {
+    return await invoke("delete_provider", { id, app: appId });
   },
 
-  switch: async (id: string, appType: AppType): Promise<boolean> => {
-    return await invoke("switch_provider", { id, app: appType });
+  switch: async (id: string, appId: AppId): Promise<boolean> => {
+    return await invoke("switch_provider", { id, app: appId });
   },
 
-  importDefault: async (appType: AppType): Promise<boolean> => {
-    return await invoke("import_default_config", { app: appType });
+  importDefault: async (appId: AppId): Promise<boolean> => {
+    return await invoke("import_default_config", { app: appId });
   },
 
   updateTrayMenu: async (): Promise<boolean> => {
@@ -1171,9 +1170,9 @@ export const providersApi = {
 
   updateSortOrder: async (
     updates: Array<{ id: string; sortIndex: number }>,
-    appType: AppType
+    appId: AppId
   ): Promise<boolean> => {
-    return await invoke("update_providers_sort_order", { updates, app: appType });
+    return await invoke("update_providers_sort_order", { updates, app: appId });
   },
 };
 ```
@@ -1190,7 +1189,7 @@ export const providersApi = {
 
 ```typescript
 import { useQuery } from "@tanstack/react-query";
-import { providersApi, AppType } from "@/lib/api";
+import { providersApi, type AppId } from "@/lib/api";
 import { Provider } from "@/types";
 
 // 排序辅助函数
@@ -1213,7 +1212,7 @@ const sortProviders = (
   );
 };
 
-export const useProvidersQuery = (appType: AppType) => {
+export const useProvidersQuery = (appType: AppId) => {
   return useQuery({
     queryKey: ["providers", appType],
     queryFn: async () => {
@@ -1255,12 +1254,12 @@ export const useProvidersQuery = (appType: AppType) => {
 
 ```typescript
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { providersApi, AppType } from "@/lib/api";
+import { providersApi, type AppId } from "@/lib/api";
 import { Provider } from "@/types";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-export const useAddProviderMutation = (appType: AppType) => {
+export const useAddProviderMutation = (appType: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
@@ -1285,7 +1284,7 @@ export const useAddProviderMutation = (appType: AppType) => {
   });
 };
 
-export const useSwitchProviderMutation = (appType: AppType) => {
+export const useSwitchProviderMutation = (appType: AppId) => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 

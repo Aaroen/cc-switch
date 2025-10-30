@@ -5,7 +5,7 @@ import type {
   McpServerSpec,
   McpStatus,
 } from "@/types";
-import type { AppType } from "./types";
+import type { AppId } from "./types";
 
 export const mcpApi = {
   async getStatus(): Promise<McpStatus> {
@@ -31,7 +31,7 @@ export const mcpApi = {
     return await invoke("validate_mcp_command", { cmd });
   },
 
-  async getConfig(app: AppType = "claude"): Promise<McpConfigResponse> {
+  async getConfig(app: AppId = "claude"): Promise<McpConfigResponse> {
     return await invoke("get_mcp_config", { app });
   },
 
@@ -44,7 +44,7 @@ export const mcpApi = {
   },
 
   async upsertServerInConfig(
-    app: AppType,
+    app: AppId,
     id: string,
     spec: McpServer,
     options?: { syncOtherSide?: boolean },
@@ -61,7 +61,7 @@ export const mcpApi = {
   },
 
   async deleteServerInConfig(
-    app: AppType,
+    app: AppId,
     id: string,
     options?: { syncOtherSide?: boolean },
   ): Promise<boolean> {
@@ -76,7 +76,7 @@ export const mcpApi = {
   },
 
   async setEnabled(
-    app: AppType,
+    app: AppId,
     id: string,
     enabled: boolean,
   ): Promise<boolean> {

@@ -7,7 +7,7 @@ import { useProvidersQuery } from "@/lib/query";
 import {
   providersApi,
   settingsApi,
-  type AppType,
+  type AppId,
   type ProviderSwitchEvent,
 } from "@/lib/api";
 import { useProviderActions } from "@/hooks/useProviderActions";
@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 function App() {
   const { t } = useTranslation();
 
-  const [activeApp, setActiveApp] = useState<AppType>("claude");
+  const [activeApp, setActiveApp] = useState<AppId>("claude");
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -222,7 +222,7 @@ function App() {
           <ProviderList
             providers={providers}
             currentProviderId={currentProviderId}
-            appType={activeApp}
+            appId={activeApp}
             isLoading={isLoading}
             isEditMode={isEditMode}
             onSwitch={switchProvider}
@@ -239,7 +239,7 @@ function App() {
       <AddProviderDialog
         open={isAddOpen}
         onOpenChange={setIsAddOpen}
-        appType={activeApp}
+        appId={activeApp}
         onSubmit={addProvider}
       />
 
@@ -252,13 +252,13 @@ function App() {
           }
         }}
         onSubmit={handleEditProvider}
-        appType={activeApp}
+        appId={activeApp}
       />
 
       {usageProvider && (
         <UsageScriptModal
           provider={usageProvider}
-          appType={activeApp}
+          appId={activeApp}
           isOpen={Boolean(usageProvider)}
           onClose={() => setUsageProvider(null)}
           onSave={(script) => {
@@ -290,7 +290,7 @@ function App() {
       <McpPanel
         open={isMcpOpen}
         onOpenChange={setIsMcpOpen}
-        appType={activeApp}
+        appId={activeApp}
       />
     </div>
   );

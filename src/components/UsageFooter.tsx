@@ -1,27 +1,23 @@
 import React from "react";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { type AppType } from "@/lib/api";
+import { type AppId } from "@/lib/api";
 import { useUsageQuery } from "@/lib/query/queries";
 import { UsageData } from "../types";
 
 interface UsageFooterProps {
   providerId: string;
-  appType: AppType;
+  appId: AppId;
   usageEnabled: boolean; // 是否启用了用量查询
 }
 
-const UsageFooter: React.FC<UsageFooterProps> = ({
-  providerId,
-  appType,
-  usageEnabled,
-}) => {
+const UsageFooter: React.FC<UsageFooterProps> = ({ providerId, appId, usageEnabled }) => {
   const { t } = useTranslation();
   const {
     data: usage,
     isLoading: loading,
     refetch,
-  } = useUsageQuery(providerId, appType, usageEnabled);
+  } = useUsageQuery(providerId, appId, usageEnabled);
 
   // 只在启用用量查询且有数据时显示
   if (!usageEnabled || !usage) return null;

@@ -3,7 +3,7 @@ import { FolderSearch, Undo2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
-import type { AppType } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { ResolvedDirectories } from "@/hooks/useSettings";
 
 interface DirectorySettingsProps {
@@ -14,9 +14,9 @@ interface DirectorySettingsProps {
   onResetAppConfig: () => Promise<void>;
   claudeDir?: string;
   codexDir?: string;
-  onDirectoryChange: (app: AppType, value?: string) => void;
-  onBrowseDirectory: (app: AppType) => Promise<void>;
-  onResetDirectory: (app: AppType) => Promise<void>;
+  onDirectoryChange: (app: AppId, value?: string) => void;
+  onBrowseDirectory: (app: AppId) => Promise<void>;
+  onResetDirectory: (app: AppId) => Promise<void>;
 }
 
 export function DirectorySettings({

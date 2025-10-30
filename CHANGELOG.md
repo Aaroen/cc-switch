@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.5.0] - 2025-01-15
 
+### ⚠ Breaking Changes
+
+- Tauri 命令仅接受参数 `app`（取值：`claude`/`codex`）；移除对 `app_type`/`appType` 的兼容。
+- 前端类型命名统一为 `AppId`（移除 `AppType` 导出），变量命名统一为 `appId`。
+
 ### ✨ New Features
 
 - **MCP (Model Context Protocol) Management** - Complete MCP server configuration management system

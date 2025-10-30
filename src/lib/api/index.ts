@@ -1,4 +1,4 @@
-export type { AppType, AppId } from "./types";
+export type { AppId } from "./types";
 export { providersApi } from "./providers";
 export { settingsApi } from "./settings";
 export { mcpApi } from "./mcp";

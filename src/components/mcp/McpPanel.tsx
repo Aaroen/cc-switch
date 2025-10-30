@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type AppType } from "@/lib/api";
+import { type AppId } from "@/lib/api";
 import { McpServer } from "@/types";
 import { useMcpActions } from "@/hooks/useMcpActions";
 import McpListItem from "./McpListItem";
@@ -19,14 +19,14 @@ import { ConfirmDialog } from "../ConfirmDialog";
 interface McpPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  appType: AppType;
+  appId: AppId;
 }
 
 /**
  * MCP 管理面板
  * 采用与主界面一致的设计风格，右上角添加按钮，每个 MCP 占一行
  */
-const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
+const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appId }) => {
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -38,17 +38,16 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
   } | null>(null);
 
   // Use MCP actions hook
-  const { servers, loading, reload, toggleEnabled, saveServer, deleteServer } =
-    useMcpActions(appType);
+  const { servers, loading, reload, toggleEnabled, saveServer, deleteServer } = useMcpActions(appId);
 
   useEffect(() => {
     const setup = async () => {
       try {
         // Initialize: only import existing MCPs from corresponding client
-        if (appType === "claude") {
+        if (appId === "claude") {
           const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
           await mcpApi.importFromClaude();
-        } else if (appType === "codex") {
+        } else if (appId === "codex") {
           const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
           await mcpApi.importFromCodex();
         }
@@ -59,8 +58,8 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
       }
     };
     setup();
-    // Re-initialize when appType changes
-  }, [appType, reload]);
+    // Re-initialize when appId changes
+  }, [appId, reload]);
 
   const handleEdit = (id: string) => {
     setEditingId(id);
@@ -113,8 +112,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
     [serverEntries],
   );
 
-  const panelTitle =
-    appType === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
+  const panelTitle = appId === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
 
   return (
     <>
@@ -203,7 +201,7 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appType }) => {
       {/* Form Modal */}
       {isFormOpen && (
         <McpFormModal
-          appType={appType}
+          appId={appId}
           editingId={editingId || undefined}
           initialData={editingId ? servers[editingId] : undefined}
           existingIds={Object.keys(servers)}
