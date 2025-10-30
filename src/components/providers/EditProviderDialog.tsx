@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Save } from "lucide-react";
 import {
@@ -15,7 +15,7 @@ import {
   ProviderForm,
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
-import type { AppId } from "@/lib/api";
+import { providersApi, vscodeApi, type AppId } from "@/lib/api";
 
 interface EditProviderDialogProps {
   open: boolean;
@@ -33,6 +33,45 @@ export function EditProviderDialog({
   appId,
 }: EditProviderDialogProps) {
   const { t } = useTranslation();
+
+  // 默认使用传入的 provider.settingsConfig，若当前编辑对象是“当前生效供应商”，则尝试读取实时配置替换初始值
+  const [liveSettings, setLiveSettings] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!open || !provider) {
+        setLiveSettings(null);
+        return;
+      }
+      try {
+        const currentId = await providersApi.getCurrent(appId);
+        if (currentId && provider.id === currentId) {
+          try {
+            const live = (await vscodeApi.getLiveProviderSettings(appId)) as Record<string, unknown>;
+            if (!cancelled && live && typeof live === "object") {
+              setLiveSettings(live);
+            }
+          } catch {
+            // 读取实时配置失败则回退到 SSOT（不打断编辑流程）
+            if (!cancelled) setLiveSettings(null);
+          }
+        } else {
+          if (!cancelled) setLiveSettings(null);
+        }
+      } finally {
+        // no-op
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, provider, appId]);
+
+  const initialSettingsConfig = useMemo(() => {
+    return (liveSettings ?? provider?.settingsConfig ?? {}) as Record<string, unknown>;
+  }, [liveSettings, provider]);
 
   const handleSubmit = useCallback(
     async (values: ProviderFormValues) => {
@@ -82,7 +121,8 @@ export function EditProviderDialog({
             initialData={{
               name: provider.name,
               websiteUrl: provider.websiteUrl,
-              settingsConfig: provider.settingsConfig,
+              // 若读取到实时配置则优先使用
+              settingsConfig: initialSettingsConfig,
               category: provider.category,
               meta: provider.meta,
             }}
