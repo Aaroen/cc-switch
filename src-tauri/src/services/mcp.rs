@@ -39,18 +39,41 @@ impl McpService {
             let mut cfg = state.config.write()?;
             let changed = mcp::upsert_in_config_for(&mut cfg, &app, id, spec)?;
 
+            // 修复：默认启用（unwrap_or(true)）
+            // 新增的 MCP 如果缺少 enabled 字段，应该默认为启用状态
             let enabled = cfg
                 .mcp_for(&app)
                 .servers
                 .get(id)
                 .and_then(|entry| entry.get("enabled"))
                 .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+                .unwrap_or(true);
 
             let mut sync_claude = matches!(app, AppType::Claude) && enabled;
             let mut sync_codex = matches!(app, AppType::Codex) && enabled;
 
+            // 修复：sync_other_side=true 时，先将 MCP 复制到另一侧，然后强制同步
+            // 这才是"同步到另一侧"的正确语义：将 MCP 跨应用复制
             if sync_other_side {
+                // 获取当前 MCP 条目的克隆（刚刚插入的，不可能失败）
+                let current_entry = cfg
+                    .mcp_for(&app)
+                    .servers
+                    .get(id)
+                    .cloned()
+                    .expect("刚刚插入的 MCP 条目必定存在");
+
+                // 将该 MCP 复制到另一侧的 servers
+                let other_app = match app {
+                    AppType::Claude => AppType::Codex,
+                    AppType::Codex => AppType::Claude,
+                };
+
+                cfg.mcp_for_mut(&other_app)
+                    .servers
+                    .insert(id.to_string(), current_entry);
+
+                // 强制同步另一侧
                 match app {
                     AppType::Claude => sync_codex = true,
                     AppType::Codex => sync_claude = true,

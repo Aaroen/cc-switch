@@ -365,10 +365,13 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         server: serverSpec,
       };
 
+      // 修复：新增 MCP 时默认启用（enabled=true）
+      // 编辑模式下保留原有的 enabled 状态
       if (initialData?.enabled !== undefined) {
         entry.enabled = initialData.enabled;
-      } else if (!initialData) {
-        delete entry.enabled;
+      } else {
+        // 新增模式：默认启用
+        entry.enabled = true;
       }
 
       const nameTrimmed = (formName || trimmedId).trim();
