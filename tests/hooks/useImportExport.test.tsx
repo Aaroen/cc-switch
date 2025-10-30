@@ -4,11 +4,13 @@ import { useImportExport } from "@/hooks/useImportExport";
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const toastWarningMock = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccessMock(...args),
     error: (...args: unknown[]) => toastErrorMock(...args),
+    warning: (...args: unknown[]) => toastWarningMock(...args),
   },
 }));
 
@@ -16,6 +18,7 @@ const openFileDialogMock = vi.fn();
 const importConfigMock = vi.fn();
 const saveFileDialogMock = vi.fn();
 const exportConfigMock = vi.fn();
+const syncCurrentProvidersLiveMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   settingsApi: {
@@ -23,6 +26,7 @@ vi.mock("@/lib/api", () => ({
     importConfigFromFile: (...args: unknown[]) => importConfigMock(...args),
     saveFileDialog: (...args: unknown[]) => saveFileDialogMock(...args),
     exportConfigToFile: (...args: unknown[]) => exportConfigMock(...args),
+    syncCurrentProvidersLive: (...args: unknown[]) => syncCurrentProvidersLiveMock(...args),
   },
 }));
 
@@ -33,6 +37,8 @@ beforeEach(() => {
   exportConfigMock.mockReset();
   toastSuccessMock.mockReset();
   toastErrorMock.mockReset();
+  toastWarningMock.mockReset();
+  syncCurrentProvidersLiveMock.mockReset();
   vi.useFakeTimers();
 });
 
