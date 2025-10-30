@@ -38,7 +38,8 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appId }) => {
   } | null>(null);
 
   // Use MCP actions hook
-  const { servers, loading, reload, toggleEnabled, saveServer, deleteServer } = useMcpActions(appId);
+  const { servers, loading, reload, toggleEnabled, saveServer, deleteServer } =
+    useMcpActions(appId);
 
   useEffect(() => {
     const setup = async () => {
@@ -112,7 +113,8 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appId }) => {
     [serverEntries],
   );
 
-  const panelTitle = appId === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
+  const panelTitle =
+    appId === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
 
   return (
     <>

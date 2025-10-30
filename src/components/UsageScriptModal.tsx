@@ -82,7 +82,13 @@ const PRESET_TEMPLATES: Record<string, string> = {
 })`,
 };
 
-const UsageScriptModal: React.FC<UsageScriptModalProps> = ({ provider, appId, isOpen, onClose, onSave }) => {
+const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
+  provider,
+  appId,
+  isOpen,
+  onClose,
+  onSave,
+}) => {
   const { t } = useTranslation();
   const [script, setScript] = useState<UsageScript>(() => {
     return (

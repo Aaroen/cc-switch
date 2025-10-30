@@ -11,7 +11,11 @@ interface UsageFooterProps {
   usageEnabled: boolean; // 是否启用了用量查询
 }
 
-const UsageFooter: React.FC<UsageFooterProps> = ({ providerId, appId, usageEnabled }) => {
+const UsageFooter: React.FC<UsageFooterProps> = ({
+  providerId,
+  appId,
+  usageEnabled,
+}) => {
   const { t } = useTranslation();
   const {
     data: usage,

@@ -85,9 +85,7 @@ export function AddProviderDialog({
             }
           } else if (appId === "codex") {
             const presets = codexProviderPresets;
-            const presetIndex = parseInt(
-              values.presetId.replace("codex-", ""),
-            );
+            const presetIndex = parseInt(values.presetId.replace("codex-", ""));
             if (
               !isNaN(presetIndex) &&
               presetIndex >= 0 &&
@@ -109,8 +107,9 @@ export function AddProviderDialog({
         } else if (appId === "codex") {
           const config = parsedConfig.config as string | undefined;
           if (config) {
-            const baseUrlMatch =
-              config.match(/base_url\s*=\s*["']([^"']+)["']/);
+            const baseUrlMatch = config.match(
+              /base_url\s*=\s*["']([^"']+)["']/,
+            );
             if (baseUrlMatch?.[1]) {
               addUrl(baseUrlMatch[1]);
             }

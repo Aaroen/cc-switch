@@ -53,7 +53,12 @@ export function useApiKeyLink({
   }, [selectedPresetId, presetEntries, formWebsiteUrl]);
 
   return {
-    shouldShowApiKeyLink: appId === "claude" ? shouldShowApiKeyLink : appId === "codex" ? shouldShowApiKeyLink : false,
+    shouldShowApiKeyLink:
+      appId === "claude"
+        ? shouldShowApiKeyLink
+        : appId === "codex"
+          ? shouldShowApiKeyLink
+          : false,
     websiteUrl: getWebsiteUrl,
   };
 }

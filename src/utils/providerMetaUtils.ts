@@ -8,10 +8,7 @@ import type { CustomEndpoint, ProviderMeta } from "@/types";
  */
 export function mergeProviderMeta(
   initialMeta: ProviderMeta | undefined,
-  customEndpoints:
-    | Record<string, CustomEndpoint>
-    | null
-    | undefined,
+  customEndpoints: Record<string, CustomEndpoint> | null | undefined,
 ): ProviderMeta | undefined {
   const hasCustomEndpoints =
     !!customEndpoints && Object.keys(customEndpoints).length > 0;

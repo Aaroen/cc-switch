@@ -13,10 +13,7 @@ import { useTranslation } from "react-i18next";
 import type { Provider } from "@/types";
 import { providersApi, type AppId } from "@/lib/api";
 
-export function useDragSort(
-  providers: Record<string, Provider>,
-  appId: AppId,
-) {
+export function useDragSort(providers: Record<string, Provider>, appId: AppId) {
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
 

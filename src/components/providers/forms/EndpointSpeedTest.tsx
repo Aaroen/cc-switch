@@ -313,15 +313,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       setAddError(message || t("endpointTest.saveFailed"));
       console.error(t("endpointTest.addEndpointFailed"), error);
     }
-  }, [
-    customUrl,
-    entries,
-    normalizedSelected,
-    onChange,
-    appId,
-    providerId,
-    t,
-  ]);
+  }, [customUrl, entries, normalizedSelected, onChange, appId, providerId, t]);
 
   const handleRemoveEndpoint = useCallback(
     async (entry: EndpointEntry) => {

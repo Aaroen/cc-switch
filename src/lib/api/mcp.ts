@@ -75,11 +75,7 @@ export const mcpApi = {
     return await invoke("delete_mcp_server_in_config", payload);
   },
 
-  async setEnabled(
-    app: AppId,
-    id: string,
-    enabled: boolean,
-  ): Promise<boolean> {
+  async setEnabled(app: AppId, id: string, enabled: boolean): Promise<boolean> {
     return await invoke("set_mcp_enabled", { app, id, enabled });
   },
 

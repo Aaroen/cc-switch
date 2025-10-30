@@ -179,7 +179,11 @@ export function ProviderCard({
         />
       </div>
 
-      <UsageFooter providerId={provider.id} appId={appId} usageEnabled={usageEnabled} />
+      <UsageFooter
+        providerId={provider.id}
+        appId={appId}
+        usageEnabled={usageEnabled}
+      />
     </div>
   );
 }

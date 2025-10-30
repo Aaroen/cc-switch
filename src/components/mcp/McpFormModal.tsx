@@ -110,7 +110,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
   // 判断是否使用 TOML 格式
   const useToml = appId === "codex";
-  const syncTargetLabel = appId === "claude" ? t("apps.codex") : t("apps.claude");
+  const syncTargetLabel =
+    appId === "claude" ? t("apps.codex") : t("apps.claude");
   const otherAppType: AppId = appId === "claude" ? "codex" : "claude";
   const syncCheckboxId = useMemo(() => `sync-other-side-${appId}`, [appId]);
 
