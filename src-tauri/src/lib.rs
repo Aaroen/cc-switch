@@ -267,12 +267,7 @@ fn switch_provider_internal(
         let app_type_str = app_type.as_str().to_string();
         let provider_id_clone = provider_id.clone();
 
-        crate::commands::switch_provider(
-            app_state.clone(),
-            Some(app_type),
-            Some(app_type_str.clone()),
-            provider_id,
-        )
+        crate::commands::switch_provider(app_state.clone(), app_type_str.clone(), provider_id)
         .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单

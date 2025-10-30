@@ -6,7 +6,7 @@ export const usageApi = {
   async query(providerId: string, appType: AppType): Promise<UsageResult> {
     return await invoke("query_provider_usage", {
       provider_id: providerId,
-      app_type: appType,
+      app: appType,
     });
   },
 };

@@ -11,32 +11,11 @@ fn missing_param(param: &str) -> String {
     format!("缺少 {} 参数 (Missing {} parameter)", param, param)
 }
 
-fn resolve_app_type(app_type: Option<AppType>, app: Option<String>) -> Result<AppType, String> {
-    match (app_type, app) {
-        (Some(at), None) => Ok(at),
-        (None, Some(a)) => match a.to_lowercase().as_str() {
-            "claude" => Ok(AppType::Claude),
-            "codex" => Ok(AppType::Codex),
-            other => Err(format!(
-                "params.invalid: 无效的 app 值: {} (Invalid app)",
-                other
-            )),
-        },
-        (Some(at), Some(a)) => {
-            let a_norm = a.to_lowercase();
-            let at_norm = at.as_str().to_string();
-            if a_norm == at_norm {
-                // 接受但提示：建议仅传 app
-                log::warn!("params.deprecated: 同时传递 app 与 app_type，建议仅使用 app");
-                Ok(at)
-            } else {
-                Err(format!(
-                    "params.conflict: app 与 app_type 冲突 (app={}, app_type={})",
-                    a_norm, at_norm
-                ))
-            }
-        }
-        (None, None) => Err(missing_param("app")),
+fn parse_app(app: String) -> Result<AppType, String> {
+    match app.to_lowercase().as_str() {
+        "claude" => Ok(AppType::Claude),
+        "codex" => Ok(AppType::Codex),
+        other => Err(format!("unsupported app: {}", other)),
     }
 }
 
@@ -44,10 +23,9 @@ fn resolve_app_type(app_type: Option<AppType>, app: Option<String>) -> Result<Ap
 #[tauri::command]
 pub fn get_providers(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
 ) -> Result<HashMap<String, Provider>, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::list(state.inner(), app_type).map_err(|e| e.to_string())
 }
 
@@ -55,10 +33,9 @@ pub fn get_providers(
 #[tauri::command]
 pub fn get_current_provider(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
 ) -> Result<String, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::current(state.inner(), app_type).map_err(|e| e.to_string())
 }
 
@@ -66,11 +43,10 @@ pub fn get_current_provider(
 #[tauri::command]
 pub fn add_provider(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider: Provider,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::add(state.inner(), app_type, provider).map_err(|e| e.to_string())
 }
 
@@ -78,11 +54,10 @@ pub fn add_provider(
 #[tauri::command]
 pub fn update_provider(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider: Provider,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::update(state.inner(), app_type, provider).map_err(|e| e.to_string())
 }
 
@@ -90,11 +65,10 @@ pub fn update_provider(
 #[tauri::command]
 pub fn delete_provider(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::delete(state.inner(), app_type, &id)
         .map(|_| true)
         .map_err(|e| e.to_string())
@@ -117,11 +91,10 @@ pub fn switch_provider_test_hook(
 #[tauri::command]
 pub fn switch_provider(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     switch_provider_internal(&state, app_type, &id)
         .map(|_| true)
         .map_err(|e| e.to_string())
@@ -143,10 +116,9 @@ pub fn import_default_config_test_hook(
 #[tauri::command]
 pub fn import_default_config(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     import_default_config_internal(&state, app_type)
         .map(|_| true)
         .map_err(Into::into)
@@ -157,11 +129,10 @@ pub fn import_default_config(
 pub async fn query_provider_usage(
     state: State<'_, AppState>,
     provider_id: Option<String>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
 ) -> Result<crate::provider::UsageResult, String> {
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::query_usage(state.inner(), app_type, &provider_id)
         .await
         .map_err(|e| e.to_string())
@@ -169,9 +140,8 @@ pub async fn query_provider_usage(
 
 /// 读取当前生效的配置内容
 #[tauri::command]
-pub fn read_live_provider_settings(app_type: Option<AppType>) -> Result<serde_json::Value, String> {
-    let app_type = app_type.unwrap_or(AppType::Claude);
-
+pub fn read_live_provider_settings(app: String) -> Result<serde_json::Value, String> {
+    let app_type = parse_app(app)?;
     ProviderService::read_live_settings(app_type).map_err(|e| e.to_string())
 }
 
@@ -190,11 +160,10 @@ pub async fn test_api_endpoints(
 #[tauri::command]
 pub fn get_custom_endpoints(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider_id: Option<String>,
 ) -> Result<Vec<crate::settings::CustomEndpoint>, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::get_custom_endpoints(state.inner(), app_type, &provider_id)
         .map_err(|e| e.to_string())
@@ -204,12 +173,11 @@ pub fn get_custom_endpoints(
 #[tauri::command]
 pub fn add_custom_endpoint(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::add_custom_endpoint(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -219,12 +187,11 @@ pub fn add_custom_endpoint(
 #[tauri::command]
 pub fn remove_custom_endpoint(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::remove_custom_endpoint(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -234,12 +201,11 @@ pub fn remove_custom_endpoint(
 #[tauri::command]
 pub fn update_endpoint_last_used(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::update_endpoint_last_used(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -249,10 +215,9 @@ pub fn update_endpoint_last_used(
 #[tauri::command]
 pub fn update_providers_sort_order(
     state: State<'_, AppState>,
-    app_type: Option<AppType>,
-    app: Option<String>,
+    app: String,
     updates: Vec<ProviderSortUpdate>,
 ) -> Result<bool, String> {
-    let app_type = resolve_app_type(app_type, app)?;
+    let app_type = parse_app(app)?;
     ProviderService::update_sort_order(state.inner(), app_type, updates).map_err(|e| e.to_string())
 }

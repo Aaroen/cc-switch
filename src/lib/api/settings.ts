@@ -31,11 +31,11 @@ export const settingsApi = {
   },
 
   async getConfigDir(appType: AppType): Promise<string> {
-    return await invoke("get_config_dir", { app_type: appType });
+    return await invoke("get_config_dir", { app: appType });
   },
 
   async openConfigFolder(appType: AppType): Promise<void> {
-    await invoke("open_config_folder", { app_type: appType });
+    await invoke("open_config_folder", { app: appType });
   },
 
   async selectConfigDirectory(defaultPath?: string): Promise<string | null> {

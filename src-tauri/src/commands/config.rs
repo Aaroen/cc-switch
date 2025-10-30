@@ -15,18 +15,17 @@ pub async fn get_claude_config_status() -> Result<ConfigStatus, String> {
 }
 
 /// 获取应用配置状态
-#[tauri::command]
-pub async fn get_config_status(
-    app_type: Option<AppType>,
-    app: Option<String>,
-    appType: Option<String>,
-) -> Result<ConfigStatus, String> {
-    let app = app_type
-        .or_else(|| app.as_deref().map(|s| s.into()))
-        .or_else(|| appType.as_deref().map(|s| s.into()))
-        .unwrap_or(AppType::Claude);
+fn parse_app(app: String) -> Result<AppType, String> {
+    match app.to_lowercase().as_str() {
+        "claude" => Ok(AppType::Claude),
+        "codex" => Ok(AppType::Codex),
+        other => Err(format!("unsupported app: {}", other)),
+    }
+}
 
-    match app {
+#[tauri::command]
+pub async fn get_config_status(app: String) -> Result<ConfigStatus, String> {
+    match parse_app(app)? {
         AppType::Claude => Ok(config::get_claude_config_status()),
         AppType::Codex => {
             let auth_path = codex_config::get_codex_auth_path();
@@ -48,17 +47,8 @@ pub async fn get_claude_code_config_path() -> Result<String, String> {
 
 /// 获取当前生效的配置目录
 #[tauri::command]
-pub async fn get_config_dir(
-    app_type: Option<AppType>,
-    app: Option<String>,
-    appType: Option<String>,
-) -> Result<String, String> {
-    let app = app_type
-        .or_else(|| app.as_deref().map(|s| s.into()))
-        .or_else(|| appType.as_deref().map(|s| s.into()))
-        .unwrap_or(AppType::Claude);
-
-    let dir = match app {
+pub async fn get_config_dir(app: String) -> Result<String, String> {
+    let dir = match parse_app(app)? {
         AppType::Claude => config::get_claude_config_dir(),
         AppType::Codex => codex_config::get_codex_config_dir(),
     };
@@ -68,18 +58,8 @@ pub async fn get_config_dir(
 
 /// 打开配置文件夹
 #[tauri::command]
-pub async fn open_config_folder(
-    handle: AppHandle,
-    app_type: Option<AppType>,
-    app: Option<String>,
-    appType: Option<String>,
-) -> Result<bool, String> {
-    let app_type = app_type
-        .or_else(|| app.as_deref().map(|s| s.into()))
-        .or_else(|| appType.as_deref().map(|s| s.into()))
-        .unwrap_or(AppType::Claude);
-
-    let config_dir = match app_type {
+pub async fn open_config_folder(handle: AppHandle, app: String) -> Result<bool, String> {
+    let config_dir = match parse_app(app)? {
         AppType::Claude => config::get_claude_config_dir(),
         AppType::Codex => codex_config::get_codex_config_dir(),
     };

@@ -47,15 +47,23 @@ pub struct McpConfigResponse {
 }
 
 /// 获取 MCP 配置（来自 ~/.cc-switch/config.json）
+fn parse_app(app: String) -> Result<AppType, String> {
+    match app.to_lowercase().as_str() {
+        "claude" => Ok(AppType::Claude),
+        "codex" => Ok(AppType::Codex),
+        other => Err(format!("unsupported app: {}", other)),
+    }
+}
+
 #[tauri::command]
 pub async fn get_mcp_config(
     state: State<'_, AppState>,
-    app: Option<String>,
+    app: String,
 ) -> Result<McpConfigResponse, String> {
     let config_path = crate::config::get_app_config_path()
         .to_string_lossy()
         .to_string();
-    let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
+    let app_ty = parse_app(app)?;
     let servers = McpService::get_servers(&state, app_ty).map_err(|e| e.to_string())?;
     Ok(McpConfigResponse {
         config_path,
@@ -67,12 +75,12 @@ pub async fn get_mcp_config(
 #[tauri::command]
 pub async fn upsert_mcp_server_in_config(
     state: State<'_, AppState>,
-    app: Option<String>,
+    app: String,
     id: String,
     spec: serde_json::Value,
     sync_other_side: Option<bool>,
 ) -> Result<bool, String> {
-    let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
+    let app_ty = parse_app(app)?;
     McpService::upsert_server(&state, app_ty, &id, spec, sync_other_side.unwrap_or(false))
         .map_err(|e| e.to_string())
 }
@@ -81,10 +89,10 @@ pub async fn upsert_mcp_server_in_config(
 #[tauri::command]
 pub async fn delete_mcp_server_in_config(
     state: State<'_, AppState>,
-    app: Option<String>,
+    app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
+    let app_ty = parse_app(app)?;
     McpService::delete_server(&state, app_ty, &id).map_err(|e| e.to_string())
 }
 
@@ -92,11 +100,11 @@ pub async fn delete_mcp_server_in_config(
 #[tauri::command]
 pub async fn set_mcp_enabled(
     state: State<'_, AppState>,
-    app: Option<String>,
+    app: String,
     id: String,
     enabled: bool,
 ) -> Result<bool, String> {
-    let app_ty = AppType::from(app.as_deref().unwrap_or("claude"));
+    let app_ty = parse_app(app)?;
     McpService::set_enabled(&state, app_ty, &id, enabled).map_err(|e| e.to_string())
 }
 

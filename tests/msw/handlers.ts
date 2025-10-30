@@ -37,81 +37,59 @@ const success = <T>(payload: T) => HttpResponse.json(payload as any);
 
 export const handlers = [
   http.post(`${TAURI_ENDPOINT}/get_providers`, async ({ request }) => {
-    const { app_type, app } = await withJson<{ app_type?: AppType; app?: AppType }>(
-      request,
-    );
-    const appType = app ?? app_type!;
-    return success(getProviders(appType));
+    const { app } = await withJson<{ app: AppType }>(request);
+    return success(getProviders(app));
   }),
 
   http.post(`${TAURI_ENDPOINT}/get_current_provider`, async ({ request }) => {
-    const { app_type, app } = await withJson<{ app_type?: AppType; app?: AppType }>(
-      request,
-    );
-    const appType = app ?? app_type!;
-    return success(getCurrentProviderId(appType));
+    const { app } = await withJson<{ app: AppType }>(request);
+    return success(getCurrentProviderId(app));
   }),
 
   http.post(`${TAURI_ENDPOINT}/update_providers_sort_order`, async ({ request }) => {
-    const { updates = [], app_type, app } = await withJson<{
+    const { updates = [], app } = await withJson<{
       updates: { id: string; sortIndex: number }[];
-      app_type?: AppType;
-      app?: AppType;
+      app: AppType;
     }>(request);
-    const appType = app ?? app_type!;
-    updateSortOrder(appType, updates);
+    updateSortOrder(app, updates);
     return success(true);
   }),
 
   http.post(`${TAURI_ENDPOINT}/update_tray_menu`, () => success(true)),
 
   http.post(`${TAURI_ENDPOINT}/switch_provider`, async ({ request }) => {
-    const { id, app_type, app } = await withJson<{
-      id: string;
-      app_type?: AppType;
-      app?: AppType;
-    }>(request);
-    const appType = app ?? app_type!;
-    const providers = listProviders(appType);
+    const { id, app } = await withJson<{ id: string; app: AppType }>(request);
+    const providers = listProviders(app);
     if (!providers[id]) {
       return HttpResponse.json(false, { status: 404 });
     }
-    setCurrentProviderId(appType, id);
+    setCurrentProviderId(app, id);
     return success(true);
   }),
 
   http.post(`${TAURI_ENDPOINT}/add_provider`, async ({ request }) => {
-    const { provider, app_type, app } = await withJson<{
+    const { provider, app } = await withJson<{
       provider: Provider & { id?: string };
-      app_type?: AppType;
-      app?: AppType;
+      app: AppType;
     }>(request);
 
     const newId = provider.id ?? `mock-${Date.now()}`;
-    const appType = app ?? app_type!;
-    addProvider(appType, { ...provider, id: newId });
+    addProvider(app, { ...provider, id: newId });
     return success(true);
   }),
 
   http.post(`${TAURI_ENDPOINT}/update_provider`, async ({ request }) => {
-    const { provider, app_type, app } = await withJson<{
+    const { provider, app } = await withJson<{
       provider: Provider;
-      app_type?: AppType;
-      app?: AppType;
+      app: AppType;
     }>(request);
-    const appType = app ?? app_type!;
-    updateProvider(appType, provider);
+    updateProvider(app, provider);
     return success(true);
   }),
 
   http.post(`${TAURI_ENDPOINT}/delete_provider`, async ({ request }) => {
-    const { id, app_type, app } = await withJson<{
-      id: string;
-      app_type?: AppType;
-      app?: AppType;
-    }>(request);
-    const appType = app ?? app_type!;
-    deleteProvider(appType, id);
+    const { id, app } = await withJson<{ id: string; app: AppType }>(request);
+    deleteProvider(app, id);
     return success(true);
   }),
 
@@ -184,8 +162,8 @@ export const handlers = [
   }),
 
   http.post(`${TAURI_ENDPOINT}/get_config_dir`, async ({ request }) => {
-    const { app_type } = await withJson<{ app_type: AppType }>(request);
-    return success(app_type === "claude" ? "/default/claude" : "/default/codex");
+    const { app } = await withJson<{ app: AppType }>(request);
+    return success(app === "claude" ? "/default/claude" : "/default/codex");
   }),
 
   http.post(`${TAURI_ENDPOINT}/is_portable_mode`, () => success(false)),
