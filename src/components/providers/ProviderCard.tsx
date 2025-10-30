@@ -94,9 +94,9 @@ export function ProviderCard({
     <div
       className={cn(
         "rounded-lg bg-card p-4 shadow-sm",
-        "transition-[border-color,background-color,box-shadow] duration-200",
+        "transition-[border-color,background-color,box-shadow,ring] duration-200",
         isCurrent
-          ? "border-active border-border-active bg-primary/5"
+          ? "border border-border-default bg-primary/5 ring-2 ring-blue-500/30 dark:ring-blue-400/30"
           : "border border-border-default hover:border-border-hover",
         dragHandleProps?.isDragging &&
           "cursor-grabbing border-active border-border-dragging shadow-lg",
