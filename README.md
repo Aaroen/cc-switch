@@ -204,7 +204,10 @@ cargo test
 │   └── utils/           # 工具函数
 ├── src-tauri/            # 后端代码 (Rust)
 │   ├── src/             # Rust 源代码
-│   │   ├── commands.rs  # Tauri 命令定义
+│   │   ├── commands/    # Tauri 命令定义（按域拆分）
+│   │   ├── services/    # 领域服务（Provider/MCP/Speedtest 等）
+│   │   ├── mcp.rs       # MCP 同步与规范化
+│   │   ├── migration.rs # 配置迁移逻辑
 │   │   ├── config.rs    # 配置文件管理
 │   │   ├── provider.rs  # 供应商管理逻辑
 │   │   └── store.rs     # 状态管理

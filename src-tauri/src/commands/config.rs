@@ -14,18 +14,11 @@ pub async fn get_claude_config_status() -> Result<ConfigStatus, String> {
     Ok(config::get_claude_config_status())
 }
 
-/// 获取应用配置状态
-fn parse_app(app: String) -> Result<AppType, String> {
-    match app.to_lowercase().as_str() {
-        "claude" => Ok(AppType::Claude),
-        "codex" => Ok(AppType::Codex),
-        other => Err(format!("unsupported app: {}", other)),
-    }
-}
+use std::str::FromStr;
 
 #[tauri::command]
 pub async fn get_config_status(app: String) -> Result<ConfigStatus, String> {
-    match parse_app(app)? {
+    match AppType::from_str(&app).map_err(|e| e.to_string())? {
         AppType::Claude => Ok(config::get_claude_config_status()),
         AppType::Codex => {
             let auth_path = codex_config::get_codex_auth_path();
@@ -48,7 +41,7 @@ pub async fn get_claude_code_config_path() -> Result<String, String> {
 /// 获取当前生效的配置目录
 #[tauri::command]
 pub async fn get_config_dir(app: String) -> Result<String, String> {
-    let dir = match parse_app(app)? {
+    let dir = match AppType::from_str(&app).map_err(|e| e.to_string())? {
         AppType::Claude => config::get_claude_config_dir(),
         AppType::Codex => codex_config::get_codex_config_dir(),
     };
@@ -59,7 +52,7 @@ pub async fn get_config_dir(app: String) -> Result<String, String> {
 /// 打开配置文件夹
 #[tauri::command]
 pub async fn open_config_folder(handle: AppHandle, app: String) -> Result<bool, String> {
-    let config_dir = match parse_app(app)? {
+    let config_dir = match AppType::from_str(&app).map_err(|e| e.to_string())? {
         AppType::Claude => config::get_claude_config_dir(),
         AppType::Codex => codex_config::get_codex_config_dir(),
     };

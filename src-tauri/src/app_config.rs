@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// MCP 配置：单客户端维度（claude 或 codex 下的一组服务器）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -39,11 +40,19 @@ impl AppType {
     }
 }
 
-impl From<&str> for AppType {
-    fn from(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "codex" => AppType::Codex,
-            _ => AppType::Claude, // 默认为 Claude
+impl FromStr for AppType {
+    type Err = AppError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let normalized = s.trim().to_lowercase();
+        match normalized.as_str() {
+            "claude" => Ok(AppType::Claude),
+            "codex" => Ok(AppType::Codex),
+            other => Err(AppError::localized(
+                "unsupported_app",
+                format!("不支持的应用标识: '{other}'。可选值: claude, codex。"),
+                format!("Unsupported app id: '{other}'. Allowed: claude, codex."),
+            )),
         }
     }
 }

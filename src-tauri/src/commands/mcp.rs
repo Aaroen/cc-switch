@@ -47,13 +47,7 @@ pub struct McpConfigResponse {
 }
 
 /// 获取 MCP 配置（来自 ~/.cc-switch/config.json）
-fn parse_app(app: String) -> Result<AppType, String> {
-    match app.to_lowercase().as_str() {
-        "claude" => Ok(AppType::Claude),
-        "codex" => Ok(AppType::Codex),
-        other => Err(format!("unsupported app: {}", other)),
-    }
-}
+use std::str::FromStr;
 
 #[tauri::command]
 pub async fn get_mcp_config(
@@ -63,7 +57,7 @@ pub async fn get_mcp_config(
     let config_path = crate::config::get_app_config_path()
         .to_string_lossy()
         .to_string();
-    let app_ty = parse_app(app)?;
+    let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let servers = McpService::get_servers(&state, app_ty).map_err(|e| e.to_string())?;
     Ok(McpConfigResponse {
         config_path,
@@ -80,7 +74,7 @@ pub async fn upsert_mcp_server_in_config(
     spec: serde_json::Value,
     sync_other_side: Option<bool>,
 ) -> Result<bool, String> {
-    let app_ty = parse_app(app)?;
+    let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     McpService::upsert_server(&state, app_ty, &id, spec, sync_other_side.unwrap_or(false))
         .map_err(|e| e.to_string())
 }
@@ -92,7 +86,7 @@ pub async fn delete_mcp_server_in_config(
     app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_ty = parse_app(app)?;
+    let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     McpService::delete_server(&state, app_ty, &id).map_err(|e| e.to_string())
 }
 
@@ -104,7 +98,7 @@ pub async fn set_mcp_enabled(
     id: String,
     enabled: bool,
 ) -> Result<bool, String> {
-    let app_ty = parse_app(app)?;
+    let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     McpService::set_enabled(&state, app_ty, &id, enabled).map_err(|e| e.to_string())
 }
 

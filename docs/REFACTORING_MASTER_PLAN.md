@@ -1,5 +1,11 @@
 # CC Switch 现代化重构完整方案
 
+> Breaking Change 提醒（后续示例如仍出现 `app_type/appType` 字样，请按本规范理解与替换）：
+>
+> - 后端 Tauri 命令统一仅接受 `app` 参数（值：`claude` 或 `codex`），不再接受 `app_type`/`appType`。
+> - 传入未知 `app` 会返回本地化错误，并提示“可选值: claude, codex”。
+> - 前端与文档中的旧示例如包含 `app_type`，一律替换为 `{ app }`。
+
 ## 📋 目录
 
 - [第一部分: 战略规划](#第一部分-战略规划)
@@ -188,7 +194,7 @@ if (typeof window !== "undefined") {
 // 问题 2: 无缓存机制
 getProviders: async (app?: AppType) => {
   try {
-    return await invoke("get_providers", { app_type: app, app });
+    return await invoke("get_providers", { app });
   } catch (error) {
     console.error("获取供应商列表失败:", error);
     return {}; // 错误被吞掉
@@ -454,7 +460,7 @@ src/
    - mutationFn: 调用 providersApi.switch(id, appType)
    ↓
 4. providersApi.switch (lib/api/providers.ts)
-   - 调用 invoke('switch_provider', { id, app_type })
+   - 调用 invoke('switch_provider', { id, app })
    ↓
 5. Tauri Backend (Rust)
    - 执行切换逻辑
@@ -1132,53 +1138,31 @@ export type AppType = "claude" | "codex";
 
 export const providersApi = {
   getAll: async (appType: AppType): Promise<Record<string, Provider>> => {
-    return await invoke("get_providers", { app_type: appType, app: appType });
+    return await invoke("get_providers", { app: appType });
   },
 
   getCurrent: async (appType: AppType): Promise<string> => {
-    return await invoke("get_current_provider", {
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("get_current_provider", { app: appType });
   },
 
   add: async (provider: Provider, appType: AppType): Promise<boolean> => {
-    return await invoke("add_provider", {
-      provider,
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("add_provider", { provider, app: appType });
   },
 
   update: async (provider: Provider, appType: AppType): Promise<boolean> => {
-    return await invoke("update_provider", {
-      provider,
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("update_provider", { provider, app: appType });
   },
 
   delete: async (id: string, appType: AppType): Promise<boolean> => {
-    return await invoke("delete_provider", {
-      id,
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("delete_provider", { id, app: appType });
   },
 
   switch: async (id: string, appType: AppType): Promise<boolean> => {
-    return await invoke("switch_provider", {
-      id,
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("switch_provider", { id, app: appType });
   },
 
   importDefault: async (appType: AppType): Promise<boolean> => {
-    return await invoke("import_default_config", {
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("import_default_config", { app: appType });
   },
 
   updateTrayMenu: async (): Promise<boolean> => {
@@ -1189,11 +1173,7 @@ export const providersApi = {
     updates: Array<{ id: string; sortIndex: number }>,
     appType: AppType
   ): Promise<boolean> => {
-    return await invoke("update_providers_sort_order", {
-      updates,
-      app_type: appType,
-      app: appType,
-    });
+    return await invoke("update_providers_sort_order", { updates, app: appType });
   },
 };
 ```

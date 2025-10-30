@@ -248,3 +248,17 @@ For users upgrading from v2.x (Electron version):
 - Basic provider management
 - Claude Code integration
 - Configuration file handling
+## [Unreleased]
+
+### ⚠️ Breaking Changes
+
+- Tauri 命令统一仅接受 `app` 参数，移除历史 `app_type`/`appType` 兼容路径；传入未知 `app` 时会明确报错，并提示可选值。
+
+### 🔧 Improvements
+
+- 统一 `AppType` 解析：集中到 `FromStr` 实现，命令层不再各自实现 `parse_app()`，减少重复与漂移。
+- 错误消息本地化与更友好：对不支持的 `app` 返回中英双语提示，并包含可选值清单。
+
+### 🧪 Tests
+
+- 新增单元测试覆盖 `AppType::from_str`：大小写、裁剪空白、未知值错误消息。

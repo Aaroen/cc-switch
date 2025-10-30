@@ -11,13 +11,7 @@ fn missing_param(param: &str) -> String {
     format!("缺少 {} 参数 (Missing {} parameter)", param, param)
 }
 
-fn parse_app(app: String) -> Result<AppType, String> {
-    match app.to_lowercase().as_str() {
-        "claude" => Ok(AppType::Claude),
-        "codex" => Ok(AppType::Codex),
-        other => Err(format!("unsupported app: {}", other)),
-    }
-}
+use std::str::FromStr;
 
 /// 获取所有供应商
 #[tauri::command]
@@ -25,7 +19,7 @@ pub fn get_providers(
     state: State<'_, AppState>,
     app: String,
 ) -> Result<HashMap<String, Provider>, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::list(state.inner(), app_type).map_err(|e| e.to_string())
 }
 
@@ -35,7 +29,7 @@ pub fn get_current_provider(
     state: State<'_, AppState>,
     app: String,
 ) -> Result<String, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::current(state.inner(), app_type).map_err(|e| e.to_string())
 }
 
@@ -46,7 +40,7 @@ pub fn add_provider(
     app: String,
     provider: Provider,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::add(state.inner(), app_type, provider).map_err(|e| e.to_string())
 }
 
@@ -57,7 +51,7 @@ pub fn update_provider(
     app: String,
     provider: Provider,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::update(state.inner(), app_type, provider).map_err(|e| e.to_string())
 }
 
@@ -68,7 +62,7 @@ pub fn delete_provider(
     app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::delete(state.inner(), app_type, &id)
         .map(|_| true)
         .map_err(|e| e.to_string())
@@ -94,7 +88,7 @@ pub fn switch_provider(
     app: String,
     id: String,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     switch_provider_internal(&state, app_type, &id)
         .map(|_| true)
         .map_err(|e| e.to_string())
@@ -118,7 +112,7 @@ pub fn import_default_config(
     state: State<'_, AppState>,
     app: String,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     import_default_config_internal(&state, app_type)
         .map(|_| true)
         .map_err(Into::into)
@@ -132,7 +126,7 @@ pub async fn query_provider_usage(
     app: String,
 ) -> Result<crate::provider::UsageResult, String> {
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::query_usage(state.inner(), app_type, &provider_id)
         .await
         .map_err(|e| e.to_string())
@@ -141,7 +135,7 @@ pub async fn query_provider_usage(
 /// 读取当前生效的配置内容
 #[tauri::command]
 pub fn read_live_provider_settings(app: String) -> Result<serde_json::Value, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::read_live_settings(app_type).map_err(|e| e.to_string())
 }
 
@@ -163,7 +157,7 @@ pub fn get_custom_endpoints(
     app: String,
     provider_id: Option<String>,
 ) -> Result<Vec<crate::settings::CustomEndpoint>, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::get_custom_endpoints(state.inner(), app_type, &provider_id)
         .map_err(|e| e.to_string())
@@ -177,7 +171,7 @@ pub fn add_custom_endpoint(
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::add_custom_endpoint(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -191,7 +185,7 @@ pub fn remove_custom_endpoint(
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::remove_custom_endpoint(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -205,7 +199,7 @@ pub fn update_endpoint_last_used(
     provider_id: Option<String>,
     url: String,
 ) -> Result<(), String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     ProviderService::update_endpoint_last_used(state.inner(), app_type, &provider_id, url)
         .map_err(|e| e.to_string())
@@ -218,6 +212,6 @@ pub fn update_providers_sort_order(
     app: String,
     updates: Vec<ProviderSortUpdate>,
 ) -> Result<bool, String> {
-    let app_type = parse_app(app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::update_sort_order(state.inner(), app_type, updates).map_err(|e| e.to_string())
 }
