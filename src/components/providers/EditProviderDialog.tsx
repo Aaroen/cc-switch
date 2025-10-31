@@ -35,7 +35,10 @@ export function EditProviderDialog({
   const { t } = useTranslation();
 
   // 默认使用传入的 provider.settingsConfig，若当前编辑对象是“当前生效供应商”，则尝试读取实时配置替换初始值
-  const [liveSettings, setLiveSettings] = useState<Record<string, unknown> | null>(null);
+  const [liveSettings, setLiveSettings] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +51,9 @@ export function EditProviderDialog({
         const currentId = await providersApi.getCurrent(appId);
         if (currentId && provider.id === currentId) {
           try {
-            const live = (await vscodeApi.getLiveProviderSettings(appId)) as Record<string, unknown>;
+            const live = (await vscodeApi.getLiveProviderSettings(
+              appId,
+            )) as Record<string, unknown>;
             if (!cancelled && live && typeof live === "object") {
               setLiveSettings(live);
             }
@@ -70,7 +75,10 @@ export function EditProviderDialog({
   }, [open, provider, appId]);
 
   const initialSettingsConfig = useMemo(() => {
-    return (liveSettings ?? provider?.settingsConfig ?? {}) as Record<string, unknown>;
+    return (liveSettings ?? provider?.settingsConfig ?? {}) as Record<
+      string,
+      unknown
+    >;
   }, [liveSettings, provider]);
 
   const handleSubmit = useCallback(
