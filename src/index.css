@@ -1,8 +1,74 @@
 /* 引入 Tailwind v4 内建样式与工具 */
 @import "tailwindcss";
 
-/* 覆盖 Tailwind v4 默认的 dark 变体为“类选择器”模式 */
+/* 覆盖 Tailwind v4 默认的 dark 变体为"类选择器"模式 */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* shadcn/ui 主题变量 - 蓝色主题 */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* 主色调：蓝色 (bg-blue-500) */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* 次要色：淡蓝灰 */
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    /* 强调色 */
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    /* 危险色：红色 */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* 边框和输入框 */
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    /* 暗色模式主色调：稍深的蓝色 (bg-blue-600) */
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    /* 暗色模式危险色 */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 217 91% 55%;
+  }
+}
 
 /* 全局基础样式 */
 * {
@@ -17,7 +83,9 @@ html {
 }
 
 body {
-  @apply m-0 p-0 bg-gray-50 text-gray-900 text-sm dark:bg-gray-950 dark:text-gray-100;
+  @apply m-0 p-0 text-sm;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
 /* 暗色模式下启用暗色原生控件/滚动条配色 */
@@ -53,4 +121,34 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 /* 焦点样式 */
 *:focus-visible {
   @apply outline-2 outline-blue-500 outline-offset-2;
+}
+
+/* 统一边框设计系统 - 使用工具类定义 */
+@layer utilities {
+  /* 默认边框：1px，使用主题边框颜色 */
+  .border-default {
+    border-width: 1px;
+    border-color: hsl(var(--border));
+  }
+
+  /* 激活边框：2px，使用主色 */
+  .border-active {
+    border-width: 2px;
+  }
+
+  .border-border-default {
+    border-color: hsl(var(--border));
+  }
+
+  .border-border-active {
+    border-color: hsl(var(--primary));
+  }
+
+  .border-border-hover {
+    border-color: hsl(var(--primary) / 0.4);
+  }
+
+  .border-border-dragging {
+    border-color: hsl(var(--primary) / 0.6);
+  }
 }

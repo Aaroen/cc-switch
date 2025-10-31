@@ -2,6 +2,7 @@ use crate::app_config::{AppType, MultiAppConfig};
 use crate::config::{
     archive_file, delete_file, get_app_config_dir, get_app_config_path, get_claude_config_dir,
 };
+use crate::error::AppError;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -144,11 +145,11 @@ fn scan_codex_copies() -> Vec<(String, Option<PathBuf>, Option<PathBuf>, Value)>
     items
 }
 
-pub fn migrate_copies_into_config(config: &mut MultiAppConfig) -> Result<bool, String> {
+pub fn migrate_copies_into_config(config: &mut MultiAppConfig) -> Result<bool, AppError> {
     // 如果已迁移过则跳过；若目录不存在则先创建，避免新装用户写入标记时失败
     let marker = get_marker_path();
     if let Some(parent) = marker.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("创建迁移标记目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
     if marker.exists() {
         return Ok(false);
@@ -158,7 +159,7 @@ pub fn migrate_copies_into_config(config: &mut MultiAppConfig) -> Result<bool, S
     let codex_items = scan_codex_copies();
     if claude_items.is_empty() && codex_items.is_empty() {
         // 即便没有可迁移项，也写入标记避免每次扫描
-        fs::write(&marker, b"no-copies").map_err(|e| format!("写入迁移标记失败: {}", e))?;
+        fs::write(&marker, b"no-copies").map_err(|e| AppError::io(&marker, e))?;
         return Ok(false);
     }
 
@@ -381,7 +382,7 @@ pub fn migrate_copies_into_config(config: &mut MultiAppConfig) -> Result<bool, S
         log::info!("迁移阶段已去重重复供应商 {} 个", removed);
     }
 
-    fs::write(&marker, b"done").map_err(|e| format!("写入迁移标记失败: {}", e))?;
+    fs::write(&marker, b"done").map_err(|e| AppError::io(&marker, e))?;
     Ok(true)
 }
 

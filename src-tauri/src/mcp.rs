@@ -2,11 +2,14 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::app_config::{AppType, McpConfig, MultiAppConfig};
+use crate::error::AppError;
 
 /// 基础校验：允许 stdio/http；或省略 type（视为 stdio）。对应必填字段存在
-fn validate_server_spec(spec: &Value) -> Result<(), String> {
+fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
     if !spec.is_object() {
-        return Err("MCP 服务器连接定义必须为 JSON 对象".into());
+        return Err(AppError::McpValidation(
+            "MCP 服务器连接定义必须为 JSON 对象".into(),
+        ));
     }
     let t_opt = spec.get("type").and_then(|x| x.as_str());
     // 支持两种：stdio/http；若缺省 type 则按 stdio 处理（与社区常见 .mcp.json 一致）
@@ -14,38 +17,47 @@ fn validate_server_spec(spec: &Value) -> Result<(), String> {
     let is_http = t_opt.map(|t| t == "http").unwrap_or(false);
 
     if !(is_stdio || is_http) {
-        return Err("MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into());
+        return Err(AppError::McpValidation(
+            "MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into(),
+        ));
     }
 
     if is_stdio {
         let cmd = spec.get("command").and_then(|x| x.as_str()).unwrap_or("");
         if cmd.trim().is_empty() {
-            return Err("stdio 类型的 MCP 服务器缺少 command 字段".into());
+            return Err(AppError::McpValidation(
+                "stdio 类型的 MCP 服务器缺少 command 字段".into(),
+            ));
         }
     }
     if is_http {
         let url = spec.get("url").and_then(|x| x.as_str()).unwrap_or("");
         if url.trim().is_empty() {
-            return Err("http 类型的 MCP 服务器缺少 url 字段".into());
+            return Err(AppError::McpValidation(
+                "http 类型的 MCP 服务器缺少 url 字段".into(),
+            ));
         }
     }
     Ok(())
 }
 
-fn validate_mcp_entry(entry: &Value) -> Result<(), String> {
+fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
     let obj = entry
         .as_object()
-        .ok_or_else(|| "MCP 服务器条目必须为 JSON 对象".to_string())?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
 
     let server = obj
         .get("server")
-        .ok_or_else(|| "MCP 服务器条目缺少 server 字段".to_string())?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目缺少 server 字段".into()))?;
     validate_server_spec(server)?;
 
     for key in ["name", "description", "homepage", "docs"] {
         if let Some(val) = obj.get(key) {
             if !val.is_string() {
-                return Err(format!("MCP 服务器 {} 必须为字符串", key));
+                return Err(AppError::McpValidation(format!(
+                    "MCP 服务器 {} 必须为字符串",
+                    key
+                )));
             }
         }
     }
@@ -53,15 +65,19 @@ fn validate_mcp_entry(entry: &Value) -> Result<(), String> {
     if let Some(tags) = obj.get("tags") {
         let arr = tags
             .as_array()
-            .ok_or_else(|| "MCP 服务器 tags 必须为字符串数组".to_string())?;
+            .ok_or_else(|| AppError::McpValidation("MCP 服务器 tags 必须为字符串数组".into()))?;
         if !arr.iter().all(|item| item.is_string()) {
-            return Err("MCP 服务器 tags 必须为字符串数组".into());
+            return Err(AppError::McpValidation(
+                "MCP 服务器 tags 必须为字符串数组".into(),
+            ));
         }
     }
 
     if let Some(enabled) = obj.get("enabled") {
         if !enabled.is_boolean() {
-            return Err("MCP 服务器 enabled 必须为布尔值".into());
+            return Err(AppError::McpValidation(
+                "MCP 服务器 enabled 必须为布尔值".into(),
+            ));
         }
     }
 
@@ -159,16 +175,18 @@ pub fn normalize_servers_for(config: &mut MultiAppConfig, app: &AppType) -> usiz
     normalize_server_keys(servers)
 }
 
-fn extract_server_spec(entry: &Value) -> Result<Value, String> {
+fn extract_server_spec(entry: &Value) -> Result<Value, AppError> {
     let obj = entry
         .as_object()
-        .ok_or_else(|| "MCP 服务器条目必须为 JSON 对象".to_string())?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
     let server = obj
         .get("server")
-        .ok_or_else(|| "MCP 服务器条目缺少 server 字段".to_string())?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目缺少 server 字段".into()))?;
 
     if !server.is_object() {
-        return Err("MCP 服务器 server 字段必须为 JSON 对象".into());
+        return Err(AppError::McpValidation(
+            "MCP 服务器 server 字段必须为 JSON 对象".into(),
+        ));
     }
 
     Ok(server.clone())
@@ -227,9 +245,9 @@ pub fn upsert_in_config_for(
     app: &AppType,
     id: &str,
     spec: Value,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err("MCP 服务器 ID 不能为空".into());
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     validate_mcp_entry(&spec)?;
@@ -237,16 +255,16 @@ pub fn upsert_in_config_for(
     let mut entry_obj = spec
         .as_object()
         .cloned()
-        .ok_or_else(|| "MCP 服务器条目必须为 JSON 对象".to_string())?;
+        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
     if let Some(existing_id) = entry_obj.get("id") {
         let Some(existing_id_str) = existing_id.as_str() else {
-            return Err("MCP 服务器 id 必须为字符串".into());
+            return Err(AppError::McpValidation("MCP 服务器 id 必须为字符串".into()));
         };
         if existing_id_str != id {
-            return Err(format!(
+            return Err(AppError::McpValidation(format!(
                 "MCP 服务器条目中的 id '{}' 与参数 id '{}' 不一致",
                 existing_id_str, id
-            ));
+            )));
         }
     } else {
         entry_obj.insert(String::from("id"), json!(id));
@@ -265,24 +283,24 @@ pub fn delete_in_config_for(
     config: &mut MultiAppConfig,
     app: &AppType,
     id: &str,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err("MCP 服务器 ID 不能为空".into());
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     let existed = config.mcp_for_mut(app).servers.remove(id).is_some();
     Ok(existed)
 }
 
-/// 设置启用状态并同步到 ~/.claude.json
-pub fn set_enabled_and_sync_for(
+/// 设置启用状态（不执行落盘或文件同步）
+pub fn set_enabled_flag_for(
     config: &mut MultiAppConfig,
     app: &AppType,
     id: &str,
     enabled: bool,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     if id.trim().is_empty() {
-        return Err("MCP 服务器 ID 不能为空".into());
+        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
     }
     normalize_servers_for(config, app);
     if let Some(spec) = config.mcp_for_mut(app).servers.get_mut(id) {
@@ -290,7 +308,7 @@ pub fn set_enabled_and_sync_for(
         let mut obj = spec
             .as_object()
             .cloned()
-            .ok_or_else(|| "MCP 服务器定义必须为 JSON 对象".to_string())?;
+            .ok_or_else(|| AppError::McpValidation("MCP 服务器定义必须为 JSON 对象".into()))?;
         obj.insert("enabled".into(), json!(enabled));
         *spec = Value::Object(obj);
     } else {
@@ -298,34 +316,23 @@ pub fn set_enabled_and_sync_for(
         return Ok(false);
     }
 
-    // 同步启用项
-    match app {
-        AppType::Claude => {
-            // 将启用项投影到 ~/.claude.json
-            sync_enabled_to_claude(config)?;
-        }
-        AppType::Codex => {
-            // 将启用项投影到 ~/.codex/config.toml
-            sync_enabled_to_codex(config)?;
-        }
-    }
     Ok(true)
 }
 
 /// 将 config.json 中 enabled==true 的项投影写入 ~/.claude.json
-pub fn sync_enabled_to_claude(config: &MultiAppConfig) -> Result<(), String> {
+pub fn sync_enabled_to_claude(config: &MultiAppConfig) -> Result<(), AppError> {
     let enabled = collect_enabled_servers(&config.mcp.claude);
     crate::claude_mcp::set_mcp_servers_map(&enabled)
 }
 
 /// 从 ~/.claude.json 导入 mcpServers 到 config.json（设为 enabled=true）。
 /// 已存在的项仅强制 enabled=true，不覆盖其他字段。
-pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, String> {
+pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError> {
     let text_opt = crate::claude_mcp::read_mcp_json()?;
     let Some(text) = text_opt else { return Ok(0) };
     let mut changed = normalize_servers_for(config, &AppType::Claude);
-    let v: Value =
-        serde_json::from_str(&text).map_err(|e| format!("解析 ~/.claude.json 失败: {}", e))?;
+    let v: Value = serde_json::from_str(&text)
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.claude.json 失败: {}", e)))?;
     let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
         return Ok(changed);
     };
@@ -394,15 +401,15 @@ pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, String> 
 /// 从 ~/.codex/config.toml 导入 MCP 到 config.json（Codex 作用域），并将导入项设为 enabled=true。
 /// 支持两种 schema：[mcp.servers.<id>] 与 [mcp_servers.<id>]。
 /// 已存在的项仅强制 enabled=true，不覆盖其他字段。
-pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, String> {
+pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError> {
     let text = crate::codex_config::read_and_validate_codex_config_text()?;
     if text.trim().is_empty() {
         return Ok(0);
     }
     let mut changed_total = normalize_servers_for(config, &AppType::Codex);
 
-    let root: toml::Table =
-        toml::from_str(&text).map_err(|e| format!("解析 ~/.codex/config.toml 失败: {}", e))?;
+    let root: toml::Table = toml::from_str(&text)
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.codex/config.toml 失败: {}", e)))?;
 
     // helper：处理一组 servers 表
     let mut import_servers_tbl = |servers_tbl: &toml::value::Table| {
@@ -565,168 +572,149 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, String> {
 /// - 读取现有 config.toml；若语法无效则报错，不尝试覆盖
 /// - 仅更新 `mcp.servers` 或 `mcp_servers` 子表，保留 `mcp` 其它键
 /// - 仅写入启用项；无启用项时清理对应子表
-pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), String> {
-    use toml::{value::Value as TomlValue, Table as TomlTable};
+pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
+    use toml_edit::{DocumentMut, Item, Table};
 
     // 1) 收集启用项（Codex 维度）
     let enabled = collect_enabled_servers(&config.mcp.codex);
 
-    // 2) 读取现有 config.toml 并解析为 Table（允许空文件）
+    // 2) 读取现有 config.toml 文本；保持无效 TOML 的错误返回（不覆盖文件）
     let base_text = crate::codex_config::read_and_validate_codex_config_text()?;
-    let mut root: TomlTable = if base_text.trim().is_empty() {
-        TomlTable::new()
+
+    // 3) 使用 toml_edit 解析（允许空文件）
+    let mut doc: DocumentMut = if base_text.trim().is_empty() {
+        DocumentMut::default()
     } else {
-        toml::from_str::<TomlTable>(&base_text)
-            .map_err(|e| format!("解析 config.toml 失败: {}", e))?
+        base_text
+            .parse::<DocumentMut>()
+            .map_err(|e| AppError::McpValidation(format!("解析 config.toml 失败: {}", e)))?
     };
 
-    // 3) 写入 servers 表（支持 mcp.servers 与 mcp_servers；优先沿用已有风格，默认 mcp_servers）
-    let prefer_mcp_servers = root.get("mcp_servers").is_some() || root.get("mcp").is_none();
-    if enabled.is_empty() {
-        // 无启用项：移除两种节点
-        // 清除 mcp.servers，但保留其他 mcp 字段
-        let mut should_drop_mcp = false;
-        if let Some(mcp_val) = root.get_mut("mcp") {
-            match mcp_val {
-                TomlValue::Table(tbl) => {
-                    tbl.remove("servers");
-                    should_drop_mcp = tbl.is_empty();
-                }
-                _ => should_drop_mcp = true,
-            }
-        }
-        if should_drop_mcp {
-            root.remove("mcp");
-        }
+    enum Target {
+        McpServers,    // 顶层 mcp_servers
+        McpDotServers, // mcp.servers
+    }
 
-        // 清除顶层 mcp_servers
-        root.remove("mcp_servers");
+    // 4) 选择目标风格：优先沿用既有子表；其次在 mcp 表下新建；最后退回顶层 mcp_servers
+    let has_mcp_dot_servers = doc
+        .get("mcp")
+        .and_then(|m| m.get("servers"))
+        .and_then(|s| s.as_table_like())
+        .is_some();
+    let has_mcp_servers = doc
+        .get("mcp_servers")
+        .and_then(|s| s.as_table_like())
+        .is_some();
+    let mcp_is_table = doc.get("mcp").and_then(|m| m.as_table_like()).is_some();
+
+    let target = if has_mcp_dot_servers {
+        Target::McpDotServers
+    } else if has_mcp_servers {
+        Target::McpServers
+    } else if mcp_is_table {
+        Target::McpDotServers
     } else {
-        let mut servers_tbl = TomlTable::new();
+        Target::McpServers
+    };
 
-        for (id, spec) in enabled.iter() {
-            let mut s = TomlTable::new();
-
-            // 类型（缺省视为 stdio）
+    // 构造目标 servers 表（稳定的键顺序）
+    let build_servers_table = || -> Table {
+        let mut servers = Table::new();
+        let mut ids: Vec<_> = enabled.keys().cloned().collect();
+        ids.sort();
+        for id in ids {
+            let spec = enabled.get(&id).expect("spec must exist");
+            let mut t = Table::new();
             let typ = spec.get("type").and_then(|v| v.as_str()).unwrap_or("stdio");
-            s.insert("type".into(), TomlValue::String(typ.to_string()));
-
+            t["type"] = toml_edit::value(typ);
             match typ {
                 "stdio" => {
-                    let cmd = spec
-                        .get("command")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    s.insert("command".into(), TomlValue::String(cmd));
-
+                    let cmd = spec.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                    t["command"] = toml_edit::value(cmd);
                     if let Some(args) = spec.get("args").and_then(|v| v.as_array()) {
-                        let arr = args
-                            .iter()
-                            .filter_map(|x| x.as_str())
-                            .map(|x| TomlValue::String(x.to_string()))
-                            .collect::<Vec<_>>();
-                        if !arr.is_empty() {
-                            s.insert("args".into(), TomlValue::Array(arr));
+                        let mut arr_v = toml_edit::Array::default();
+                        for a in args.iter().filter_map(|x| x.as_str()) {
+                            arr_v.push(a);
+                        }
+                        if !arr_v.is_empty() {
+                            t["args"] = toml_edit::Item::Value(toml_edit::Value::Array(arr_v));
                         }
                     }
-
                     if let Some(cwd) = spec.get("cwd").and_then(|v| v.as_str()) {
                         if !cwd.trim().is_empty() {
-                            s.insert("cwd".into(), TomlValue::String(cwd.to_string()));
+                            t["cwd"] = toml_edit::value(cwd);
                         }
                     }
-
                     if let Some(env) = spec.get("env").and_then(|v| v.as_object()) {
-                        let mut env_tbl = TomlTable::new();
+                        let mut env_tbl = Table::new();
                         for (k, v) in env.iter() {
-                            if let Some(sv) = v.as_str() {
-                                env_tbl.insert(k.clone(), TomlValue::String(sv.to_string()));
+                            if let Some(s) = v.as_str() {
+                                env_tbl[&k[..]] = toml_edit::value(s);
                             }
                         }
                         if !env_tbl.is_empty() {
-                            s.insert("env".into(), TomlValue::Table(env_tbl));
+                            t["env"] = Item::Table(env_tbl);
                         }
                     }
                 }
                 "http" => {
-                    let url = spec
-                        .get("url")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    s.insert("url".into(), TomlValue::String(url));
-
+                    let url = spec.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                    t["url"] = toml_edit::value(url);
                     if let Some(headers) = spec.get("headers").and_then(|v| v.as_object()) {
-                        let mut h_tbl = TomlTable::new();
+                        let mut h_tbl = Table::new();
                         for (k, v) in headers.iter() {
-                            if let Some(sv) = v.as_str() {
-                                h_tbl.insert(k.clone(), TomlValue::String(sv.to_string()));
+                            if let Some(s) = v.as_str() {
+                                h_tbl[&k[..]] = toml_edit::value(s);
                             }
                         }
                         if !h_tbl.is_empty() {
-                            s.insert("headers".into(), TomlValue::Table(h_tbl));
+                            t["headers"] = Item::Table(h_tbl);
                         }
                     }
                 }
                 _ => {}
             }
-
-            servers_tbl.insert(id.clone(), TomlValue::Table(s));
+            servers[&id[..]] = Item::Table(t);
         }
+        servers
+    };
 
-        let servers_value = TomlValue::Table(servers_tbl.clone());
-
-        if prefer_mcp_servers {
-            root.insert("mcp_servers".into(), servers_value);
-
-            // 若存在 mcp，则仅移除 servers 字段，保留其他键
-            let mut should_drop_mcp = false;
-            if let Some(mcp_val) = root.get_mut("mcp") {
-                match mcp_val {
-                    TomlValue::Table(tbl) => {
+    // 5) 应用更新：仅就地更新目标子表；避免改动其它键/注释/空白
+    if enabled.is_empty() {
+        // 无启用项：移除两种 servers 表（如果存在），但保留 mcp 其它字段
+        if let Some(mcp_item) = doc.get_mut("mcp") {
+            if let Some(tbl) = mcp_item.as_table_like_mut() {
+                tbl.remove("servers");
+            }
+        }
+        doc.as_table_mut().remove("mcp_servers");
+    } else {
+        let servers_tbl = build_servers_table();
+        match target {
+            Target::McpDotServers => {
+                // 确保 mcp 为表
+                if doc.get("mcp").and_then(|m| m.as_table_like()).is_none() {
+                    doc["mcp"] = Item::Table(Table::new());
+                }
+                doc["mcp"]["servers"] = Item::Table(servers_tbl);
+                // 去重：若存在顶层 mcp_servers，则移除以避免重复定义
+                doc.as_table_mut().remove("mcp_servers");
+            }
+            Target::McpServers => {
+                doc["mcp_servers"] = Item::Table(servers_tbl);
+                // 去重：若存在 mcp.servers，则移除该子表，保留 mcp 其它键
+                if let Some(mcp_item) = doc.get_mut("mcp") {
+                    if let Some(tbl) = mcp_item.as_table_like_mut() {
                         tbl.remove("servers");
-                        should_drop_mcp = tbl.is_empty();
-                    }
-                    _ => should_drop_mcp = true,
-                }
-            }
-            if should_drop_mcp {
-                root.remove("mcp");
-            }
-        } else {
-            let mut inserted = false;
-
-            if let Some(mcp_val) = root.get_mut("mcp") {
-                match mcp_val {
-                    TomlValue::Table(tbl) => {
-                        tbl.insert("servers".into(), TomlValue::Table(servers_tbl.clone()));
-                        inserted = true;
-                    }
-                    _ => {
-                        let mut mcp_tbl = TomlTable::new();
-                        mcp_tbl.insert("servers".into(), TomlValue::Table(servers_tbl.clone()));
-                        *mcp_val = TomlValue::Table(mcp_tbl);
-                        inserted = true;
                     }
                 }
             }
-
-            if !inserted {
-                let mut mcp_tbl = TomlTable::new();
-                mcp_tbl.insert("servers".into(), TomlValue::Table(servers_tbl));
-                root.insert("mcp".into(), TomlValue::Table(mcp_tbl));
-            }
-
-            root.remove("mcp_servers");
         }
     }
 
-    // 4) 序列化并写回 config.toml（仅改 TOML，不触碰 auth.json）
-    let new_text = toml::to_string(&TomlValue::Table(root))
-        .map_err(|e| format!("序列化 config.toml 失败: {}", e))?;
+    // 6) 写回（仅改 TOML，不触碰 auth.json）；toml_edit 会尽量保留未改区域的注释/空白/顺序
+    let new_text = doc.to_string();
     let path = crate::codex_config::get_codex_config_path();
     crate::config::write_text_file(&path, &new_text)?;
-
     Ok(())
 }

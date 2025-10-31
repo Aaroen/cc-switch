@@ -1,9 +1,10 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Edit3, Trash2 } from "lucide-react";
-import { McpServer } from "../../types";
-import { mcpPresets } from "../../config/mcpPresets";
-import { cardStyles, buttonStyles, cn } from "../../lib/styles";
+import { Button } from "@/components/ui/button";
+import { settingsApi } from "@/lib/api";
+import { McpServer } from "@/types";
+import { mcpPresets } from "@/config/mcpPresets";
 import McpToggle from "./McpToggle";
 
 interface McpListItemProps {
@@ -44,14 +45,14 @@ const McpListItem: React.FC<McpListItemProps> = ({
     const url = docsUrl || homepageUrl;
     if (!url) return;
     try {
-      await window.api.openExternal(url);
+      await settingsApi.openExternal(url);
     } catch {
       // ignore
     }
   };
 
   return (
-    <div className={cn(cardStyles.interactive, "!p-4 h-16")}>
+    <div className="h-16 rounded-lg border border-border-default bg-card p-4 transition-[border-color,box-shadow] duration-200 hover:border-border-hover hover:shadow-sm">
       <div className="flex items-center gap-4 h-full">
         {/* 左侧：Toggle 开关 */}
         <div className="flex-shrink-0">
@@ -82,32 +83,36 @@ const McpListItem: React.FC<McpListItemProps> = ({
         {/* 右侧：操作按钮 */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {docsUrl && (
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={openDocs}
-              className={buttonStyles.ghost}
               title={t("mcp.presets.docs")}
             >
               {t("mcp.presets.docs")}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => onEdit(id)}
-            className={buttonStyles.icon}
             title={t("common.edit")}
           >
             <Edit3 size={16} />
-          </button>
+          </Button>
 
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => onDelete(id)}
-            className={cn(
-              buttonStyles.icon,
-              "hover:text-red-500 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-red-500/10",
-            )}
+            className="hover:text-red-500 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-red-500/10"
             title={t("common.delete")}
           >
             <Trash2 size={16} />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

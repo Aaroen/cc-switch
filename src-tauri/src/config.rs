@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
-// unused import removed
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use crate::error::AppError;
 
 /// 获取 Claude Code 配置目录路径
 pub fn get_claude_config_dir() -> PathBuf {
@@ -13,6 +14,36 @@ pub fn get_claude_config_dir() -> PathBuf {
     dirs::home_dir()
         .expect("无法获取用户主目录")
         .join(".claude")
+}
+
+/// 默认 Claude MCP 配置文件路径 (~/.claude.json)
+pub fn get_default_claude_mcp_path() -> PathBuf {
+    dirs::home_dir()
+        .expect("无法获取用户主目录")
+        .join(".claude.json")
+}
+
+fn derive_mcp_path_from_override(dir: &Path) -> Option<PathBuf> {
+    let file_name = dir
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())?
+        .trim()
+        .to_string();
+    if file_name.is_empty() {
+        return None;
+    }
+    let parent = dir.parent().unwrap_or_else(|| Path::new(""));
+    Some(parent.join(format!("{}.json", file_name)))
+}
+
+/// 获取 Claude MCP 配置文件路径，若设置了目录覆盖则与覆盖目录同级
+pub fn get_claude_mcp_path() -> PathBuf {
+    if let Some(custom_dir) = crate::settings::get_claude_override_dir() {
+        if let Some(path) = derive_mcp_path_from_override(&custom_dir) {
+            return path;
+        }
+    }
+    get_default_claude_mcp_path()
 }
 
 /// 获取 Claude Code 主配置文件路径
@@ -76,14 +107,14 @@ fn ensure_unique_path(dest: PathBuf) -> PathBuf {
 }
 
 /// 将现有文件归档到 `~/.cc-switch/archive/<ts>/<category>/` 下，返回归档路径
-pub fn archive_file(ts: u64, category: &str, src: &Path) -> Result<Option<PathBuf>, String> {
+pub fn archive_file(ts: u64, category: &str, src: &Path) -> Result<Option<PathBuf>, AppError> {
     if !src.exists() {
         return Ok(None);
     }
     let mut dest_dir = get_archive_root();
     dest_dir.push(ts.to_string());
     dest_dir.push(category);
-    fs::create_dir_all(&dest_dir).map_err(|e| format!("创建归档目录失败: {}", e))?;
+    fs::create_dir_all(&dest_dir).map_err(|e| AppError::io(&dest_dir, e))?;
 
     let file_name = src
         .file_name()
@@ -117,52 +148,50 @@ pub fn get_provider_config_path(provider_id: &str, provider_name: Option<&str>) 
 }
 
 /// 读取 JSON 配置文件
-pub fn read_json_file<T: for<'a> Deserialize<'a>>(path: &Path) -> Result<T, String> {
+pub fn read_json_file<T: for<'a> Deserialize<'a>>(path: &Path) -> Result<T, AppError> {
     if !path.exists() {
-        return Err(format!("文件不存在: {}", path.display()));
+        return Err(AppError::Config(format!("文件不存在: {}", path.display())));
     }
 
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("读取文件失败: {}: {}", path.display(), e))?;
+    let content = fs::read_to_string(path).map_err(|e| AppError::io(path, e))?;
 
-    serde_json::from_str(&content).map_err(|e| format!("解析 JSON 失败: {}: {}", path.display(), e))
+    serde_json::from_str(&content).map_err(|e| AppError::json(path, e))
 }
 
 /// 写入 JSON 配置文件
-pub fn write_json_file<T: Serialize>(path: &Path, data: &T) -> Result<(), String> {
+pub fn write_json_file<T: Serialize>(path: &Path, data: &T) -> Result<(), AppError> {
     // 确保目录存在
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}: {}", parent.display(), e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
 
     let json =
-        serde_json::to_string_pretty(data).map_err(|e| format!("序列化 JSON 失败: {}", e))?;
+        serde_json::to_string_pretty(data).map_err(|e| AppError::JsonSerialize { source: e })?;
 
     atomic_write(path, json.as_bytes())
 }
 
 /// 原子写入文本文件（用于 TOML/纯文本）
-pub fn write_text_file(path: &Path, data: &str) -> Result<(), String> {
+pub fn write_text_file(path: &Path, data: &str) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}: {}", parent.display(), e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
     atomic_write(path, data.as_bytes())
 }
 
 /// 原子写入：写入临时文件后 rename 替换，避免半写状态
-pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
+pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}: {}", parent.display(), e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
 
-    let parent = path.parent().ok_or_else(|| "无效的路径".to_string())?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| AppError::Config("无效的路径".to_string()))?;
     let mut tmp = parent.to_path_buf();
     let file_name = path
         .file_name()
-        .ok_or_else(|| "无效的文件名".to_string())?
+        .ok_or_else(|| AppError::Config("无效的文件名".to_string()))?
         .to_string_lossy()
         .to_string();
     let ts = std::time::SystemTime::now()
@@ -172,12 +201,9 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     tmp.push(format!("{}.tmp.{}", file_name, ts));
 
     {
-        let mut f = fs::File::create(&tmp)
-            .map_err(|e| format!("创建临时文件失败: {}: {}", tmp.display(), e))?;
-        f.write_all(data)
-            .map_err(|e| format!("写入临时文件失败: {}: {}", tmp.display(), e))?;
-        f.flush()
-            .map_err(|e| format!("刷新临时文件失败: {}: {}", tmp.display(), e))?;
+        let mut f = fs::File::create(&tmp).map_err(|e| AppError::io(&tmp, e))?;
+        f.write_all(data).map_err(|e| AppError::io(&tmp, e))?;
+        f.flush().map_err(|e| AppError::io(&tmp, e))?;
     }
 
     #[cfg(unix)]
@@ -195,40 +221,70 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
         if path.exists() {
             let _ = fs::remove_file(path);
         }
-        fs::rename(&tmp, path).map_err(|e| {
-            format!(
-                "原子替换失败: {} -> {}: {}",
-                tmp.display(),
-                path.display(),
-                e
-            )
+        fs::rename(&tmp, path).map_err(|e| AppError::IoContext {
+            context: format!("原子替换失败: {} -> {}", tmp.display(), path.display()),
+            source: e,
         })?;
     }
 
     #[cfg(not(windows))]
     {
-        fs::rename(&tmp, path).map_err(|e| {
-            format!(
-                "原子替换失败: {} -> {}: {}",
-                tmp.display(),
-                path.display(),
-                e
-            )
+        fs::rename(&tmp, path).map_err(|e| AppError::IoContext {
+            context: format!("原子替换失败: {} -> {}", tmp.display(), path.display()),
+            source: e,
         })?;
     }
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derive_mcp_path_from_override_preserves_folder_name() {
+        let override_dir = PathBuf::from("/tmp/profile/.claude");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for nested dir");
+        assert_eq!(derived, PathBuf::from("/tmp/profile/.claude.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_override_handles_non_hidden_folder() {
+        let override_dir = PathBuf::from("/data/claude-config");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for standard dir");
+        assert_eq!(derived, PathBuf::from("/data/claude-config.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_override_supports_relative_rootless_dir() {
+        let override_dir = PathBuf::from("claude");
+        let derived = derive_mcp_path_from_override(&override_dir)
+            .expect("should derive path for single segment");
+        assert_eq!(derived, PathBuf::from("claude.json"));
+    }
+
+    #[test]
+    fn derive_mcp_path_from_root_like_dir_returns_none() {
+        let override_dir = PathBuf::from("/");
+        assert!(derive_mcp_path_from_override(&override_dir).is_none());
+    }
+}
+
 /// 复制文件
-pub fn copy_file(from: &Path, to: &Path) -> Result<(), String> {
-    fs::copy(from, to).map_err(|e| format!("复制文件失败: {}", e))?;
+pub fn copy_file(from: &Path, to: &Path) -> Result<(), AppError> {
+    fs::copy(from, to).map_err(|e| AppError::IoContext {
+        context: format!("复制文件失败 ({} -> {})", from.display(), to.display()),
+        source: e,
+    })?;
     Ok(())
 }
 
 /// 删除文件
-pub fn delete_file(path: &Path) -> Result<(), String> {
+pub fn delete_file(path: &Path) -> Result<(), AppError> {
     if path.exists() {
-        fs::remove_file(path).map_err(|e| format!("删除文件失败: {}", e))?;
+        fs::remove_file(path).map_err(|e| AppError::io(path, e))?;
     }
     Ok(())
 }

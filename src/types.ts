@@ -1,6 +1,6 @@
 export type ProviderCategory =
   | "official" // 官方
-  | "cn_official" // 国产官方
+  | "cn_official" // 开源官方（原"国产官方"）
   | "aggregator" // 聚合网站
   | "third_party" // 第三方供应商
   | "custom"; // 自定义
@@ -28,6 +28,13 @@ export interface CustomEndpoint {
   url: string;
   addedAt: number;
   lastUsed?: number;
+}
+
+// 端点候选项（用于端点测速弹窗）
+export interface EndpointCandidate {
+  id?: string;
+  url: string;
+  isCustom?: boolean;
 }
 
 // 用量查询脚本配置
@@ -65,7 +72,7 @@ export interface ProviderMeta {
   usage_script?: UsageScript;
 }
 
-// 应用设置类型（用于 SettingsModal 与 Tauri API）
+// 应用设置类型（用于设置对话框与 Tauri API）
 export interface Settings {
   // 是否在系统托盘（macOS 菜单栏）显示图标
   showInTray: boolean;

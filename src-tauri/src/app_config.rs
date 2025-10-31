@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// MCP 配置：单客户端维度（claude 或 codex 下的一组服务器）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -19,6 +20,7 @@ pub struct McpRoot {
 }
 
 use crate::config::{copy_file, get_app_config_dir, get_app_config_path, write_json_file};
+use crate::error::AppError;
 use crate::provider::ProviderManager;
 
 /// 应用类型
@@ -38,11 +40,19 @@ impl AppType {
     }
 }
 
-impl From<&str> for AppType {
-    fn from(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "codex" => AppType::Codex,
-            _ => AppType::Claude, // 默认为 Claude
+impl FromStr for AppType {
+    type Err = AppError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let normalized = s.trim().to_lowercase();
+        match normalized.as_str() {
+            "claude" => Ok(AppType::Claude),
+            "codex" => Ok(AppType::Codex),
+            other => Err(AppError::localized(
+                "unsupported_app",
+                format!("不支持的应用标识: '{other}'。可选值: claude, codex。"),
+                format!("Unsupported app id: '{other}'. Allowed: claude, codex."),
+            )),
         }
     }
 }
@@ -80,7 +90,7 @@ impl Default for MultiAppConfig {
 
 impl MultiAppConfig {
     /// 从文件加载配置（处理v1到v2的迁移）
-    pub fn load() -> Result<Self, String> {
+    pub fn load() -> Result<Self, AppError> {
         let config_path = get_app_config_path();
 
         if !config_path.exists() {
@@ -89,8 +99,8 @@ impl MultiAppConfig {
         }
 
         // 尝试读取文件
-        let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| format!("读取配置文件失败: {}", e))?;
+        let content =
+            std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
 
         // 检查是否是旧版本格式（v1）
         if let Ok(v1_config) = serde_json::from_str::<ProviderManager>(&content) {
@@ -130,11 +140,11 @@ impl MultiAppConfig {
         }
 
         // 尝试读取v2格式
-        serde_json::from_str::<Self>(&content).map_err(|e| format!("解析配置文件失败: {}", e))
+        serde_json::from_str::<Self>(&content).map_err(|e| AppError::json(&config_path, e))
     }
 
     /// 保存配置到文件
-    pub fn save(&self) -> Result<(), String> {
+    pub fn save(&self) -> Result<(), AppError> {
         let config_path = get_app_config_path();
         // 先备份旧版（若存在）到 ~/.cc-switch/config.json.bak，再写入新内容
         if config_path.exists() {

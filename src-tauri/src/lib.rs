@@ -5,16 +5,28 @@ mod claude_plugin;
 mod codex_config;
 mod commands;
 mod config;
-mod import_export;
+mod error;
 mod mcp;
 mod migration;
 mod provider;
+mod services;
 mod settings;
-mod speedtest;
-mod usage_script;
 mod store;
+mod usage_script;
 
-use store::AppState;
+pub use app_config::{AppType, MultiAppConfig};
+pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
+pub use commands::*;
+pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
+pub use error::AppError;
+pub use mcp::{
+    import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
+};
+pub use provider::Provider;
+pub use services::{ConfigService, EndpointLatency, McpService, ProviderService, SpeedtestService};
+pub use settings::{update_settings, AppSettings};
+pub use store::AppState;
+
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
@@ -23,21 +35,46 @@ use tauri::{
 use tauri::{ActivationPolicy, RunEvent};
 use tauri::{Emitter, Manager};
 
+#[derive(Clone, Copy)]
+struct TrayTexts {
+    show_main: &'static str,
+    no_provider_hint: &'static str,
+    quit: &'static str,
+}
+
+impl TrayTexts {
+    fn from_language(language: &str) -> Self {
+        match language {
+            "en" => Self {
+                show_main: "Open main window",
+                no_provider_hint: "  (No providers yet, please add them from the main window)",
+                quit: "Quit",
+            },
+            _ => Self {
+                show_main: "打开主界面",
+                no_provider_hint: "  (无供应商，请在主界面添加)",
+                quit: "退出",
+            },
+        }
+    }
+}
+
 /// 创建动态托盘菜单
 fn create_tray_menu(
     app: &tauri::AppHandle,
     app_state: &AppState,
-) -> Result<Menu<tauri::Wry>, String> {
-    let config = app_state
-        .config
-        .lock()
-        .map_err(|e| format!("获取锁失败: {}", e))?;
+) -> Result<Menu<tauri::Wry>, AppError> {
+    let app_settings = crate::settings::get_settings();
+    let tray_texts = TrayTexts::from_language(app_settings.language.as_deref().unwrap_or("zh"));
+
+    let config = app_state.config.read().map_err(AppError::from)?;
 
     let mut menu_builder = MenuBuilder::new(app);
 
     // 顶部：打开主界面
-    let show_main_item = MenuItem::with_id(app, "show_main", "打开主界面", true, None::<&str>)
-        .map_err(|e| format!("创建打开主界面菜单失败: {}", e))?;
+    let show_main_item =
+        MenuItem::with_id(app, "show_main", tray_texts.show_main, true, None::<&str>)
+            .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {}", e)))?;
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
@@ -45,7 +82,7 @@ fn create_tray_menu(
         // 添加Claude标题（禁用状态，仅作为分组标识）
         let claude_header =
             MenuItem::with_id(app, "claude_header", "─── Claude ───", false, None::<&str>)
-                .map_err(|e| format!("创建Claude标题失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建Claude标题失败: {}", e)))?;
         menu_builder = menu_builder.item(&claude_header);
 
         if !claude_manager.providers.is_empty() {
@@ -80,7 +117,7 @@ fn create_tray_menu(
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| format!("创建菜单项失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -88,11 +125,11 @@ fn create_tray_menu(
             let empty_hint = MenuItem::with_id(
                 app,
                 "claude_empty",
-                "  (无供应商，请在主界面添加)",
+                tray_texts.no_provider_hint,
                 false,
                 None::<&str>,
             )
-            .map_err(|e| format!("创建Claude空提示失败: {}", e))?;
+            .map_err(|e| AppError::Message(format!("创建Claude空提示失败: {}", e)))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
@@ -101,7 +138,7 @@ fn create_tray_menu(
         // 添加Codex标题（禁用状态，仅作为分组标识）
         let codex_header =
             MenuItem::with_id(app, "codex_header", "─── Codex ───", false, None::<&str>)
-                .map_err(|e| format!("创建Codex标题失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建Codex标题失败: {}", e)))?;
         menu_builder = menu_builder.item(&codex_header);
 
         if !codex_manager.providers.is_empty() {
@@ -136,7 +173,7 @@ fn create_tray_menu(
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| format!("创建菜单项失败: {}", e))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -144,24 +181,24 @@ fn create_tray_menu(
             let empty_hint = MenuItem::with_id(
                 app,
                 "codex_empty",
-                "  (无供应商，请在主界面添加)",
+                tray_texts.no_provider_hint,
                 false,
                 None::<&str>,
             )
-            .map_err(|e| format!("创建Codex空提示失败: {}", e))?;
+            .map_err(|e| AppError::Message(format!("创建Codex空提示失败: {}", e)))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
 
     // 分隔符和退出菜单
-    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
-        .map_err(|e| format!("创建退出菜单失败: {}", e))?;
+    let quit_item = MenuItem::with_id(app, "quit", tray_texts.quit, true, None::<&str>)
+        .map_err(|e| AppError::Message(format!("创建退出菜单失败: {}", e)))?;
 
     menu_builder = menu_builder.separator().item(&quit_item);
 
     menu_builder
         .build()
-        .map_err(|e| format!("构建菜单失败: {}", e))
+        .map_err(|e| AppError::Message(format!("构建菜单失败: {}", e)))
 }
 
 #[cfg(target_os = "macos")]
@@ -212,14 +249,12 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             // 执行切换
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::spawn_blocking(move || {
                 if let Err(e) = switch_provider_internal(
                     &app_handle,
                     crate::app_config::AppType::Claude,
                     provider_id,
-                )
-                .await
-                {
+                ) {
                     log::error!("切换Claude供应商失败: {}", e);
                 }
             });
@@ -231,14 +266,12 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             // 执行切换
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::spawn_blocking(move || {
                 if let Err(e) = switch_provider_internal(
                     &app_handle,
                     crate::app_config::AppType::Codex,
                     provider_id,
-                )
-                .await
-                {
+                ) {
                     log::error!("切换Codex供应商失败: {}", e);
                 }
             });
@@ -252,24 +285,18 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
 //
 
 /// 内部切换供应商函数
-async fn switch_provider_internal(
+fn switch_provider_internal(
     app: &tauri::AppHandle,
     app_type: crate::app_config::AppType,
     provider_id: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if let Some(app_state) = app.try_state::<AppState>() {
         // 在使用前先保存需要的值
         let app_type_str = app_type.as_str().to_string();
         let provider_id_clone = provider_id.clone();
 
-        crate::commands::switch_provider(
-            app_state.clone(),
-            Some(app_type),
-            None,
-            None,
-            provider_id,
-        )
-        .await?;
+        crate::commands::switch_provider(app_state.clone(), app_type_str.clone(), provider_id)
+            .map_err(AppError::Message)?;
 
         // 切换成功后重新创建托盘菜单
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
@@ -298,14 +325,20 @@ async fn update_tray_menu(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
-    if let Ok(new_menu) = create_tray_menu(&app, state.inner()) {
-        if let Some(tray) = app.tray_by_id("main") {
-            tray.set_menu(Some(new_menu))
-                .map_err(|e| format!("更新托盘菜单失败: {}", e))?;
-            return Ok(true);
+    match create_tray_menu(&app, state.inner()) {
+        Ok(new_menu) => {
+            if let Some(tray) = app.tray_by_id("main") {
+                tray.set_menu(Some(new_menu))
+                    .map_err(|e| format!("更新托盘菜单失败: {}", e))?;
+                return Ok(true);
+            }
+            Ok(false)
+        }
+        Err(err) => {
+            log::error!("创建托盘菜单失败: {}", err);
+            Ok(false)
         }
     }
-    Ok(false)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -350,8 +383,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
-            // 设置全局 AppHandle 以供 Store 使用
-            app_store::set_app_handle(app.handle().clone());
             // 注册 Updater 插件（桌面端）
             #[cfg(desktop)]
             {
@@ -402,17 +433,20 @@ pub fn run() {
                 )?;
             }
 
+            // 预先刷新 Store 覆盖配置，确保 AppState 初始化时可读取到最新路径
+            app_store::refresh_app_config_dir_override(app.handle());
+
             // 初始化应用状态（仅创建一次，并在本函数末尾注入 manage）
             let app_state = AppState::new();
 
             // 迁移旧的 app_config_dir 配置到 Store
-            if let Err(e) = app_store::migrate_app_config_dir_from_settings(&app.handle()) {
+            if let Err(e) = app_store::migrate_app_config_dir_from_settings(app.handle()) {
                 log::warn!("迁移 app_config_dir 失败: {}", e);
             }
 
             // 首次启动迁移：扫描副本文件，合并到 config.json，并归档副本；旧 config.json 先归档
             {
-                let mut config_guard = app_state.config.lock().unwrap();
+                let mut config_guard = app_state.config.write().unwrap();
                 let migrated = migration::migrate_copies_into_config(&mut config_guard)?;
                 if migrated {
                     log::info!("已将副本文件导入到 config.json，并完成归档");
@@ -505,10 +539,11 @@ pub fn run() {
             // provider sort order management
             commands::update_providers_sort_order,
             // theirs: config import/export and dialogs
-            import_export::export_config_to_file,
-            import_export::import_config_from_file,
-            import_export::save_file_dialog,
-            import_export::open_file_dialog,
+            commands::export_config_to_file,
+            commands::import_config_from_file,
+            commands::save_file_dialog,
+            commands::open_file_dialog,
+            commands::sync_current_providers_live,
             update_tray_menu,
         ]);
 
