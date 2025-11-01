@@ -4,8 +4,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Save } from "lucide-react";
 
 interface CommonConfigEditorProps {
   value: string;
@@ -105,15 +108,15 @@ export function CommonConfigEditor({
         open={isModalOpen}
         onOpenChange={(open) => !open && onModalClose()}
       >
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>
               {t("claudeConfig.editCommonConfigTitle", {
                 defaultValue: "编辑通用配置片段",
               })}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
             <p className="text-sm text-muted-foreground">
               {t("claudeConfig.commonConfigHint", {
                 defaultValue: "通用配置片段将合并到所有启用它的供应商配置中",
@@ -140,6 +143,15 @@ export function CommonConfigEditor({
               </p>
             )}
           </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onModalClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" onClick={onModalClose} className="gap-2">
+              <Save className="w-4 h-4" />
+              {t("common.save")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
