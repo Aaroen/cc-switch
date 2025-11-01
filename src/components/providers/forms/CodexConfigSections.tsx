@@ -1,5 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { Wand2 } from "lucide-react";
+import { toast } from "sonner";
+import { formatJSON } from "@/utils/formatters";
 
 interface CodexAuthSectionProps {
   value: string;
@@ -18,6 +21,25 @@ export const CodexAuthSection: React.FC<CodexAuthSectionProps> = ({
   error,
 }) => {
   const { t } = useTranslation();
+
+  const handleFormat = () => {
+    if (!value.trim()) return;
+
+    try {
+      const formatted = formatJSON(value);
+      onChange(formatted);
+      toast.success(t("common.formatSuccess", { defaultValue: "格式化成功" }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      toast.error(
+        t("common.formatError", {
+          defaultValue: "格式化失败：{{error}}",
+          error: errorMessage,
+        }),
+      );
+    }
+  };
 
   return (
     <div className="space-y-2">
@@ -47,13 +69,26 @@ export const CodexAuthSection: React.FC<CodexAuthSectionProps> = ({
         data-enable-grammarly="false"
       />
 
-      {error && (
-        <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-      )}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handleFormat}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          {t("common.format", { defaultValue: "格式化" })}
+        </button>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        {t("codexConfig.authJsonHint")}
-      </p>
+        {error && (
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        )}
+      </div>
+
+      {!error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {t("codexConfig.authJsonHint")}
+        </p>
+      )}
     </div>
   );
 };
@@ -141,9 +176,11 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
         <p className="text-xs text-red-500 dark:text-red-400">{configError}</p>
       )}
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        {t("codexConfig.configTomlHint")}
-      </p>
+      {!configError && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {t("codexConfig.configTomlHint")}
+        </p>
+      )}
     </div>
   );
 };

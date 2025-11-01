@@ -22,7 +22,10 @@
     "unknown": "Unknown",
     "enterValidValue": "Please enter a valid value",
     "clear": "Clear",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "format": "Format",
+    "formatSuccess": "Formatted successfully",
+    "formatError": "Format failed: {{error}}"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",

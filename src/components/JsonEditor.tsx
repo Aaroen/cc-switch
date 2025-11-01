@@ -7,6 +7,9 @@ import { EditorState } from "@codemirror/state";
 import { placeholder } from "@codemirror/view";
 import { linter, Diagnostic } from "@codemirror/lint";
 import { useTranslation } from "react-i18next";
+import { Wand2 } from "lucide-react";
+import { toast } from "sonner";
+import { formatJSON } from "@/utils/formatters";
 
 interface JsonEditorProps {
   value: string;
@@ -170,7 +173,44 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
     }
   }, [value]);
 
-  return <div ref={editorRef} style={{ width: "100%" }} />;
+  // 格式化处理函数
+  const handleFormat = () => {
+    if (!viewRef.current) return;
+
+    const currentValue = viewRef.current.state.doc.toString();
+    if (!currentValue.trim()) return;
+
+    try {
+      const formatted = formatJSON(currentValue);
+      onChange(formatted);
+      toast.success(t("common.formatSuccess", { defaultValue: "格式化成功" }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      toast.error(
+        t("common.formatError", {
+          defaultValue: "格式化失败：{{error}}",
+          error: errorMessage,
+        }),
+      );
+    }
+  };
+
+  return (
+    <div style={{ width: "100%" }}>
+      <div ref={editorRef} style={{ width: "100%" }} />
+      {language === "json" && (
+        <button
+          type="button"
+          onClick={handleFormat}
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          {t("common.format", { defaultValue: "格式化" })}
+        </button>
+      )}
+    </div>
+  );
 };
 
 export default JsonEditor;

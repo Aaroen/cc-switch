@@ -22,7 +22,10 @@
     "unknown": "未知",
     "enterValidValue": "请输入有效的内容",
     "clear": "清除",
-    "toggleTheme": "切换主题"
+    "toggleTheme": "切换主题",
+    "format": "格式化",
+    "formatSuccess": "格式化成功",
+    "formatError": "格式化失败：{{error}}"
   },
   "apiKeyInput": {
     "placeholder": "请输入API Key",
