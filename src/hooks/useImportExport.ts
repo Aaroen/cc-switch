@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api";
+import { syncCurrentProvidersLiveSafe } from "@/utils/postChangeSync";
 
 export type ImportStatus =
   | "idle"
@@ -105,8 +106,8 @@ export function useImportExport(
 
       setBackupId(result.backupId ?? null);
 
-      try {
-        await settingsApi.syncCurrentProvidersLive();
+      const syncResult = await syncCurrentProvidersLiveSafe();
+      if (syncResult.ok) {
         setStatus("success");
         toast.success(
           t("settings.importSuccess", {
@@ -117,8 +118,11 @@ export function useImportExport(
         successTimerRef.current = window.setTimeout(() => {
           void onImportSuccess?.();
         }, 1500);
-      } catch (error) {
-        console.error("[useImportExport] Failed to sync live config", error);
+      } else {
+        console.error(
+          "[useImportExport] Failed to sync live config",
+          syncResult.error,
+        );
         setStatus("partial-success");
         toast.warning(
           t("settings.importPartialSuccess", {

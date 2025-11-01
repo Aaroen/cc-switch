@@ -7,6 +7,7 @@ const mutateAsyncMock = vi.fn();
 const useSettingsQueryMock = vi.fn();
 const setAppConfigDirOverrideMock = vi.fn();
 const applyClaudePluginConfigMock = vi.fn();
+const syncCurrentProvidersLiveMock = vi.fn();
 const toastErrorMock = vi.fn();
 const toastSuccessMock = vi.fn();
 
@@ -48,6 +49,8 @@ vi.mock("@/lib/api", () => ({
       setAppConfigDirOverrideMock(...args),
     applyClaudePluginConfig: (...args: unknown[]) =>
       applyClaudePluginConfigMock(...args),
+    syncCurrentProvidersLive: (...args: unknown[]) =>
+      syncCurrentProvidersLiveMock(...args),
   },
 }));
 
@@ -102,6 +105,7 @@ describe("useSettings hook", () => {
     useSettingsQueryMock.mockReset();
     setAppConfigDirOverrideMock.mockReset();
     applyClaudePluginConfigMock.mockReset();
+    syncCurrentProvidersLiveMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
     window.localStorage.clear();
@@ -181,6 +185,8 @@ describe("useSettings hook", () => {
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(true);
     expect(window.localStorage.getItem("language")).toBe("en");
     expect(toastErrorMock).not.toHaveBeenCalled();
+    // 目录有变化，应触发一次同步当前供应商到 live
+    expect(syncCurrentProvidersLiveMock).toHaveBeenCalledTimes(1);
   });
 
   it("saves settings without restart when directory unchanged", async () => {
@@ -209,6 +215,8 @@ describe("useSettings hook", () => {
     expect(setAppConfigDirOverrideMock).toHaveBeenCalledWith(null);
     expect(applyClaudePluginConfigMock).toHaveBeenCalledWith({ official: true });
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(false);
+    // 目录未变化，不应触发同步
+    expect(syncCurrentProvidersLiveMock).not.toHaveBeenCalled();
   });
 
   it("shows toast when Claude plugin sync fails but continues flow", async () => {

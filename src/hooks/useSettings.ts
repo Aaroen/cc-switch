@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { providersApi, settingsApi, type AppId } from "@/lib/api";
+import { syncCurrentProvidersLiveSafe } from "@/utils/postChangeSync";
 import { useSettingsQuery, useSaveSettingsMutation } from "@/lib/query";
 import type { Settings } from "@/types";
 import { useSettingsForm, type SettingsFormState } from "./useSettingsForm";
@@ -120,6 +121,8 @@ export function useSettings(): UseSettingsResult {
       const sanitizedClaudeDir = sanitizeDir(settings.claudeConfigDir);
       const sanitizedCodexDir = sanitizeDir(settings.codexConfigDir);
       const previousAppDir = initialAppConfigDir;
+      const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
+      const previousCodexDir = sanitizeDir(data?.codexConfigDir);
 
       const payload: Settings = {
         ...settings,
@@ -167,6 +170,19 @@ export function useSettings(): UseSettingsResult {
         console.warn("[useSettings] Failed to refresh tray menu", error);
       }
 
+      // 如果 Claude/Codex 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
+      const claudeDirChanged = sanitizedClaudeDir !== previousClaudeDir;
+      const codexDirChanged = sanitizedCodexDir !== previousCodexDir;
+      if (claudeDirChanged || codexDirChanged) {
+        const syncResult = await syncCurrentProvidersLiveSafe();
+        if (!syncResult.ok) {
+          console.warn(
+            "[useSettings] Failed to sync current providers after directory change",
+            syncResult.error,
+          );
+        }
+      }
+
       const appDirChanged = sanitizedAppDir !== (previousAppDir ?? undefined);
       setRequiresRestart(appDirChanged);
 
@@ -177,6 +193,7 @@ export function useSettings(): UseSettingsResult {
     }
   }, [
     appConfigDir,
+    data,
     initialAppConfigDir,
     saveMutation,
     settings,
