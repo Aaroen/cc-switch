@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import EndpointSpeedTest from "./EndpointSpeedTest";
-import KimiModelSelector from "./KimiModelSelector";
 import { ApiKeySection, EndpointField } from "./shared";
 import type { ProviderCategory } from "@/types";
 import type { TemplateValueConfig } from "@/config/providerPresets";
@@ -35,27 +34,12 @@ interface ClaudeFormFieldsProps {
   onCustomEndpointsChange: (endpoints: string[]) => void;
 
   // Model Selector
-  shouldShowKimiSelector: boolean;
   shouldShowModelSelector: boolean;
   claudeModel: string;
   defaultHaikuModel: string;
   defaultSonnetModel: string;
   defaultOpusModel: string;
   onModelChange: (
-    field:
-      | "ANTHROPIC_MODEL"
-      | "ANTHROPIC_DEFAULT_HAIKU_MODEL"
-      | "ANTHROPIC_DEFAULT_SONNET_MODEL"
-      | "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    value: string,
-  ) => void;
-
-  // Kimi Model Selector
-  kimiAnthropicModel: string;
-  kimiDefaultHaikuModel: string;
-  kimiDefaultSonnetModel: string;
-  kimiDefaultOpusModel: string;
-  onKimiModelChange: (
     field:
       | "ANTHROPIC_MODEL"
       | "ANTHROPIC_DEFAULT_HAIKU_MODEL"
@@ -85,18 +69,12 @@ export function ClaudeFormFields({
   isEndpointModalOpen,
   onEndpointModalToggle,
   onCustomEndpointsChange,
-  shouldShowKimiSelector,
   shouldShowModelSelector,
   claudeModel,
   defaultHaikuModel,
   defaultSonnetModel,
   defaultOpusModel,
   onModelChange,
-  kimiAnthropicModel,
-  kimiDefaultHaikuModel,
-  kimiDefaultSonnetModel,
-  kimiDefaultOpusModel,
-  onKimiModelChange,
   speedTestEndpoints,
 }: ClaudeFormFieldsProps) {
   const { t } = useTranslation();
@@ -259,19 +237,6 @@ export function ClaudeFormFields({
             })}
           </p>
         </div>
-      )}
-
-      {/* Kimi 模型选择器 */}
-      {shouldShowKimiSelector && (
-        <KimiModelSelector
-          apiKey={apiKey}
-          anthropicModel={kimiAnthropicModel}
-          defaultHaikuModel={kimiDefaultHaikuModel}
-          defaultSonnetModel={kimiDefaultSonnetModel}
-          defaultOpusModel={kimiDefaultOpusModel}
-          onModelChange={onKimiModelChange}
-          disabled={category === "official"}
-        />
       )}
     </>
   );

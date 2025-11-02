@@ -230,7 +230,6 @@
     "officialNoApiKey": "Official login does not require API Key, save directly",
     "codexOfficialNoApiKey": "Official does not require API Key, save directly",
     "codexApiKeyAutoFill": "Just fill in here, auth.json below will be auto-filled",
-    "kimiApiKeyHint": "Fill in to get model list",
     "apiKeyAutoFill": "Just fill in here, config below will be auto-filled",
     "cnOfficialApiKeyHint": "💡 Opensource official providers only need API Key, endpoint is preset",
     "aggregatorApiKeyHint": "💡 Aggregator providers only need API Key to use",
@@ -372,22 +371,7 @@
     "tip2": "• Extractor function runs in sandbox environment, supports ES2020+ syntax",
     "tip3": "• Entire config must be wrapped in () to form object literal expression"
   },
-  "kimiSelector": {
-    "modelConfig": "Model Configuration",
-    "mainModel": "Main Model",
-    "fastModel": "Fast Model",
-    "haikuModel": "Default Haiku",
-    "sonnetModel": "Default Sonnet",
-    "opusModel": "Default Opus",
-    "refreshModels": "Refresh Model List",
-    "pleaseSelectModel": "Please select a model",
-    "noModels": "No models available",
-    "fillApiKeyFirst": "Please fill in API Key first",
-    "requestFailed": "Request failed: {{error}}",
-    "invalidData": "Invalid response data format",
-    "fetchModelsFailed": "Failed to fetch model list",
-    "apiKeyHint": "💡 Fill in API Key to automatically fetch available model list"
-  },
+  
   "presetSelector": {
     "title": "Select Configuration Type",
     "custom": "Custom",

@@ -28,7 +28,6 @@ import {
   useCodexConfigState,
   useApiKeyLink,
   useCustomEndpoints,
-  useKimiModelSelector,
   useTemplateValues,
   useCommonConfigSnippet,
   useCodexCommonConfig,
@@ -218,26 +217,6 @@ export function ProviderForm({
       preset,
     }));
   }, [appId]);
-
-  // 使用 Kimi 模型选择器 hook
-  const {
-    shouldShow: shouldShowKimiSelector,
-    kimiAnthropicModel,
-    kimiDefaultHaikuModel,
-    kimiDefaultSonnetModel,
-    kimiDefaultOpusModel,
-    handleKimiModelChange,
-  } = useKimiModelSelector({
-    initialData,
-    settingsConfig: form.watch("settingsConfig"),
-    onConfigChange: (config) => form.setValue("settingsConfig", config),
-    selectedPresetId,
-    presetName:
-      selectedPresetId && selectedPresetId !== "custom"
-        ? presetEntries.find((item) => item.id === selectedPresetId)?.preset
-            .name || ""
-        : "",
-  });
 
   // 使用模板变量 hook (仅 Claude 模式)
   const {
@@ -502,20 +481,12 @@ export function ProviderForm({
             isEndpointModalOpen={isEndpointModalOpen}
             onEndpointModalToggle={setIsEndpointModalOpen}
             onCustomEndpointsChange={setDraftCustomEndpoints}
-            shouldShowKimiSelector={shouldShowKimiSelector}
-            shouldShowModelSelector={
-              category !== "official" && !shouldShowKimiSelector
-            }
+            shouldShowModelSelector={category !== "official"}
             claudeModel={claudeModel}
             defaultHaikuModel={defaultHaikuModel}
             defaultSonnetModel={defaultSonnetModel}
             defaultOpusModel={defaultOpusModel}
             onModelChange={handleModelChange}
-            kimiAnthropicModel={kimiAnthropicModel}
-            kimiDefaultHaikuModel={kimiDefaultHaikuModel}
-            kimiDefaultSonnetModel={kimiDefaultSonnetModel}
-            kimiDefaultOpusModel={kimiDefaultOpusModel}
-            onKimiModelChange={handleKimiModelChange}
             speedTestEndpoints={speedTestEndpoints}
           />
         )}

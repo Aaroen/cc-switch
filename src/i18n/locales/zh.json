@@ -230,7 +230,6 @@
     "officialNoApiKey": "官方登录无需填写 API Key，直接保存即可",
     "codexOfficialNoApiKey": "官方无需填写 API Key，直接保存即可",
     "codexApiKeyAutoFill": "只需要填这里，下方 auth.json 会自动填充",
-    "kimiApiKeyHint": "填写后可获取模型列表",
     "apiKeyAutoFill": "只需要填这里，下方配置会自动填充",
     "cnOfficialApiKeyHint": "💡 开源官方供应商只需填写 API Key，请求地址已预设",
     "aggregatorApiKeyHint": "💡 聚合服务供应商只需填写 API Key 即可使用",
@@ -372,22 +371,7 @@
     "tip2": "• extractor 函数在沙箱环境中执行，支持 ES2020+ 语法",
     "tip3": "• 整个配置必须用 () 包裹，形成对象字面量表达式"
   },
-  "kimiSelector": {
-    "modelConfig": "模型配置",
-    "mainModel": "主模型",
-    "fastModel": "快速模型",
-    "haikuModel": "Haiku 默认",
-    "sonnetModel": "Sonnet 默认",
-    "opusModel": "Opus 默认",
-    "refreshModels": "刷新模型列表",
-    "pleaseSelectModel": "请选择模型",
-    "noModels": "暂无模型",
-    "fillApiKeyFirst": "请先填写 API Key",
-    "requestFailed": "请求失败: {{error}}",
-    "invalidData": "返回数据格式错误",
-    "fetchModelsFailed": "获取模型列表失败",
-    "apiKeyHint": "💡 填写 API Key 后将自动获取可用模型列表"
-  },
+  
   "presetSelector": {
     "title": "选择配置类型",
     "custom": "自定义",
