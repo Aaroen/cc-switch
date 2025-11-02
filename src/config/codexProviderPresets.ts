@@ -73,7 +73,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   {
     name: "AiHubMix",
     websiteUrl: "https://aihubmix.com",
-    category: "cn_official",
+    category: "aggregator",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "aihubmix",

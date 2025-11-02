@@ -77,7 +77,7 @@ export const providerPresets: ProviderPreset[] = [
       "https://aihubmix.com",
       "https://api.aihubmix.com",
     ],
-    category: "cn_official",
+    category: "aggregator",
   },
   {
     name: "DeepSeek",
@@ -101,7 +101,7 @@ export const providerPresets: ProviderPreset[] = [
       env: {
         ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
-        ANTHROPIC_MODEL: "GLM-4.6",
+        ANTHROPIC_MODEL: "glm-4.6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-4.5-air",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-4.6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-4.6",

@@ -186,8 +186,8 @@ export function ClaudeFormFields({
                 onChange={(e) =>
                   onModelChange("ANTHROPIC_DEFAULT_HAIKU_MODEL", e.target.value)
                 }
-                placeholder={t("providerForm.modelPlaceholder", {
-                  defaultValue: "claude-3-5-haiku-20241022",
+                placeholder={t("providerForm.haikuModelPlaceholder", {
+                  defaultValue: "GLM-4.5-Air",
                 })}
                 autoComplete="off"
               />
