@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type {
   ProviderPreset,
   TemplateValueConfig,
-} from "@/config/providerPresets";
+} from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 

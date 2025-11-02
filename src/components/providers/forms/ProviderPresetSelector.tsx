@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
 import { ClaudeIcon, CodexIcon } from "@/components/BrandIcons";
 import { Zap } from "lucide-react";
-import type { ProviderPreset } from "@/config/providerPresets";
+import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { ProviderCategory } from "@/types";
 

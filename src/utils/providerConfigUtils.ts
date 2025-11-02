@@ -1,6 +1,6 @@
 // 供应商配置处理工具函数
 
-import type { TemplateValueConfig } from "../config/providerPresets";
+import type { TemplateValueConfig } from "../config/claudeProviderPresets";
 
 const isPlainObject = (value: unknown): value is Record<string, any> => {
   return Object.prototype.toString.call(value) === "[object Object]";

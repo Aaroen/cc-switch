@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField } from "./shared";
 import type { ProviderCategory } from "@/types";
-import type { TemplateValueConfig } from "@/config/providerPresets";
+import type { TemplateValueConfig } from "@/config/claudeProviderPresets";
 
 interface EndpointCandidate {
   url: string;

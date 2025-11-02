@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { AppId } from "@/lib/api";
-import type { ProviderPreset } from "@/config/providerPresets";
+import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { ProviderMeta, EndpointCandidate } from "@/types";
 

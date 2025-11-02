@@ -16,7 +16,7 @@ import {
   ProviderForm,
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
-import { providerPresets } from "@/config/providerPresets";
+import { providerPresets } from "@/config/claudeProviderPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
 
 interface AddProviderDialogProps {

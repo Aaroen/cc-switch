@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ProviderCategory } from "@/types";
 import type { AppId } from "@/lib/api";
-import { providerPresets } from "@/config/providerPresets";
+import { providerPresets } from "@/config/claudeProviderPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
 
 interface UseProviderCategoryProps {

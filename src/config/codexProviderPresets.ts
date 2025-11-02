@@ -2,7 +2,7 @@
  * Codex 预设供应商配置模板
  */
 import { ProviderCategory } from "../types";
-import type { PresetTheme } from "./providerPresets";
+import type { PresetTheme } from "./claudeProviderPresets";
 
 export interface CodexProviderPreset {
   name: string;
