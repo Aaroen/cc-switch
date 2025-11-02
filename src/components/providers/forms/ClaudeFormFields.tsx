@@ -38,17 +38,29 @@ interface ClaudeFormFieldsProps {
   shouldShowKimiSelector: boolean;
   shouldShowModelSelector: boolean;
   claudeModel: string;
-  claudeSmallFastModel: string;
+  defaultHaikuModel: string;
+  defaultSonnetModel: string;
+  defaultOpusModel: string;
   onModelChange: (
-    field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
+    field:
+      | "ANTHROPIC_MODEL"
+      | "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+      | "ANTHROPIC_DEFAULT_SONNET_MODEL"
+      | "ANTHROPIC_DEFAULT_OPUS_MODEL",
     value: string,
   ) => void;
 
   // Kimi Model Selector
   kimiAnthropicModel: string;
-  kimiAnthropicSmallFastModel: string;
+  kimiDefaultHaikuModel: string;
+  kimiDefaultSonnetModel: string;
+  kimiDefaultOpusModel: string;
   onKimiModelChange: (
-    field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
+    field:
+      | "ANTHROPIC_MODEL"
+      | "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+      | "ANTHROPIC_DEFAULT_SONNET_MODEL"
+      | "ANTHROPIC_DEFAULT_OPUS_MODEL",
     value: string,
   ) => void;
 
@@ -76,10 +88,14 @@ export function ClaudeFormFields({
   shouldShowKimiSelector,
   shouldShowModelSelector,
   claudeModel,
-  claudeSmallFastModel,
+  defaultHaikuModel,
+  defaultSonnetModel,
+  defaultOpusModel,
   onModelChange,
   kimiAnthropicModel,
-  kimiAnthropicSmallFastModel,
+  kimiDefaultHaikuModel,
+  kimiDefaultSonnetModel,
+  kimiDefaultOpusModel,
   onKimiModelChange,
   speedTestEndpoints,
 }: ClaudeFormFieldsProps) {
@@ -163,19 +179,53 @@ export function ClaudeFormFields({
       {shouldShowModelSelector && (
         <div className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* ANTHROPIC_MODEL */}
+            {/* 主模型 */}
             <div className="space-y-2">
               <FormLabel htmlFor="claudeModel">
-                {t("providerForm.anthropicModel", {
-                  defaultValue: "主模型",
-                })}
+                {t("providerForm.anthropicModel", { defaultValue: "主模型" })}
               </FormLabel>
               <Input
                 id="claudeModel"
                 type="text"
                 value={claudeModel}
+                onChange={(e) => onModelChange("ANTHROPIC_MODEL", e.target.value)}
+                placeholder={t("providerForm.modelPlaceholder", {
+                  defaultValue: "claude-3-7-sonnet-20250219",
+                })}
+                autoComplete="off"
+              />
+            </div>
+
+            {/* 默认 Haiku */}
+            <div className="space-y-2">
+              <FormLabel htmlFor="claudeDefaultHaikuModel">
+                {t("providerForm.anthropicDefaultHaikuModel", { defaultValue: "Haiku 默认模型" })}
+              </FormLabel>
+              <Input
+                id="claudeDefaultHaikuModel"
+                type="text"
+                value={defaultHaikuModel}
                 onChange={(e) =>
-                  onModelChange("ANTHROPIC_MODEL", e.target.value)
+                  onModelChange("ANTHROPIC_DEFAULT_HAIKU_MODEL", e.target.value)
+                }
+                placeholder={t("providerForm.modelPlaceholder", {
+                  defaultValue: "claude-3-5-haiku-20241022",
+                })}
+                autoComplete="off"
+              />
+            </div>
+
+            {/* 默认 Sonnet */}
+            <div className="space-y-2">
+              <FormLabel htmlFor="claudeDefaultSonnetModel">
+                {t("providerForm.anthropicDefaultSonnetModel", { defaultValue: "Sonnet 默认模型" })}
+              </FormLabel>
+              <Input
+                id="claudeDefaultSonnetModel"
+                type="text"
+                value={defaultSonnetModel}
+                onChange={(e) =>
+                  onModelChange("ANTHROPIC_DEFAULT_SONNET_MODEL", e.target.value)
                 }
                 placeholder={t("providerForm.modelPlaceholder", {
                   defaultValue: "claude-3-7-sonnet-20250219",
@@ -184,22 +234,20 @@ export function ClaudeFormFields({
               />
             </div>
 
-            {/* ANTHROPIC_SMALL_FAST_MODEL */}
+            {/* 默认 Opus */}
             <div className="space-y-2">
-              <FormLabel htmlFor="claudeSmallFastModel">
-                {t("providerForm.anthropicSmallFastModel", {
-                  defaultValue: "快速模型",
-                })}
+              <FormLabel htmlFor="claudeDefaultOpusModel">
+                {t("providerForm.anthropicDefaultOpusModel", { defaultValue: "Opus 默认模型" })}
               </FormLabel>
               <Input
-                id="claudeSmallFastModel"
+                id="claudeDefaultOpusModel"
                 type="text"
-                value={claudeSmallFastModel}
+                value={defaultOpusModel}
                 onChange={(e) =>
-                  onModelChange("ANTHROPIC_SMALL_FAST_MODEL", e.target.value)
+                  onModelChange("ANTHROPIC_DEFAULT_OPUS_MODEL", e.target.value)
                 }
-                placeholder={t("providerForm.smallModelPlaceholder", {
-                  defaultValue: "claude-3-5-haiku-20241022",
+                placeholder={t("providerForm.modelPlaceholder", {
+                  defaultValue: "claude-3-7-opus-20250219",
                 })}
                 autoComplete="off"
               />
@@ -207,8 +255,7 @@ export function ClaudeFormFields({
           </div>
           <p className="text-xs text-muted-foreground">
             {t("providerForm.modelHelper", {
-              defaultValue:
-                "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
+              defaultValue: "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
             })}
           </p>
         </div>
@@ -219,7 +266,9 @@ export function ClaudeFormFields({
         <KimiModelSelector
           apiKey={apiKey}
           anthropicModel={kimiAnthropicModel}
-          anthropicSmallFastModel={kimiAnthropicSmallFastModel}
+          defaultHaikuModel={kimiDefaultHaikuModel}
+          defaultSonnetModel={kimiDefaultSonnetModel}
+          defaultOpusModel={kimiDefaultOpusModel}
           onModelChange={onKimiModelChange}
           disabled={category === "official"}
         />

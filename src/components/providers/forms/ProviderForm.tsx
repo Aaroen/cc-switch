@@ -140,12 +140,17 @@ export function ProviderForm({
     },
   });
 
-  // 使用 Model hook
-  const { claudeModel, claudeSmallFastModel, handleModelChange } =
-    useModelState({
-      settingsConfig: form.watch("settingsConfig"),
-      onConfigChange: (config) => form.setValue("settingsConfig", config),
-    });
+  // 使用 Model hook（新：主模型 + Haiku/Sonnet/Opus 默认模型）
+  const {
+    claudeModel,
+    defaultHaikuModel,
+    defaultSonnetModel,
+    defaultOpusModel,
+    handleModelChange,
+  } = useModelState({
+    settingsConfig: form.watch("settingsConfig"),
+    onConfigChange: (config) => form.setValue("settingsConfig", config),
+  });
 
   // 使用 Codex 配置 hook (仅 Codex 模式)
   const {
@@ -218,7 +223,9 @@ export function ProviderForm({
   const {
     shouldShow: shouldShowKimiSelector,
     kimiAnthropicModel,
-    kimiAnthropicSmallFastModel,
+    kimiDefaultHaikuModel,
+    kimiDefaultSonnetModel,
+    kimiDefaultOpusModel,
     handleKimiModelChange,
   } = useKimiModelSelector({
     initialData,
@@ -500,10 +507,14 @@ export function ProviderForm({
               category !== "official" && !shouldShowKimiSelector
             }
             claudeModel={claudeModel}
-            claudeSmallFastModel={claudeSmallFastModel}
+            defaultHaikuModel={defaultHaikuModel}
+            defaultSonnetModel={defaultSonnetModel}
+            defaultOpusModel={defaultOpusModel}
             onModelChange={handleModelChange}
             kimiAnthropicModel={kimiAnthropicModel}
-            kimiAnthropicSmallFastModel={kimiAnthropicSmallFastModel}
+            kimiDefaultHaikuModel={kimiDefaultHaikuModel}
+            kimiDefaultSonnetModel={kimiDefaultSonnetModel}
+            kimiDefaultOpusModel={kimiDefaultOpusModel}
             onKimiModelChange={handleKimiModelChange}
             speedTestEndpoints={speedTestEndpoints}
           />

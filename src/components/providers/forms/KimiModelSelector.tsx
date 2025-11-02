@@ -12,9 +12,15 @@ interface KimiModel {
 interface KimiModelSelectorProps {
   apiKey: string;
   anthropicModel: string;
-  anthropicSmallFastModel: string;
+  defaultHaikuModel: string;
+  defaultSonnetModel: string;
+  defaultOpusModel: string;
   onModelChange: (
-    field: "ANTHROPIC_MODEL" | "ANTHROPIC_SMALL_FAST_MODEL",
+    field:
+      | "ANTHROPIC_MODEL"
+      | "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+      | "ANTHROPIC_DEFAULT_SONNET_MODEL"
+      | "ANTHROPIC_DEFAULT_OPUS_MODEL",
     value: string,
   ) => void;
   disabled?: boolean;
@@ -23,7 +29,9 @@ interface KimiModelSelectorProps {
 const KimiModelSelector: React.FC<KimiModelSelectorProps> = ({
   apiKey,
   anthropicModel,
-  anthropicSmallFastModel,
+  defaultHaikuModel,
+  defaultSonnetModel,
+  defaultOpusModel,
   onModelChange,
   disabled = false,
 }) => {
@@ -173,11 +181,19 @@ const KimiModelSelector: React.FC<KimiModelSelectorProps> = ({
           onChange={(value) => onModelChange("ANTHROPIC_MODEL", value)}
         />
         <ModelSelect
-          label={t("kimiSelector.fastModel")}
-          value={anthropicSmallFastModel}
-          onChange={(value) =>
-            onModelChange("ANTHROPIC_SMALL_FAST_MODEL", value)
-          }
+          label={t("kimiSelector.haikuModel", { defaultValue: "Haiku 默认" })}
+          value={defaultHaikuModel}
+          onChange={(value) => onModelChange("ANTHROPIC_DEFAULT_HAIKU_MODEL", value)}
+        />
+        <ModelSelect
+          label={t("kimiSelector.sonnetModel", { defaultValue: "Sonnet 默认" })}
+          value={defaultSonnetModel}
+          onChange={(value) => onModelChange("ANTHROPIC_DEFAULT_SONNET_MODEL", value)}
+        />
+        <ModelSelect
+          label={t("kimiSelector.opusModel", { defaultValue: "Opus 默认" })}
+          value={defaultOpusModel}
+          onChange={(value) => onModelChange("ANTHROPIC_DEFAULT_OPUS_MODEL", value)}
         />
       </div>
 

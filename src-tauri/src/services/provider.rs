@@ -112,6 +112,74 @@ mod tests {
 }
 
 impl ProviderService {
+    /// 归一化 Claude 模型键：读旧键(ANTHROPIC_SMALL_FAST_MODEL)，写新键(DEFAULT_*), 并删除旧键
+    fn normalize_claude_models_in_value(settings: &mut Value) -> bool {
+        let mut changed = false;
+        let env = match settings.get_mut("env") {
+            Some(v) if v.is_object() => v.as_object_mut().unwrap(),
+            _ => return changed,
+        };
+
+        let model = env
+            .get("ANTHROPIC_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let small_fast = env
+            .get("ANTHROPIC_SMALL_FAST_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let current_haiku = env
+            .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let current_sonnet = env
+            .get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let current_opus = env
+            .get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let target_haiku = current_haiku.or_else(|| small_fast.clone()).or_else(|| model.clone());
+        let target_sonnet = current_sonnet.or_else(|| model.clone()).or_else(|| small_fast.clone());
+        let target_opus = current_opus.or_else(|| model.clone()).or_else(|| small_fast.clone());
+
+        if env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL").is_none() {
+            if let Some(v) = target_haiku {
+                env.insert("ANTHROPIC_DEFAULT_HAIKU_MODEL".to_string(), Value::String(v));
+                changed = true;
+            }
+        }
+        if env.get("ANTHROPIC_DEFAULT_SONNET_MODEL").is_none() {
+            if let Some(v) = target_sonnet {
+                env.insert("ANTHROPIC_DEFAULT_SONNET_MODEL".to_string(), Value::String(v));
+                changed = true;
+            }
+        }
+        if env.get("ANTHROPIC_DEFAULT_OPUS_MODEL").is_none() {
+            if let Some(v) = target_opus {
+                env.insert("ANTHROPIC_DEFAULT_OPUS_MODEL".to_string(), Value::String(v));
+                changed = true;
+            }
+        }
+
+        if env.remove("ANTHROPIC_SMALL_FAST_MODEL").is_some() {
+            changed = true;
+        }
+
+        changed
+    }
+
+    fn normalize_provider_if_claude(app_type: &AppType, provider: &mut Provider) {
+        if matches!(app_type, AppType::Claude) {
+            let mut v = provider.settings_config.clone();
+            if Self::normalize_claude_models_in_value(&mut v) {
+                provider.settings_config = v;
+            }
+        }
+    }
     fn run_transaction<R, F>(state: &AppState, f: F) -> Result<R, AppError>
     where
         F: FnOnce(&mut MultiAppConfig) -> Result<(R, Option<PostCommitAction>), AppError>,
@@ -209,7 +277,8 @@ impl ProviderService {
                         "Claude settings file missing; cannot refresh snapshot",
                     ));
                 }
-                let live_after = read_json_file::<Value>(&settings_path)?;
+                let mut live_after = read_json_file::<Value>(&settings_path)?;
+                let _ = Self::normalize_claude_models_in_value(&mut live_after);
                 {
                     let mut guard = state.config.write().map_err(AppError::from)?;
                     if let Some(manager) = guard.get_manager_mut(app_type) {
@@ -308,6 +377,9 @@ impl ProviderService {
 
     /// 新增供应商
     pub fn add(state: &AppState, app_type: AppType, provider: Provider) -> Result<bool, AppError> {
+        let mut provider = provider;
+        // 归一化 Claude 模型键
+        Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
 
         let app_type_clone = app_type.clone();
@@ -347,6 +419,9 @@ impl ProviderService {
         app_type: AppType,
         provider: Provider,
     ) -> Result<bool, AppError> {
+        let mut provider = provider;
+        // 归一化 Claude 模型键
+        Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
         let provider_id = provider.id.clone();
         let app_type_clone = app_type.clone();
@@ -440,7 +515,9 @@ impl ProviderService {
                         "Claude settings file is missing",
                     ));
                 }
-                read_json_file(&settings_path)?
+                let mut v = read_json_file::<Value>(&settings_path)?;
+                let _ = Self::normalize_claude_models_in_value(&mut v);
+                v
             }
         };
 
@@ -848,7 +925,8 @@ impl ProviderService {
             return Ok(());
         }
 
-        let live = read_json_file::<Value>(&settings_path)?;
+        let mut live = read_json_file::<Value>(&settings_path)?;
+        let _ = Self::normalize_claude_models_in_value(&mut live);
         if let Some(manager) = config.get_manager_mut(&AppType::Claude) {
             if let Some(current) = manager.providers.get_mut(&current_id) {
                 current.settings_config = live;
@@ -864,7 +942,10 @@ impl ProviderService {
             std::fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
         }
 
-        write_json_file(&settings_path, &provider.settings_config)?;
+        // 归一化后再写入
+        let mut content = provider.settings_config.clone();
+        let _ = Self::normalize_claude_models_in_value(&mut content);
+        write_json_file(&settings_path, &content)?;
         Ok(())
     }
 
