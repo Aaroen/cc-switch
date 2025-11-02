@@ -75,7 +75,6 @@ export const providerPresets: ProviderPreset[] = [
       env: {
         ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
-        // 兼容旧键名，保持前端读取一致
         ANTHROPIC_MODEL: "GLM-4.6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-4.5-air",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-4.6",
@@ -132,17 +131,17 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "KAT-Coder",
-    websiteUrl: "https://console.streamlake.ai/wanqing/",
-    apiKeyUrl: "https://console.streamlake.ai/console/wanqing/api-key",
+    websiteUrl: "https://console.streamlake.ai",
+    apiKeyUrl: "https://console.streamlake.ai/console/api-key",
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL:
           "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/${ENDPOINT_ID}/claude-code-proxy",
         ANTHROPIC_AUTH_TOKEN: "",
-        ANTHROPIC_MODEL: "KAT-Coder",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "KAT-Coder",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "KAT-Coder",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "KAT-Coder",
+        ANTHROPIC_MODEL: "KAT-Coder-Pro V1",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "KAT-Coder-Air V1",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "KAT-Coder-Pro V1",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "KAT-Coder-Pro V1",
       },
     },
     category: "cn_official",
@@ -169,6 +168,24 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: "LongCat-Flash-Chat",
         CLAUDE_CODE_MAX_OUTPUT_TOKENS: "6000",
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+      },
+    },
+    category: "cn_official",
+  },
+  {
+    name: "MiniMax",
+    websiteUrl: "https://platform.minimaxi.com",
+    apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information",
+    settingsConfig: {
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+        "ANTHROPIC_AUTH_TOKEN": "",
+        "API_TIMEOUT_MS": "3000000",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
+        "ANTHROPIC_MODEL": "MiniMax-M2",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2"
       },
     },
     category: "cn_official",

@@ -72,18 +72,18 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   },
   {
     name: "PackyCode",
-    websiteUrl: "https://codex.packycode.com/",
+    websiteUrl: "https://www.packyapi.com",
     category: "third_party",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "packycode",
-      "https://codex-api.packycode.com/v1",
+      "https://www.packyapi.com/v1",
       "gpt-5-codex",
     ),
     // Codex 请求地址候选（用于地址管理/测速）
     endpointCandidates: [
-      "https://codex-api.packycode.com/v1",
-      "https://codex-api-slb.packycode.com/v1",
+      "https://www.packyapi.com/v1",
+      "https://api-slb.packyapi.com/v1",
     ],
   },
   {
