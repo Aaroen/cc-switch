@@ -1032,6 +1032,7 @@ impl ProviderService {
 
                 let api_key = env
                     .get("ANTHROPIC_AUTH_TOKEN")
+                    .or_else(|| env.get("ANTHROPIC_API_KEY"))
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
                         AppError::localized(

@@ -30,6 +30,8 @@ export interface ProviderPreset {
   settingsConfig: object;
   isOfficial?: boolean; // 标识是否为官方预设
   category?: ProviderCategory; // 新增：分类
+  // 新增：指定该预设所使用的 API Key 字段名（默认 ANTHROPIC_AUTH_TOKEN）
+  apiKeyField?: "ANTHROPIC_AUTH_TOKEN" | "ANTHROPIC_API_KEY";
   // 新增：模板变量定义，用于动态替换配置中的值
   templateValues?: Record<string, TemplateValueConfig>; // editorValue 存储编辑器中的实时输入值
   // 新增：请求地址候选列表（用于地址管理/测速）
@@ -52,6 +54,30 @@ export const providerPresets: ProviderPreset[] = [
       backgroundColor: "#D97757",
       textColor: "#FFFFFF",
     },
+  },
+  {
+    name: "AiHubMix",
+    websiteUrl: "https://aihubmix.com",
+    apiKeyUrl: "https://aihubmix.com",
+    // 说明：该供应商使用 ANTHROPIC_API_KEY（而非 ANTHROPIC_AUTH_TOKEN）
+    apiKeyField: "ANTHROPIC_API_KEY",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://aihubmix.com",
+        ANTHROPIC_API_KEY: "",
+        // 可选的模型默认值（留空表示使用系统默认）
+        // ANTHROPIC_MODEL: "",
+        // ANTHROPIC_DEFAULT_HAIKU_MODEL: "",
+        // ANTHROPIC_DEFAULT_SONNET_MODEL: "",
+        // ANTHROPIC_DEFAULT_OPUS_MODEL: "",
+      },
+    },
+    // 请求地址候选（用于地址管理/测速），用户可自行选择/覆盖
+    endpointCandidates: [
+      "https://aihubmix.com",
+      "https://api.aihubmix.com",
+    ],
+    category: "cn_official",
   },
   {
     name: "DeepSeek",

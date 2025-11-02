@@ -40,7 +40,10 @@ fn next_unique_id(existing: &HashSet<String>, base: &str) -> String {
 fn extract_claude_api_key(value: &Value) -> Option<String> {
     value
         .get("env")
-        .and_then(|env| env.get("ANTHROPIC_AUTH_TOKEN"))
+        .and_then(|env| {
+            env.get("ANTHROPIC_AUTH_TOKEN")
+                .or_else(|| env.get("ANTHROPIC_API_KEY"))
+        })
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
 }

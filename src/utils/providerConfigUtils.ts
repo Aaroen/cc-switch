@@ -164,12 +164,14 @@ export const hasCommonConfigSnippet = (
   }
 };
 
-// 读取配置中的 API Key（env.ANTHROPIC_AUTH_TOKEN）
+// 读取配置中的 API Key（优先 ANTHROPIC_AUTH_TOKEN，其次 ANTHROPIC_API_KEY）
 export const getApiKeyFromConfig = (jsonString: string): string => {
   try {
     const config = JSON.parse(jsonString);
-    const key = config?.env?.ANTHROPIC_AUTH_TOKEN;
-    return typeof key === "string" ? key : "";
+    const token = config?.env?.ANTHROPIC_AUTH_TOKEN;
+    const apiKey = config?.env?.ANTHROPIC_API_KEY;
+    const value = typeof token === "string" ? token : typeof apiKey === "string" ? apiKey : "";
+    return value;
   } catch (err) {
     return "";
   }
@@ -224,9 +226,10 @@ export const applyTemplateValues = (
 export const hasApiKeyField = (jsonString: string): boolean => {
   try {
     const config = JSON.parse(jsonString);
-    return Object.prototype.hasOwnProperty.call(
-      config?.env ?? {},
-      "ANTHROPIC_AUTH_TOKEN",
+    const env = config?.env ?? {};
+    return (
+      Object.prototype.hasOwnProperty.call(env, "ANTHROPIC_AUTH_TOKEN") ||
+      Object.prototype.hasOwnProperty.call(env, "ANTHROPIC_API_KEY")
     );
   } catch (err) {
     return false;
@@ -246,10 +249,17 @@ export const setApiKeyInConfig = (
       if (!createIfMissing) return jsonString;
       config.env = {};
     }
-    if (!("ANTHROPIC_AUTH_TOKEN" in config.env) && !createIfMissing) {
+    const env = config.env as Record<string, any>;
+    // 优先写入已存在的字段；若两者均不存在且允许创建，则默认创建 AUTH_TOKEN 字段
+    if ("ANTHROPIC_AUTH_TOKEN" in env) {
+      env.ANTHROPIC_AUTH_TOKEN = apiKey;
+    } else if ("ANTHROPIC_API_KEY" in env) {
+      env.ANTHROPIC_API_KEY = apiKey;
+    } else if (createIfMissing) {
+      env.ANTHROPIC_AUTH_TOKEN = apiKey;
+    } else {
       return jsonString;
     }
-    config.env.ANTHROPIC_AUTH_TOKEN = apiKey;
     return JSON.stringify(config, null, 2);
   } catch (err) {
     return jsonString;
