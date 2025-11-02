@@ -68,6 +68,24 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     }
   }, [codexConfig, codexBaseUrl]);
 
+  // 获取 API Key（从 auth JSON）
+  const getCodexAuthApiKey = useCallback((authString: string): string => {
+    try {
+      const auth = JSON.parse(authString || "{}");
+      return typeof auth.OPENAI_API_KEY === "string" ? auth.OPENAI_API_KEY : "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+  // 从 codexAuth 中提取并同步 API Key
+  useEffect(() => {
+    const extractedKey = getCodexAuthApiKey(codexAuth);
+    if (extractedKey !== codexApiKey) {
+      setCodexApiKey(extractedKey);
+    }
+  }, [codexAuth, codexApiKey]);
+
   // 验证 Codex Auth JSON
   const validateCodexAuth = useCallback((value: string): string => {
     if (!value.trim()) return "";
@@ -106,10 +124,11 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
   // 处理 Codex API Key 输入并写回 auth.json
   const handleCodexApiKeyChange = useCallback(
     (key: string) => {
-      setCodexApiKey(key);
+      const trimmed = key.trim();
+      setCodexApiKey(trimmed);
       try {
         const auth = JSON.parse(codexAuth || "{}");
-        auth.OPENAI_API_KEY = key.trim();
+        auth.OPENAI_API_KEY = trimmed;
         setCodexAuth(JSON.stringify(auth, null, 2));
       } catch {
         // ignore
@@ -177,16 +196,6 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     },
     [setCodexAuth, setCodexConfig],
   );
-
-  // 获取 API Key（从 auth JSON）
-  const getCodexAuthApiKey = useCallback((authString: string): string => {
-    try {
-      const auth = JSON.parse(authString || "{}");
-      return typeof auth.OPENAI_API_KEY === "string" ? auth.OPENAI_API_KEY : "";
-    } catch {
-      return "";
-    }
-  }, []);
 
   return {
     codexAuth,
