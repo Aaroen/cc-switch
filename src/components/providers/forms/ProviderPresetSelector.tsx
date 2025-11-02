@@ -5,6 +5,7 @@ import { Zap } from "lucide-react";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { ProviderCategory } from "@/types";
+import type { AppId } from "@/lib/api";
 
 type PresetEntry = {
   id: string;
@@ -18,6 +19,8 @@ interface ProviderPresetSelectorProps {
   presetCategoryLabels: Record<string, string>;
   onPresetChange: (value: string) => void;
   category?: ProviderCategory; // 新增：当前选中的分类
+  appId?: AppId;
+  onOpenWizard?: () => void; // Codex 专用：打开配置向导
 }
 
 export function ProviderPresetSelector({
@@ -27,11 +30,13 @@ export function ProviderPresetSelector({
   presetCategoryLabels,
   onPresetChange,
   category,
+  appId,
+  onOpenWizard,
 }: ProviderPresetSelectorProps) {
   const { t } = useTranslation();
 
   // 根据分类获取提示文字
-  const getCategoryHint = () => {
+  const getCategoryHint = (): React.ReactNode => {
     switch (category) {
       case "official":
         return t("providerForm.officialHint", {
@@ -50,6 +55,23 @@ export function ProviderPresetSelector({
           defaultValue: "💡 第三方供应商需要填写 API Key 和请求地址",
         });
       case "custom":
+        // Codex 自定义：在此位置显示"手动配置…或者 使用配置向导"
+        if (appId === "codex" && onOpenWizard) {
+          return (
+            <>
+              {t("providerForm.manualConfig")}
+              <button
+                type="button"
+                onClick={onOpenWizard}
+                className="ml-1 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 underline-offset-2 hover:underline"
+                aria-label={t("providerForm.openConfigWizard")}
+              >
+                {t("providerForm.useConfigWizard")}
+              </button>
+            </>
+          );
+        }
+        // 其他情况沿用原提示
         return t("providerForm.customApiKeyHint", {
           defaultValue: "💡 自定义配置需手动填写所有必要字段",
         });

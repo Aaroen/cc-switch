@@ -71,6 +71,21 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     },
   },
   {
+    name: "AiHubMix",
+    websiteUrl: "https://aihubmix.com",
+    category: "cn_official",
+    auth: generateThirdPartyAuth(""),
+    config: generateThirdPartyConfig(
+      "aihubmix",
+      "https://aihubmix.com/v1",
+      "gpt-5-codex",
+    ),
+    endpointCandidates: [
+      "https://aihubmix.com/v1",
+      "https://api.aihubmix.com/v1",
+    ],
+  },
+  {
     name: "PackyCode",
     websiteUrl: "https://www.packyapi.com",
     category: "third_party",
@@ -80,7 +95,6 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       "https://www.packyapi.com/v1",
       "gpt-5-codex",
     ),
-    // Codex 请求地址候选（用于地址管理/测速）
     endpointCandidates: [
       "https://www.packyapi.com/v1",
       "https://api-slb.packyapi.com/v1",
@@ -93,14 +107,13 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "anyrouter",
-      "https://anyrouter.top",
+      "https://anyrouter.top/v1",
       "gpt-5-codex",
     ),
-    // Codex 请求地址候选（用于地址管理/测速）
     endpointCandidates: [
-      "https://anyrouter.top",
-      "https://q.quuvv.cn",
-      "https://pmpjfbhq.cn-nb1.rainapp.top",
+      "https://anyrouter.top/v1",
+      "https://q.quuvv.cn/v1",
+      "https://pmpjfbhq.cn-nb1.rainapp.top/v1",
     ],
   },
 ];

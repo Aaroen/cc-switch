@@ -453,6 +453,12 @@ export function ProviderForm({
             presetCategoryLabels={presetCategoryLabels}
             onPresetChange={handlePresetChange}
             category={category}
+            appId={appId}
+            onOpenWizard={
+              appId === "codex"
+                ? () => setIsCodexTemplateModalOpen(true)
+                : undefined
+            }
           />
         )}
 
@@ -523,7 +529,6 @@ export function ProviderForm({
             commonConfigError={codexCommonConfigError}
             authError={codexAuthError}
             configError={codexConfigError}
-            isCustomMode={selectedPresetId === "custom"}
             onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
             onNameChange={(name) => form.setValue("name", name)}
             isTemplateModalOpen={isCodexTemplateModalOpen}

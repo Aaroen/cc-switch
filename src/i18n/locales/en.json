@@ -226,6 +226,7 @@
     "manageAndTest": "Manage & Test",
     "configContent": "Config Content",
     "useConfigWizard": "Use Configuration Wizard",
+    "openConfigWizard": "Open configuration wizard",
     "manualConfig": "Manually configure provider, requires complete configuration, or",
     "officialNoApiKey": "Official login does not require API Key, save directly",
     "codexOfficialNoApiKey": "Official does not require API Key, save directly",

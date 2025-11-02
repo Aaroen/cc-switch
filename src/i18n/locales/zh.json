@@ -226,6 +226,7 @@
     "manageAndTest": "管理与测速",
     "configContent": "配置内容",
     "useConfigWizard": "使用配置向导",
+    "openConfigWizard": "打开配置向导",
     "manualConfig": "手动配置供应商，需要填写完整的配置信息，或者",
     "officialNoApiKey": "官方登录无需填写 API Key，直接保存即可",
     "codexOfficialNoApiKey": "官方无需填写 API Key，直接保存即可",

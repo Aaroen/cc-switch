@@ -28,8 +28,6 @@ interface CodexConfigEditorProps {
 
   configError: string; // config.toml 错误提示
 
-  isCustomMode?: boolean; // 是否为自定义模式
-
   onWebsiteUrlChange?: (url: string) => void; // 更新网址回调
 
   isTemplateModalOpen?: boolean; // 模态框状态
