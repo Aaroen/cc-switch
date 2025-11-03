@@ -93,6 +93,7 @@ export const useUsageQuery = (
     queryFn: async () => usageApi.query(providerId, appId),
     enabled: enabled && !!providerId,
     refetchOnWindowFocus: false,
+    retry: false,
     staleTime: 5 * 60 * 1000, // 5分钟
   });
 };

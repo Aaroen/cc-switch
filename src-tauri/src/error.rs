@@ -46,6 +46,8 @@ pub enum AppError {
     McpValidation(String),
     #[error("{0}")]
     Message(String),
+    #[error("不支持的 HTTP 方法: {0}")]
+    InvalidHttpMethod(String),
     #[error("{zh} ({en})")]
     Localized {
         key: &'static str,

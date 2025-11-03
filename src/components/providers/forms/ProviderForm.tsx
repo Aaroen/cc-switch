@@ -7,7 +7,10 @@ import { Form } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppId } from "@/lib/api";
 import type { ProviderCategory, ProviderMeta } from "@/types";
-import { providerPresets, type ProviderPreset } from "@/config/claudeProviderPresets";
+import {
+  providerPresets,
+  type ProviderPreset,
+} from "@/config/claudeProviderPresets";
 import {
   codexProviderPresets,
   type CodexProviderPreset,

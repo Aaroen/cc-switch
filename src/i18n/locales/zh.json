@@ -373,7 +373,10 @@
     "tip2": "• extractor 函数在沙箱环境中执行，支持 ES2020+ 语法",
     "tip3": "• 整个配置必须用 () 包裹，形成对象字面量表达式"
   },
-  
+  "errors": {
+    "usage_query_failed": "用量查询失败"
+  },
+
   "presetSelector": {
     "title": "选择配置类型",
     "custom": "自定义",

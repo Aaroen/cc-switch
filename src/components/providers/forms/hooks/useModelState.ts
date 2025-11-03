@@ -9,7 +9,10 @@ interface UseModelStateProps {
  * 管理模型选择状态
  * 支持 ANTHROPIC_MODEL 和 ANTHROPIC_SMALL_FAST_MODEL
  */
-export function useModelState({ settingsConfig, onConfigChange }: UseModelStateProps) {
+export function useModelState({
+  settingsConfig,
+  onConfigChange,
+}: UseModelStateProps) {
   const [claudeModel, setClaudeModel] = useState("");
   const [defaultHaikuModel, setDefaultHaikuModel] = useState("");
   const [defaultSonnetModel, setDefaultSonnetModel] = useState("");
@@ -24,9 +27,12 @@ export function useModelState({ settingsConfig, onConfigChange }: UseModelStateP
     try {
       const cfg = settingsConfig ? JSON.parse(settingsConfig) : {};
       const env = cfg?.env || {};
-      const model = typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
+      const model =
+        typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
       const small =
-        typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string" ? env.ANTHROPIC_SMALL_FAST_MODEL : "";
+        typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string"
+          ? env.ANTHROPIC_SMALL_FAST_MODEL
+          : "";
       const haiku =
         typeof env.ANTHROPIC_DEFAULT_HAIKU_MODEL === "string"
           ? env.ANTHROPIC_DEFAULT_HAIKU_MODEL
@@ -59,12 +65,16 @@ export function useModelState({ settingsConfig, onConfigChange }: UseModelStateP
       value: string,
     ) => {
       if (field === "ANTHROPIC_MODEL") setClaudeModel(value);
-      if (field === "ANTHROPIC_DEFAULT_HAIKU_MODEL") setDefaultHaikuModel(value);
-      if (field === "ANTHROPIC_DEFAULT_SONNET_MODEL") setDefaultSonnetModel(value);
+      if (field === "ANTHROPIC_DEFAULT_HAIKU_MODEL")
+        setDefaultHaikuModel(value);
+      if (field === "ANTHROPIC_DEFAULT_SONNET_MODEL")
+        setDefaultSonnetModel(value);
       if (field === "ANTHROPIC_DEFAULT_OPUS_MODEL") setDefaultOpusModel(value);
 
       try {
-        const currentConfig = settingsConfig ? JSON.parse(settingsConfig) : { env: {} };
+        const currentConfig = settingsConfig
+          ? JSON.parse(settingsConfig)
+          : { env: {} };
         if (!currentConfig.env) currentConfig.env = {};
 
         // 新键仅写入；旧键不再写入

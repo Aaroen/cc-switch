@@ -166,7 +166,9 @@ export function ClaudeFormFields({
                 id="claudeModel"
                 type="text"
                 value={claudeModel}
-                onChange={(e) => onModelChange("ANTHROPIC_MODEL", e.target.value)}
+                onChange={(e) =>
+                  onModelChange("ANTHROPIC_MODEL", e.target.value)
+                }
                 placeholder={t("providerForm.modelPlaceholder", {
                   defaultValue: "claude-3-7-sonnet-20250219",
                 })}
@@ -177,7 +179,9 @@ export function ClaudeFormFields({
             {/* 默认 Haiku */}
             <div className="space-y-2">
               <FormLabel htmlFor="claudeDefaultHaikuModel">
-                {t("providerForm.anthropicDefaultHaikuModel", { defaultValue: "Haiku 默认模型" })}
+                {t("providerForm.anthropicDefaultHaikuModel", {
+                  defaultValue: "Haiku 默认模型",
+                })}
               </FormLabel>
               <Input
                 id="claudeDefaultHaikuModel"
@@ -196,14 +200,19 @@ export function ClaudeFormFields({
             {/* 默认 Sonnet */}
             <div className="space-y-2">
               <FormLabel htmlFor="claudeDefaultSonnetModel">
-                {t("providerForm.anthropicDefaultSonnetModel", { defaultValue: "Sonnet 默认模型" })}
+                {t("providerForm.anthropicDefaultSonnetModel", {
+                  defaultValue: "Sonnet 默认模型",
+                })}
               </FormLabel>
               <Input
                 id="claudeDefaultSonnetModel"
                 type="text"
                 value={defaultSonnetModel}
                 onChange={(e) =>
-                  onModelChange("ANTHROPIC_DEFAULT_SONNET_MODEL", e.target.value)
+                  onModelChange(
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                    e.target.value,
+                  )
                 }
                 placeholder={t("providerForm.modelPlaceholder", {
                   defaultValue: "claude-3-7-sonnet-20250219",
@@ -215,7 +224,9 @@ export function ClaudeFormFields({
             {/* 默认 Opus */}
             <div className="space-y-2">
               <FormLabel htmlFor="claudeDefaultOpusModel">
-                {t("providerForm.anthropicDefaultOpusModel", { defaultValue: "Opus 默认模型" })}
+                {t("providerForm.anthropicDefaultOpusModel", {
+                  defaultValue: "Opus 默认模型",
+                })}
               </FormLabel>
               <Input
                 id="claudeDefaultOpusModel"
@@ -233,7 +244,8 @@ export function ClaudeFormFields({
           </div>
           <p className="text-xs text-muted-foreground">
             {t("providerForm.modelHelper", {
-              defaultValue: "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
+              defaultValue:
+                "可选：指定默认使用的 Claude 模型，留空则使用系统默认。",
             })}
           </p>
         </div>

@@ -170,7 +170,12 @@ export const getApiKeyFromConfig = (jsonString: string): string => {
     const config = JSON.parse(jsonString);
     const token = config?.env?.ANTHROPIC_AUTH_TOKEN;
     const apiKey = config?.env?.ANTHROPIC_API_KEY;
-    const value = typeof token === "string" ? token : typeof apiKey === "string" ? apiKey : "";
+    const value =
+      typeof token === "string"
+        ? token
+        : typeof apiKey === "string"
+          ? apiKey
+          : "";
     return value;
   } catch (err) {
     return "";

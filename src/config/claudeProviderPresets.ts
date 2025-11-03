@@ -73,10 +73,7 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     // 请求地址候选（用于地址管理/测速），用户可自行选择/覆盖
-    endpointCandidates: [
-      "https://aihubmix.com",
-      "https://api.aihubmix.com",
-    ],
+    endpointCandidates: ["https://aihubmix.com", "https://api.aihubmix.com"],
     category: "aggregator",
   },
   {
@@ -203,15 +200,15 @@ export const providerPresets: ProviderPreset[] = [
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information",
     settingsConfig: {
-      "env": {
-        "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
-        "ANTHROPIC_AUTH_TOKEN": "",
-        "API_TIMEOUT_MS": "3000000",
-        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
-        "ANTHROPIC_MODEL": "MiniMax-M2",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2"
+      env: {
+        ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
+        ANTHROPIC_AUTH_TOKEN: "",
+        API_TIMEOUT_MS: "3000000",
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+        ANTHROPIC_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2",
       },
     },
     category: "cn_official",

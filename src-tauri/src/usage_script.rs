@@ -116,12 +116,18 @@ struct RequestConfig {
 
 /// 发送 HTTP 请求
 async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<String, AppError> {
+    // 约束超时范围，防止异常配置导致长时间阻塞
+    let timeout = timeout_secs.clamp(2, 30);
     let client = Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
+        .timeout(Duration::from_secs(timeout))
         .build()
         .map_err(|e| AppError::Message(format!("创建客户端失败: {}", e)))?;
 
-    let method = config.method.parse().unwrap_or(reqwest::Method::GET);
+    // 严格校验 HTTP 方法，非法值不回退为 GET
+    let method: reqwest::Method = config
+        .method
+        .parse()
+        .map_err(|_| AppError::InvalidHttpMethod(config.method.clone()))?;
 
     let mut req = client.request(method.clone(), &config.url);
 

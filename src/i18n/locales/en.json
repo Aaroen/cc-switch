@@ -373,7 +373,10 @@
     "tip2": "• Extractor function runs in sandbox environment, supports ES2020+ syntax",
     "tip3": "• Entire config must be wrapped in () to form object literal expression"
   },
-  
+  "errors": {
+    "usage_query_failed": "Usage query failed"
+  },
+
   "presetSelector": {
     "title": "Select Configuration Type",
     "custom": "Custom",

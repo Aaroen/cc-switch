@@ -16,4 +16,3 @@ export async function syncCurrentProvidersLiveSafe(): Promise<{
     return { ok: false, error };
   }
 }
-
