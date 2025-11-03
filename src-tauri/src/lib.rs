@@ -6,6 +6,7 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
+mod init_status;
 mod mcp;
 mod migration;
 mod provider;
@@ -437,7 +438,28 @@ pub fn run() {
             app_store::refresh_app_config_dir_override(app.handle());
 
             // 初始化应用状态（仅创建一次，并在本函数末尾注入 manage）
-            let app_state = AppState::new();
+            // 如果配置解析失败，则向前端发送错误事件并提前结束 setup（不落盘、不覆盖配置）。
+            let app_state = match AppState::try_new() {
+                Ok(state) => state,
+                Err(err) => {
+                    let path = crate::config::get_app_config_path();
+                    let payload_json = serde_json::json!({
+                        "path": path.display().to_string(),
+                        "error": err.to_string(),
+                    });
+                    // 事件通知（可能早于前端订阅，不保证送达）
+                    if let Err(e) = app.emit("configLoadError", payload_json) {
+                        log::error!("发射配置加载错误事件失败: {}", e);
+                    }
+                    // 同时缓存错误，供前端启动阶段主动拉取
+                    crate::init_status::set_init_error(crate::init_status::InitErrorPayload {
+                        path: path.display().to_string(),
+                        error: err.to_string(),
+                    });
+                    // 不再继续构建托盘/命令依赖的状态，交由前端提示后退出。
+                    return Ok(());
+                }
+            };
 
             // 迁移旧的 app_config_dir 配置到 Store
             if let Err(e) = app_store::migrate_app_config_dir_from_settings(app.handle()) {
@@ -456,8 +478,7 @@ pub fn run() {
                 config_guard.ensure_app(&app_config::AppType::Codex);
             }
 
-            // 保存配置
-            let _ = app_state.save();
+            // 启动阶段不再无条件保存，避免意外覆盖用户配置。
 
             // 创建动态托盘菜单
             let menu = create_tray_menu(app.handle(), &app_state)?;
@@ -498,6 +519,7 @@ pub fn run() {
             commands::open_config_folder,
             commands::pick_directory,
             commands::open_external,
+            commands::get_init_error,
             commands::get_app_config_path,
             commands::open_app_config_folder,
             commands::read_live_provider_settings,

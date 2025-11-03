@@ -2,6 +2,7 @@
 
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
+use crate::init_status::{get_init_error, InitErrorPayload};
 
 /// 打开外部链接
 #[tauri::command]
@@ -42,4 +43,11 @@ pub async fn is_portable_mode() -> Result<bool, String> {
     } else {
         Ok(false)
     }
+}
+
+/// 获取应用启动阶段的初始化错误（若有）。
+/// 用于前端在早期主动拉取，避免事件订阅竞态导致的提示缺失。
+#[tauri::command]
+pub async fn get_init_error() -> Result<Option<InitErrorPayload>, String> {
+    Ok(get_init_error())
 }

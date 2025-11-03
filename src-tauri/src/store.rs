@@ -7,23 +7,14 @@ pub struct AppState {
     pub config: RwLock<MultiAppConfig>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl AppState {
     /// 创建新的应用状态
-    pub fn new() -> Self {
-        let config = MultiAppConfig::load().unwrap_or_else(|e| {
-            log::warn!("加载配置失败: {}, 使用默认配置", e);
-            MultiAppConfig::default()
-        });
-
-        Self {
+    /// 注意：仅在配置成功加载时返回；不会在失败时回退默认值。
+    pub fn try_new() -> Result<Self, AppError> {
+        let config = MultiAppConfig::load()?;
+        Ok(Self {
             config: RwLock::new(config),
-        }
+        })
     }
 
     /// 保存配置到文件
