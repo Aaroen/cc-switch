@@ -19,7 +19,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   const { t } = useTranslation();
   const {
     data: usage,
-    isLoading: loading,
+    isFetching: loading,
     refetch,
   } = useUsageQuery(providerId, appId, usageEnabled);
 
