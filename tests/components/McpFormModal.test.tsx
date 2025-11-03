@@ -19,6 +19,8 @@ vi.mock("react-i18next", () => ({
     t: (key: string, params?: Record<string, unknown>) =>
       params ? `${key}:${JSON.stringify(params)}` : key,
   }),
+  // 提供 initReactI18next 以兼容 i18n 初始化路径
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 vi.mock("@/config/mcpPresets", () => ({

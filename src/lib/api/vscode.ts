@@ -20,7 +20,7 @@ export const vscodeApi = {
   ): Promise<EndpointLatencyResult[]> {
     return await invoke("test_api_endpoints", {
       urls,
-      timeout_secs: options?.timeoutSecs,
+      timeoutSecs: options?.timeoutSecs,
     });
   },
 
@@ -30,7 +30,7 @@ export const vscodeApi = {
   ): Promise<CustomEndpoint[]> {
     return await invoke("get_custom_endpoints", {
       app: appId,
-      provider_id: providerId,
+      providerId: providerId,
     });
   },
 
@@ -41,7 +41,7 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("add_custom_endpoint", {
       app: appId,
-      provider_id: providerId,
+      providerId: providerId,
       url,
     });
   },
@@ -53,7 +53,7 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("remove_custom_endpoint", {
       app: appId,
-      provider_id: providerId,
+      providerId: providerId,
       url,
     });
   },
@@ -65,28 +65,25 @@ export const vscodeApi = {
   ): Promise<void> {
     await invoke("update_endpoint_last_used", {
       app: appId,
-      provider_id: providerId,
+      providerId: providerId,
       url,
     });
   },
 
   async exportConfigToFile(filePath: string) {
     return await invoke("export_config_to_file", {
-      file_path: filePath,
       filePath,
     });
   },
 
   async importConfigFromFile(filePath: string) {
     return await invoke("import_config_from_file", {
-      file_path: filePath,
       filePath,
     });
   },
 
   async saveFileDialog(defaultName: string): Promise<string | null> {
     return await invoke("save_file_dialog", {
-      default_name: defaultName,
       defaultName,
     });
   },

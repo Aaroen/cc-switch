@@ -116,12 +116,12 @@ pub fn import_default_config(state: State<'_, AppState>, app: String) -> Result<
 #[tauri::command]
 pub async fn query_provider_usage(
     state: State<'_, AppState>,
-    provider_id: Option<String>,
+    #[allow(non_snake_case)]
+    providerId: String,  // 使用 camelCase 匹配前端
     app: String,
 ) -> Result<crate::provider::UsageResult, String> {
-    let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    ProviderService::query_usage(state.inner(), app_type, &provider_id)
+    ProviderService::query_usage(state.inner(), app_type, &providerId)
         .await
         .map_err(|e| e.to_string())
 }
@@ -137,9 +137,10 @@ pub fn read_live_provider_settings(app: String) -> Result<serde_json::Value, Str
 #[tauri::command]
 pub async fn test_api_endpoints(
     urls: Vec<String>,
-    timeout_secs: Option<u64>,
+    #[allow(non_snake_case)]
+    timeoutSecs: Option<u64>,
 ) -> Result<Vec<EndpointLatency>, String> {
-    SpeedtestService::test_endpoints(urls, timeout_secs)
+    SpeedtestService::test_endpoints(urls, timeoutSecs)
         .await
         .map_err(|e| e.to_string())
 }
@@ -149,11 +150,11 @@ pub async fn test_api_endpoints(
 pub fn get_custom_endpoints(
     state: State<'_, AppState>,
     app: String,
-    provider_id: Option<String>,
+    #[allow(non_snake_case)]
+    providerId: String,
 ) -> Result<Vec<crate::settings::CustomEndpoint>, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    ProviderService::get_custom_endpoints(state.inner(), app_type, &provider_id)
+    ProviderService::get_custom_endpoints(state.inner(), app_type, &providerId)
         .map_err(|e| e.to_string())
 }
 
@@ -162,12 +163,12 @@ pub fn get_custom_endpoints(
 pub fn add_custom_endpoint(
     state: State<'_, AppState>,
     app: String,
-    provider_id: Option<String>,
+    #[allow(non_snake_case)]
+    providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    ProviderService::add_custom_endpoint(state.inner(), app_type, &provider_id, url)
+    ProviderService::add_custom_endpoint(state.inner(), app_type, &providerId, url)
         .map_err(|e| e.to_string())
 }
 
@@ -176,12 +177,12 @@ pub fn add_custom_endpoint(
 pub fn remove_custom_endpoint(
     state: State<'_, AppState>,
     app: String,
-    provider_id: Option<String>,
+    #[allow(non_snake_case)]
+    providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    ProviderService::remove_custom_endpoint(state.inner(), app_type, &provider_id, url)
+    ProviderService::remove_custom_endpoint(state.inner(), app_type, &providerId, url)
         .map_err(|e| e.to_string())
 }
 
@@ -190,12 +191,12 @@ pub fn remove_custom_endpoint(
 pub fn update_endpoint_last_used(
     state: State<'_, AppState>,
     app: String,
-    provider_id: Option<String>,
+    #[allow(non_snake_case)]
+    providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    let provider_id = provider_id.ok_or_else(|| missing_param("providerId"))?;
-    ProviderService::update_endpoint_last_used(state.inner(), app_type, &provider_id, url)
+    ProviderService::update_endpoint_last_used(state.inner(), app_type, &providerId, url)
         .map_err(|e| e.to_string())
 }
 

@@ -169,13 +169,21 @@ export const handlers = [
   http.post(`${TAURI_ENDPOINT}/is_portable_mode`, () => success(false)),
 
   http.post(`${TAURI_ENDPOINT}/select_config_directory`, async ({ request }) => {
-    const { default_path } = await withJson<{ default_path?: string }>(request);
-    return success(default_path ? `${default_path}/picked` : "/mock/selected-dir");
+    const { defaultPath, default_path } = await withJson<{
+      defaultPath?: string;
+      default_path?: string;
+    }>(request);
+    const initial = defaultPath ?? default_path;
+    return success(initial ? `${initial}/picked` : "/mock/selected-dir");
   }),
 
   http.post(`${TAURI_ENDPOINT}/pick_directory`, async ({ request }) => {
-    const { default_path } = await withJson<{ default_path?: string }>(request);
-    return success(default_path ? `${default_path}/picked` : "/mock/selected-dir");
+    const { defaultPath, default_path } = await withJson<{
+      defaultPath?: string;
+      default_path?: string;
+    }>(request);
+    const initial = defaultPath ?? default_path;
+    return success(initial ? `${initial}/picked` : "/mock/selected-dir");
   }),
 
   http.post(`${TAURI_ENDPOINT}/open_file_dialog`, () =>

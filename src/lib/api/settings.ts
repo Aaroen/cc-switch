@@ -39,7 +39,7 @@ export const settingsApi = {
   },
 
   async selectConfigDirectory(defaultPath?: string): Promise<string | null> {
-    return await invoke("pick_directory", { default_path: defaultPath });
+    return await invoke("pick_directory", { defaultPath });
   },
 
   async getClaudeCodeConfigPath(): Promise<string> {
@@ -70,10 +70,7 @@ export const settingsApi = {
   },
 
   async saveFileDialog(defaultName: string): Promise<string | null> {
-    return await invoke("save_file_dialog", {
-      default_name: defaultName,
-      defaultName,
-    });
+    return await invoke("save_file_dialog", { defaultName });
   },
 
   async openFileDialog(): Promise<string | null> {
@@ -81,17 +78,11 @@ export const settingsApi = {
   },
 
   async exportConfigToFile(filePath: string): Promise<ConfigTransferResult> {
-    return await invoke("export_config_to_file", {
-      file_path: filePath,
-      filePath,
-    });
+    return await invoke("export_config_to_file", { filePath });
   },
 
   async importConfigFromFile(filePath: string): Promise<ConfigTransferResult> {
-    return await invoke("import_config_from_file", {
-      file_path: filePath,
-      filePath,
-    });
+    return await invoke("import_config_from_file", { filePath });
   },
 
   async syncCurrentProvidersLive(): Promise<void> {

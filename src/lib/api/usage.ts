@@ -7,7 +7,7 @@ export const usageApi = {
   async query(providerId: string, appId: AppId): Promise<UsageResult> {
     try {
       return await invoke("query_provider_usage", {
-        provider_id: providerId,
+        providerId: providerId,
         app: appId,
       });
     } catch (error: unknown) {

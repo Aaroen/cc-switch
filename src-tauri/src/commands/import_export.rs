@@ -11,14 +11,17 @@ use crate::store::AppState;
 
 /// 导出配置文件
 #[tauri::command]
-pub async fn export_config_to_file(file_path: String) -> Result<Value, String> {
+pub async fn export_config_to_file(
+    #[allow(non_snake_case)]
+    filePath: String
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let target_path = PathBuf::from(&file_path);
+        let target_path = PathBuf::from(&filePath);
         ConfigService::export_config_to_path(&target_path)?;
         Ok::<_, AppError>(json!({
             "success": true,
             "message": "Configuration exported successfully",
-            "filePath": file_path
+            "filePath": filePath
         }))
     })
     .await
@@ -29,11 +32,12 @@ pub async fn export_config_to_file(file_path: String) -> Result<Value, String> {
 /// 从文件导入配置
 #[tauri::command]
 pub async fn import_config_from_file(
-    file_path: String,
+    #[allow(non_snake_case)]
+    filePath: String,
     state: State<'_, AppState>,
 ) -> Result<Value, String> {
     let (new_config, backup_id) = tauri::async_runtime::spawn_blocking(move || {
-        let path_buf = PathBuf::from(&file_path);
+        let path_buf = PathBuf::from(&filePath);
         ConfigService::load_config_for_import(&path_buf)
     })
     .await
@@ -77,13 +81,14 @@ pub async fn sync_current_providers_live(state: State<'_, AppState>) -> Result<V
 #[tauri::command]
 pub async fn save_file_dialog<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    default_name: String,
+    #[allow(non_snake_case)]
+    defaultName: String,
 ) -> Result<Option<String>, String> {
     let dialog = app.dialog();
     let result = dialog
         .file()
         .add_filter("JSON", &["json"])
-        .set_file_name(&default_name)
+        .set_file_name(&defaultName)
         .blocking_save_file();
 
     Ok(result.map(|p| p.to_string()))
