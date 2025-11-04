@@ -25,9 +25,16 @@ interface UsageScriptModalProps {
   onSave: (script: UsageScript) => void;
 }
 
-// 预设模板（JS 对象字面量格式）
-const PRESET_TEMPLATES: Record<string, string> = {
-  自定义: `({
+// 预设模板键名（用于国际化）
+const TEMPLATE_KEYS = {
+  CUSTOM: "custom",
+  GENERAL: "general",
+  NEW_API: "newapi",
+} as const;
+
+// 生成预设模板的函数（支持国际化）
+const generatePresetTemplates = (t: (key: string) => string): Record<string, string> => ({
+  [TEMPLATE_KEYS.CUSTOM]: `({
   request: {
     url: "",
     method: "GET",
@@ -41,7 +48,7 @@ const PRESET_TEMPLATES: Record<string, string> = {
   }
 })`,
 
-  通用模板: `({
+  [TEMPLATE_KEYS.GENERAL]: `({
   request: {
     url: "{{baseUrl}}/user/balance",
     method: "GET",
@@ -59,7 +66,7 @@ const PRESET_TEMPLATES: Record<string, string> = {
   }
 })`,
 
-  NewAPI: `({
+  [TEMPLATE_KEYS.NEW_API]: `({
   request: {
     url: "{{baseUrl}}/api/user/self",
     method: "GET",
@@ -72,7 +79,7 @@ const PRESET_TEMPLATES: Record<string, string> = {
   extractor: function (response) {
     if (response.success && response.data) {
       return {
-        planName: response.data.group || "默认套餐",
+        planName: response.data.group || "${t("usageScript.defaultPlan")}",
         remaining: response.data.quota / 500000,
         used: response.data.used_quota / 500000,
         total: (response.data.quota + response.data.used_quota) / 500000,
@@ -81,10 +88,17 @@ const PRESET_TEMPLATES: Record<string, string> = {
     }
     return {
       isValid: false,
-      invalidMessage: response.message || "查询失败"
+      invalidMessage: response.message || "${t("usageScript.queryFailedMessage")}"
     };
   },
 })`,
+});
+
+// 模板名称国际化键映射
+const TEMPLATE_NAME_KEYS: Record<string, string> = {
+  [TEMPLATE_KEYS.CUSTOM]: "usageScript.templateCustom",
+  [TEMPLATE_KEYS.GENERAL]: "usageScript.templateGeneral",
+  [TEMPLATE_KEYS.NEW_API]: "usageScript.templateNewAPI",
 };
 
 const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
@@ -95,16 +109,16 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   onSave,
 }) => {
   const { t } = useTranslation();
+
+  // 生成带国际化的预设模板
+  const PRESET_TEMPLATES = generatePresetTemplates(t);
+
   const [script, setScript] = useState<UsageScript>(() => {
     return (
       provider.meta?.usage_script || {
         enabled: false,
         language: "javascript",
-        code: PRESET_TEMPLATES[
-          t("usageScript.presetTemplate") === "预设模板"
-            ? "通用模板"
-            : "General"
-        ],
+        code: PRESET_TEMPLATES[TEMPLATE_KEYS.GENERAL],
         timeout: 10,
       }
     );
@@ -118,7 +132,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     () => {
       const existingScript = provider.meta?.usage_script;
       if (existingScript?.accessToken || existingScript?.userId) {
-        return "NewAPI";
+        return TEMPLATE_KEYS.NEW_API;
       }
       return null;
     }
@@ -210,7 +224,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     const preset = PRESET_TEMPLATES[presetName];
     if (preset) {
       // 如果选择的不是 NewAPI 模板，清空高级配置字段
-      if (presetName !== "NewAPI") {
+      if (presetName !== TEMPLATE_KEYS.NEW_API) {
         setScript({
           ...script,
           code: preset,
@@ -225,7 +239,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   };
 
   // 判断是否应该显示高级配置（仅 NewAPI 模板需要）
-  const shouldShowAdvancedConfig = selectedTemplate === "NewAPI";
+  const shouldShowAdvancedConfig = selectedTemplate === TEMPLATE_KEYS.NEW_API;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -273,7 +287,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                             : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
                         }`}
                       >
-                        {name}
+                        {t(TEMPLATE_NAME_KEYS[name])}
                       </button>
                     );
                   })}
@@ -285,7 +299,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                   <label className="block">
                     <span className="text-xs text-gray-600 dark:text-gray-400">
-                      访问令牌
+                      {t("usageScript.accessToken")}
                     </span>
                     <input
                       type="text"
@@ -293,14 +307,14 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       onChange={(e) =>
                         setScript({ ...script, accessToken: e.target.value })
                       }
-                      placeholder="在“安全设置”里生成"
+                      placeholder={t("usageScript.accessTokenPlaceholder")}
                       className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                     />
                   </label>
 
                   <label className="block">
                     <span className="text-xs text-gray-600 dark:text-gray-400">
-                      用户 ID
+                      {t("usageScript.userId")}
                     </span>
                     <input
                       type="text"
@@ -308,7 +322,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       onChange={(e) =>
                         setScript({ ...script, userId: e.target.value })
                       }
-                      placeholder="例如：114514"
+                      placeholder={t("usageScript.userIdPlaceholder")}
                       className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                     />
                   </label>
@@ -373,10 +387,10 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       "Authorization": "Bearer {{apiKey}}",
       "User-Agent": "cc-switch/1.0"
     },
-    body: JSON.stringify({ key: "value" })  // 可选
+    body: JSON.stringify({ key: "value" })  // ${t("usageScript.commentOptional")}
   },
   extractor: function(response) {
-    // response 是 API 返回的 JSON 数据
+    // ${t("usageScript.commentResponseIsJson")}
     return {
       isValid: !response.error,
       remaining: response.balance,
