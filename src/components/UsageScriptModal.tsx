@@ -144,7 +144,15 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleTest = async () => {
     setTesting(true);
     try {
-      const result = await usageApi.query(provider.id, appId);
+      // 使用当前编辑器中的脚本内容进行测试
+      const result = await usageApi.testScript(
+        provider.id,
+        appId,
+        script.code,
+        script.timeout,
+        script.accessToken,
+        script.userId
+      );
       if (result.success && result.data && result.data.length > 0) {
         // 显示所有套餐数据
         const summary = result.data

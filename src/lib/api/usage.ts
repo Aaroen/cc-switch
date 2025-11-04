@@ -26,4 +26,37 @@ export const usageApi = {
       };
     }
   },
+
+  async testScript(
+    providerId: string,
+    appId: AppId,
+    scriptCode: string,
+    timeout?: number,
+    accessToken?: string,
+    userId?: string
+  ): Promise<UsageResult> {
+    try {
+      return await invoke("test_usage_script", {
+        providerId: providerId,
+        app: appId,
+        scriptCode: scriptCode,
+        timeout: timeout,
+        accessToken: accessToken,
+        userId: userId,
+      });
+    } catch (error: unknown) {
+      const message =
+        typeof error === "string"
+          ? error
+          : error instanceof Error
+            ? error.message
+            : "";
+
+      return {
+        success: false,
+        error: message || i18n.t("errors.usage_query_failed"),
+      };
+    }
+  },
 };
+

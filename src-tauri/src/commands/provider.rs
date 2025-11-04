@@ -121,6 +121,35 @@ pub async fn query_provider_usage(
         .map_err(|e| e.to_string())
 }
 
+/// 测试用量脚本（使用当前编辑器中的脚本，不保存）
+#[tauri::command]
+pub async fn test_usage_script(
+    state: State<'_, AppState>,
+    #[allow(non_snake_case)]
+    providerId: String,
+    app: String,
+    #[allow(non_snake_case)]
+    scriptCode: String,
+    timeout: Option<u64>,
+    #[allow(non_snake_case)]
+    accessToken: Option<String>,
+    #[allow(non_snake_case)]
+    userId: Option<String>,
+) -> Result<crate::provider::UsageResult, String> {
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    ProviderService::test_usage_script(
+        state.inner(),
+        app_type,
+        &providerId,
+        &scriptCode,
+        timeout.unwrap_or(10),
+        accessToken.as_deref(),
+        userId.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// 读取当前生效的配置内容
 #[tauri::command]
 pub fn read_live_provider_settings(app: String) -> Result<serde_json::Value, String> {

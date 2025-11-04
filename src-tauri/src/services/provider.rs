@@ -706,7 +706,50 @@ impl ProviderService {
         Ok(true)
     }
 
-    /// 查询供应商用量
+    /// 执行用量脚本并格式化结果（私有辅助方法）
+    async fn execute_and_format_usage_result(
+        script_code: &str,
+        api_key: &str,
+        base_url: &str,
+        timeout: u64,
+        access_token: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<UsageResult, AppError> {
+        match usage_script::execute_usage_script(
+            script_code,
+            api_key,
+            base_url,
+            timeout,
+            access_token,
+            user_id,
+        )
+        .await
+        {
+            Ok(data) => {
+                let usage_list: Vec<UsageData> = if data.is_array() {
+                    serde_json::from_value(data)
+                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?
+                } else {
+                    let single: UsageData = serde_json::from_value(data)
+                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?;
+                    vec![single]
+                };
+
+                Ok(UsageResult {
+                    success: true,
+                    data: Some(usage_list),
+                    error: None,
+                })
+            }
+            Err(err) => Ok(UsageResult {
+                success: false,
+                data: None,
+                error: Some(err.to_string()),
+            }),
+        }
+    }
+
+    /// 查询供应商用量（使用已保存的脚本配置）
     pub async fn query_usage(
         state: &AppState,
         app_type: AppType,
@@ -754,7 +797,7 @@ impl ProviderService {
 
         let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
 
-        match usage_script::execute_usage_script(
+        Self::execute_and_format_usage_result(
             &script_code,
             &api_key,
             &base_url,
@@ -763,29 +806,42 @@ impl ProviderService {
             user_id.as_deref(),
         )
         .await
-        {
-            Ok(data) => {
-                let usage_list: Vec<UsageData> = if data.is_array() {
-                    serde_json::from_value(data)
-                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?
-                } else {
-                    let single: UsageData = serde_json::from_value(data)
-                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?;
-                    vec![single]
-                };
+    }
 
-                Ok(UsageResult {
-                    success: true,
-                    data: Some(usage_list),
-                    error: None,
-                })
-            }
-            Err(err) => Ok(UsageResult {
-                success: false,
-                data: None,
-                error: Some(err.to_string()),
-            }),
-        }
+    /// 测试用量脚本（使用临时脚本内容，不保存）
+    pub async fn test_usage_script(
+        state: &AppState,
+        app_type: AppType,
+        provider_id: &str,
+        script_code: &str,
+        timeout: u64,
+        access_token: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<UsageResult, AppError> {
+        // 获取 provider 的 API 凭证
+        let provider = {
+            let config = state.config.read().map_err(AppError::from)?;
+            let manager = config
+                .get_manager(&app_type)
+                .ok_or_else(|| Self::app_not_found(&app_type))?;
+            manager
+                .providers
+                .get(provider_id)
+                .cloned()
+                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?
+        };
+
+        let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
+
+        Self::execute_and_format_usage_result(
+            script_code,
+            &api_key,
+            &base_url,
+            timeout,
+            access_token,
+            user_id,
+        )
+        .await
     }
 
     /// 切换指定应用的供应商
