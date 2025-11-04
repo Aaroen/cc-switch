@@ -27,6 +27,20 @@ interface UsageScriptModalProps {
 
 // 预设模板（JS 对象字面量格式）
 const PRESET_TEMPLATES: Record<string, string> = {
+  自定义: `({
+  request: {
+    url: "",
+    method: "GET",
+    headers: {}
+  },
+  extractor: function(response) {
+    return {
+      remaining: 0,
+      unit: "USD"
+    };
+  }
+})`,
+
   通用模板: `({
   request: {
     url: "{{baseUrl}}/user/balance",
