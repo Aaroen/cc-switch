@@ -98,6 +98,18 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
   const [testing, setTesting] = useState(false);
 
+  // 跟踪当前选择的模板类型（用于控制高级配置的显示）
+  // 初始化：如果已有 accessToken 或 userId，说明是 NewAPI 模板
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
+    () => {
+      const existingScript = provider.meta?.usage_script;
+      if (existingScript?.accessToken || existingScript?.userId) {
+        return "NewAPI";
+      }
+      return null;
+    }
+  );
+
   const handleSave = () => {
     // 验证脚本格式
     if (script.enabled && !script.code.trim()) {
@@ -135,7 +147,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           `${t("usageScript.testFailed")}: ${result.error || t("endpointTest.noResult")}`,
           {
             duration: 5000,
-          },
+          }
         );
       }
     } catch (error: any) {
@@ -143,7 +155,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         `${t("usageScript.testFailed")}: ${error?.message || t("common.unknown")}`,
         {
           duration: 5000,
-        },
+        }
       );
     } finally {
       setTesting(false);
@@ -167,7 +179,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         `${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`,
         {
           duration: 3000,
-        },
+        }
       );
     }
   };
@@ -175,9 +187,23 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleUsePreset = (presetName: string) => {
     const preset = PRESET_TEMPLATES[presetName];
     if (preset) {
-      setScript({ ...script, code: preset });
+      // 如果选择的不是 NewAPI 模板，清空高级配置字段
+      if (presetName !== "NewAPI") {
+        setScript({
+          ...script,
+          code: preset,
+          accessToken: undefined,
+          userId: undefined,
+        });
+      } else {
+        setScript({ ...script, code: preset });
+      }
+      setSelectedTemplate(presetName); // 记录选择的模板
     }
   };
+
+  // 判断是否应该显示高级配置（仅 NewAPI 模板需要）
+  const shouldShowAdvancedConfig = selectedTemplate === "NewAPI";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -225,6 +251,41 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 </div>
               </div>
 
+              {/* 高级配置：Access Token 和 User ID（仅 NewAPI 模板显示） */}
+              {shouldShowAdvancedConfig && (
+                <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                  <label className="block">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      访问令牌
+                    </span>
+                    <input
+                      type="text"
+                      value={script.accessToken || ""}
+                      onChange={(e) =>
+                        setScript({ ...script, accessToken: e.target.value })
+                      }
+                      placeholder="在“安全设置”里生成"
+                      className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      用户 ID
+                    </span>
+                    <input
+                      type="text"
+                      value={script.userId || ""}
+                      onChange={(e) =>
+                        setScript({ ...script, userId: e.target.value })
+                      }
+                      placeholder="例如：114514"
+                      className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                    />
+                  </label>
+                </div>
+              )}
+
               {/* 脚本编辑器 */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
@@ -264,43 +325,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                     className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
-              </div>
-
-              {/* 高级配置：Access Token 和 User ID */}
-              <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  🔑 高级配置（可选，用于需要登录的接口）
-                </p>
-
-                <label className="block">
-                  <span className="text-xs text-gray-600 dark:text-gray-400">
-                    Access Token（访问令牌）
-                  </span>
-                  <input
-                    type="text"
-                    value={script.accessToken || ''}
-                    onChange={(e) => setScript({...script, accessToken: e.target.value})}
-                    placeholder="从浏览器开发者工具获取..."
-                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-xs text-gray-600 dark:text-gray-400">
-                    User ID（用户标识）
-                  </span>
-                  <input
-                    type="text"
-                    value={script.userId || ''}
-                    onChange={(e) => setScript({...script, userId: e.target.value})}
-                    placeholder="例如：240"
-                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                  />
-                </label>
-
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  💡 在脚本中使用：{`{{accessToken}}`} 和 {`{{userId}}`}
-                </p>
               </div>
 
               {/* 脚本说明 */}
