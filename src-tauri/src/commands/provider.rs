@@ -6,11 +6,6 @@ use crate::error::AppError;
 use crate::provider::Provider;
 use crate::services::{EndpointLatency, ProviderService, ProviderSortUpdate, SpeedtestService};
 use crate::store::AppState;
-
-fn missing_param(param: &str) -> String {
-    format!("缺少 {} 参数 (Missing {} parameter)", param, param)
-}
-
 use std::str::FromStr;
 
 /// 获取所有供应商
