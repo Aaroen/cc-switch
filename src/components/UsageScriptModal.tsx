@@ -253,15 +253,22 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {t("usageScript.presetTemplate")}
                 </label>
                 <div className="flex gap-2">
-                  {Object.keys(PRESET_TEMPLATES).map((name) => (
-                    <button
-                      key={name}
-                      onClick={() => handleUsePreset(name)}
-                      className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                    >
-                      {name}
-                    </button>
-                  ))}
+                  {Object.keys(PRESET_TEMPLATES).map((name) => {
+                    const isSelected = selectedTemplate === name;
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => handleUsePreset(name)}
+                        className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                          isSelected
+                            ? "bg-blue-500 text-white dark:bg-blue-600"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
