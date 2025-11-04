@@ -440,21 +440,16 @@ impl ProviderService {
             let merged = if let Some(existing) = manager.providers.get(&provider_id) {
                 let mut updated = provider_clone.clone();
                 match (existing.meta.as_ref(), updated.meta.take()) {
+                    // 前端未提供 meta，表示不修改，沿用旧值
                     (Some(old_meta), None) => {
                         updated.meta = Some(old_meta.clone());
                     }
-                    (Some(old_meta), Some(mut new_meta)) => {
-                        let mut merged_map = old_meta.custom_endpoints.clone();
-                        for (url, ep) in new_meta.custom_endpoints.drain() {
-                            merged_map.entry(url).or_insert(ep);
-                        }
-                        updated.meta = Some(ProviderMeta {
-                            custom_endpoints: merged_map,
-                            usage_script: new_meta.usage_script.clone(),
-                        });
+                    (None, None) => {
+                        updated.meta = None;
                     }
-                    (None, maybe_new) => {
-                        updated.meta = maybe_new;
+                    // 前端提供的 meta 视为权威，直接覆盖（其中 custom_endpoints 允许是空，表示删除所有自定义端点）
+                    (_old, Some(new_meta)) => {
+                        updated.meta = Some(new_meta);
                     }
                 }
                 updated

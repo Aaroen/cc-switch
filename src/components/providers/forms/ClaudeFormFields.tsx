@@ -11,6 +11,7 @@ interface EndpointCandidate {
 }
 
 interface ClaudeFormFieldsProps {
+  providerId?: string;
   // API Key
   shouldShowApiKey: boolean;
   apiKey: string;
@@ -53,6 +54,7 @@ interface ClaudeFormFieldsProps {
 }
 
 export function ClaudeFormFields({
+  providerId,
   shouldShowApiKey,
   apiKey,
   onApiKeyChange,
@@ -144,6 +146,7 @@ export function ClaudeFormFields({
       {shouldShowSpeedTest && isEndpointModalOpen && (
         <EndpointSpeedTest
           appId="claude"
+          providerId={providerId}
           value={baseUrl}
           onChange={onBaseUrlChange}
           initialEndpoints={speedTestEndpoints}

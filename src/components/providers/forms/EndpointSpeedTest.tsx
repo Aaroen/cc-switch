@@ -281,70 +281,35 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
     setAddError(null);
 
-    // 保存到后端
-    try {
-      if (providerId) {
-        await vscodeApi.addCustomEndpoint(appId, providerId, sanitized);
-      }
+    // 更新本地状态（延迟提交，不立即保存到后端）
+    setEntries((prev) => {
+      if (prev.some((e) => e.url === sanitized)) return prev;
+      return [
+        ...prev,
+        {
+          id: randomId(),
+          url: sanitized,
+          isCustom: true,
+          latency: null,
+          status: undefined,
+          error: null,
+        },
+      ];
+    });
 
-      // 更新本地状态
-      setEntries((prev) => {
-        if (prev.some((e) => e.url === sanitized)) return prev;
-        return [
-          ...prev,
-          {
-            id: randomId(),
-            url: sanitized,
-            isCustom: true,
-            latency: null,
-            status: undefined,
-            error: null,
-          },
-        ];
-      });
-
-      if (!normalizedSelected) {
-        onChange(sanitized);
-      }
-
-      setCustomUrl("");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setAddError(message || t("endpointTest.saveFailed"));
-      console.error(t("endpointTest.addEndpointFailed"), error);
+    if (!normalizedSelected) {
+      onChange(sanitized);
     }
-  }, [customUrl, entries, normalizedSelected, onChange, appId, providerId, t]);
+
+    setCustomUrl("");
+  }, [customUrl, entries, normalizedSelected, onChange]);
 
   const handleRemoveEndpoint = useCallback(
-    async (entry: EndpointEntry) => {
+    (entry: EndpointEntry) => {
       // 清空之前的错误提示
       setLastError(null);
 
-      // 如果有 providerId，尝试从后端删除
-      if (entry.isCustom && providerId) {
-        try {
-          await vscodeApi.removeCustomEndpoint(appId, providerId, entry.url);
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-
-          // 只有"端点不存在"时才允许删除本地条目
-          if (
-            errorMsg.includes("not found") ||
-            errorMsg.includes("does not exist") ||
-            errorMsg.includes("不存在")
-          ) {
-            console.warn(t("endpointTest.removeEndpointFailed"), errorMsg);
-            // 继续删除本地条目
-          } else {
-            // 其他错误：显示错误提示，阻止删除
-            setLastError(t("endpointTest.removeFailed", { error: errorMsg }));
-            return;
-          }
-        }
-      }
-
-      // 更新本地状态（删除成功）
+      // 更新本地状态（延迟提交，不立即从后端删除）
       setEntries((prev) => {
         const next = prev.filter((item) => item.id !== entry.id);
         if (entry.url === normalizedSelected) {
@@ -354,7 +319,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         return next;
       });
     },
-    [normalizedSelected, onChange, appId, providerId, t],
+    [normalizedSelected, onChange],
   );
 
   const runSpeedTest = useCallback(async () => {
@@ -432,22 +397,11 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
   }, [entries, autoSelect, appId, normalizedSelected, onChange, t]);
 
   const handleSelect = useCallback(
-    async (url: string) => {
+    (url: string) => {
       if (!url || url === normalizedSelected) return;
-
-      // 更新最后使用时间（对自定义端点）
-      const entry = entries.find((e) => e.url === url);
-      if (entry?.isCustom && providerId) {
-        try {
-          await vscodeApi.updateEndpointLastUsed(appId, providerId, url);
-        } catch (error) {
-          console.error(t("endpointTest.updateLastUsedFailed"), error);
-        }
-      }
-
       onChange(url);
     },
-    [normalizedSelected, onChange, appId, entries, providerId, t],
+    [normalizedSelected, onChange],
   );
 
   return (

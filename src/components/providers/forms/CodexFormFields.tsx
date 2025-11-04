@@ -8,6 +8,7 @@ interface EndpointCandidate {
 }
 
 interface CodexFormFieldsProps {
+  providerId?: string;
   // API Key
   codexApiKey: string;
   onApiKeyChange: (key: string) => void;
@@ -28,6 +29,7 @@ interface CodexFormFieldsProps {
 }
 
 export function CodexFormFields({
+  providerId,
   codexApiKey,
   onApiKeyChange,
   category,
@@ -81,6 +83,7 @@ export function CodexFormFields({
       {shouldShowSpeedTest && isEndpointModalOpen && (
         <EndpointSpeedTest
           appId="codex"
+          providerId={providerId}
           value={codexBaseUrl}
           onChange={onBaseUrlChange}
           initialEndpoints={speedTestEndpoints}

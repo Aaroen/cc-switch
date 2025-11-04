@@ -30,7 +30,6 @@ import {
   useModelState,
   useCodexConfigState,
   useApiKeyLink,
-  useCustomEndpoints,
   useTemplateValues,
   useCommonConfigSnippet,
   useCodexCommonConfig,
@@ -48,6 +47,7 @@ type PresetEntry = {
 
 interface ProviderFormProps {
   appId: AppId;
+  providerId?: string;
   submitLabel: string;
   onSubmit: (values: ProviderFormValues) => void;
   onCancel: () => void;
@@ -63,6 +63,7 @@ interface ProviderFormProps {
 
 export function ProviderForm({
   appId,
+  providerId,
   submitLabel,
   onSubmit,
   onCancel,
@@ -82,8 +83,15 @@ export function ProviderForm({
   const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
 
   // 新建供应商：收集端点测速弹窗中的"自定义端点"，提交时一次性落盘到 meta.custom_endpoints
+  // 编辑供应商：从 initialData.meta.custom_endpoints 恢复端点列表
   const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>(
-    [],
+    () => {
+      if (!initialData?.meta?.custom_endpoints) {
+        return [];
+      }
+      // 从 Record<string, CustomEndpoint> 中提取 URL 列表
+      return Object.keys(initialData.meta.custom_endpoints);
+    },
   );
 
   // 使用 category hook
@@ -97,6 +105,13 @@ export function ProviderForm({
   useEffect(() => {
     setSelectedPresetId(initialData ? null : "custom");
     setActivePreset(null);
+
+    // 重新初始化 draftCustomEndpoints（编辑模式时从 meta 恢复）
+    if (initialData?.meta?.custom_endpoints) {
+      setDraftCustomEndpoints(Object.keys(initialData.meta.custom_endpoints));
+    } else {
+      setDraftCustomEndpoints([]);
+    }
   }, [appId, initialData]);
 
   const defaultValues: ProviderFormData = useMemo(
@@ -272,7 +287,7 @@ export function ProviderForm({
           type: "manual",
           message: t("providerForm.fillParameter", {
             label: validation.missingField.label,
-            defaultValue: `请填写 ${validation.missingField.label}`,
+            defaultValue: `���填写 ${validation.missingField.label}`,
           }),
         });
         return;
@@ -313,8 +328,35 @@ export function ProviderForm({
       }
     }
 
-    // 处理 meta 字段（新建与编辑使用不同策略）
-    const mergedMeta = mergeProviderMeta(initialData?.meta, customEndpointsMap);
+    // 处理 meta 字段：基于 draftCustomEndpoints 生成 custom_endpoints
+    // 注意：不使用 customEndpointsMap，因为它包含了候选端点（预设、Base URL 等）
+    // 而我们只需要保存用户真正添加的自定义端点
+    const customEndpointsToSave: Record<string, import("@/types").CustomEndpoint> | null =
+      draftCustomEndpoints.length > 0
+        ? draftCustomEndpoints.reduce((acc, url) => {
+            // 尝试从 initialData.meta 中获取原有的端点元数据（保留 addedAt 和 lastUsed）
+            const existing = initialData?.meta?.custom_endpoints?.[url];
+            if (existing) {
+              acc[url] = existing;
+            } else {
+              // 新端点：使用当前时间戳
+              const now = Date.now();
+              acc[url] = { url, addedAt: now, lastUsed: undefined };
+            }
+            return acc;
+          }, {} as Record<string, import("@/types").CustomEndpoint>)
+        : null;
+
+    // 检测是否需要清空端点（重要：区分"用户清空端点"和"用户没有修改端点"）
+    const hadEndpoints = initialData?.meta?.custom_endpoints &&
+                         Object.keys(initialData.meta.custom_endpoints).length > 0;
+    const needsClearEndpoints = hadEndpoints && draftCustomEndpoints.length === 0;
+
+    // 如果用户明确清空了端点，传递空对象（而不是 null）让后端知道要删除
+    const mergedMeta = needsClearEndpoints
+      ? mergeProviderMeta(initialData?.meta, {})
+      : mergeProviderMeta(initialData?.meta, customEndpointsToSave);
+
     if (mergedMeta) {
       payload.meta = mergedMeta;
     }
@@ -367,16 +409,6 @@ export function ProviderForm({
     selectedPresetId,
     presetEntries,
     formWebsiteUrl: form.watch("websiteUrl") || "",
-  });
-
-  // 使用自定义端点 hook
-  const customEndpointsMap = useCustomEndpoints({
-    appId,
-    selectedPresetId,
-    presetEntries,
-    draftCustomEndpoints,
-    baseUrl,
-    codexBaseUrl,
   });
 
   // 使用端点测速候选 hook
@@ -473,6 +505,7 @@ export function ProviderForm({
         {/* Claude 专属字段 */}
         {appId === "claude" && (
           <ClaudeFormFields
+            providerId={providerId}
             shouldShowApiKey={shouldShowApiKey(
               form.watch("settingsConfig"),
               isEditMode,
@@ -505,6 +538,7 @@ export function ProviderForm({
         {/* Codex 专属字段 */}
         {appId === "codex" && (
           <CodexFormFields
+            providerId={providerId}
             codexApiKey={codexApiKey}
             onApiKeyChange={handleCodexApiKeyChange}
             category={category}

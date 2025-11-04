@@ -123,6 +123,7 @@ export function EditProviderDialog({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ProviderForm
             appId={appId}
+            providerId={provider.id}
             submitLabel={t("common.save")}
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}
