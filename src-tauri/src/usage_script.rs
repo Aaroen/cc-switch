@@ -12,11 +12,21 @@ pub async fn execute_usage_script(
     api_key: &str,
     base_url: &str,
     timeout_secs: u64,
+    access_token: Option<&str>,
+    user_id: Option<&str>,
 ) -> Result<Value, AppError> {
     // 1. 替换变量
-    let replaced = script_code
+    let mut replaced = script_code
         .replace("{{apiKey}}", api_key)
         .replace("{{baseUrl}}", base_url);
+
+    // 替换 accessToken 和 userId
+    if let Some(token) = access_token {
+        replaced = replaced.replace("{{accessToken}}", token);
+    }
+    if let Some(uid) = user_id {
+        replaced = replaced.replace("{{userId}}", uid);
+    }
 
     // 2. 在独立作用域中提取 request 配置（确保 Runtime/Context 在 await 前释放）
     let request_config = {

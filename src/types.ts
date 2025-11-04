@@ -43,6 +43,8 @@ export interface UsageScript {
   language: "javascript"; // 脚本语言
   code: string; // 脚本代码（JSON 格式配置）
   timeout?: number; // 超时时间（秒，默认 10）
+  accessToken?: string; // 访问令牌（用于需要登录的接口）
+  userId?: string; // 用户ID（用于需要用户标识的接口）
 }
 
 // 单个套餐用量数据

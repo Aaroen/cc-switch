@@ -47,37 +47,28 @@ const PRESET_TEMPLATES: Record<string, string> = {
 
   NewAPI: `({
   request: {
-    url: "{{baseUrl}}/api/usage/token",
+    url: "{{baseUrl}}/api/user/self",
     method: "GET",
     headers: {
-      Authorization: "Bearer {{apiKey}}",
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{accessToken}}",
+      "New-Api-User": "{{userId}}"
     },
   },
   extractor: function (response) {
-    if (response.code) {
-      if (response.data.unlimited_quota) {
-        return {
-          planName: response.data.name,
-          total: -1,
-          used: response.data.total_used / 500000,
-          unit: "USD",
-        };
-      }
+    if (response.success && response.data) {
       return {
-        isValid: true,
-        planName: response.data.name,
-        total: response.data.total_granted / 500000,
-        used: response.data.total_used / 500000,
-        remaining: response.data.total_available / 500000,
+        planName: response.data.group || "默认套餐",
+        remaining: response.data.quota / 500000,
+        used: response.data.used_quota / 500000,
+        total: (response.data.quota + response.data.used_quota) / 500000,
         unit: "USD",
       };
     }
-    if (response.error) {
-      return {
-        isValid: false,
-        invalidMessage: response.error.message,
-      };
-    }
+    return {
+      isValid: false,
+      invalidMessage: response.message || "查询失败"
+    };
   },
 })`,
 };
@@ -273,6 +264,43 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                     className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
+              </div>
+
+              {/* 高级配置：Access Token 和 User ID */}
+              <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  🔑 高级配置（可选，用于需要登录的接口）
+                </p>
+
+                <label className="block">
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    Access Token（访问令牌）
+                  </span>
+                  <input
+                    type="text"
+                    value={script.accessToken || ''}
+                    onChange={(e) => setScript({...script, accessToken: e.target.value})}
+                    placeholder="从浏览器开发者工具获取..."
+                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    User ID（用户标识）
+                  </span>
+                  <input
+                    type="text"
+                    value={script.userId || ''}
+                    onChange={(e) => setScript({...script, userId: e.target.value})}
+                    placeholder="例如：240"
+                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                  />
+                </label>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  💡 在脚本中使用：{`{{accessToken}}`} 和 {`{{userId}}`}
+                </p>
               </div>
 
               {/* 脚本说明 */}

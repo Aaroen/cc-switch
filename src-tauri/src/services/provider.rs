@@ -717,7 +717,7 @@ impl ProviderService {
         app_type: AppType,
         provider_id: &str,
     ) -> Result<UsageResult, AppError> {
-        let (provider, script_code, timeout) = {
+        let (provider, script_code, timeout, access_token, user_id) = {
             let config = state.config.read().map_err(AppError::from)?;
             let manager = config
                 .get_manager(&app_type)
@@ -727,7 +727,7 @@ impl ProviderService {
                 .get(provider_id)
                 .cloned()
                 .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
-            let (script_code, timeout) = {
+            let (script_code, timeout, access_token, user_id) = {
                 let usage_script = provider
                     .meta
                     .as_ref()
@@ -749,15 +749,26 @@ impl ProviderService {
                 (
                     usage_script.code.clone(),
                     usage_script.timeout.unwrap_or(10),
+                    usage_script.access_token.clone(),
+                    usage_script.user_id.clone(),
                 )
             };
 
-            (provider, script_code, timeout)
+            (provider, script_code, timeout, access_token, user_id)
         };
 
         let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
 
-        match usage_script::execute_usage_script(&script_code, &api_key, &base_url, timeout).await {
+        match usage_script::execute_usage_script(
+            &script_code,
+            &api_key,
+            &base_url,
+            timeout,
+            access_token.as_deref(),
+            user_id.as_deref(),
+        )
+        .await
+        {
             Ok(data) => {
                 let usage_list: Vec<UsageData> = if data.is_array() {
                     serde_json::from_value(data)
