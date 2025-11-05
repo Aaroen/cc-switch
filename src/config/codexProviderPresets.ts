@@ -58,7 +58,7 @@ requires_openai_auth = true`;
 
 export const codexProviderPresets: CodexProviderPreset[] = [
   {
-    name: "Codex Official",
+    name: "OpenAI Official",
     websiteUrl: "https://chatgpt.com/codex",
     isOfficial: true,
     category: "official",
@@ -71,7 +71,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     },
   },
   {
-    name: "Azure OpenAI (gpt-5-codex)",
+    name: "Azure OpenAI",
     websiteUrl:
       "https://learn.microsoft.com/azure/ai-services/openai/how-to/overview",
     category: "third_party",
@@ -83,7 +83,7 @@ model_reasoning_effort = "high"
 disable_response_storage = true
 
 [model_providers.azure]
-name = "Azure OpenAI (gpt-5-codex)"
+name = "Azure OpenAI"
 base_url = "https://YOUR_RESOURCE_NAME.openai.azure.com/openai"
 env_key = "OPENAI_API_KEY"
 query_params = { "api-version" = "2025-04-01-preview" }
@@ -109,6 +109,20 @@ requires_openai_auth = true`,
     endpointCandidates: [
       "https://aihubmix.com/v1",
       "https://api.aihubmix.com/v1",
+    ],
+  },
+  {
+    name: "DMXAPI",
+    websiteUrl: "https://www.dmxapi.cn",
+    category: "aggregator",
+    auth: generateThirdPartyAuth(""),
+    config: generateThirdPartyConfig(
+      "dmxapi",
+      "https://www.dmxapi.cn/v1",
+      "gpt-5-codex",
+    ),
+    endpointCandidates: [
+      "https://www.dmxapi.cn/v1",
     ],
   },
   {

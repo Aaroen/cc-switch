@@ -56,27 +56,6 @@ export const providerPresets: ProviderPreset[] = [
     },
   },
   {
-    name: "AiHubMix",
-    websiteUrl: "https://aihubmix.com",
-    apiKeyUrl: "https://aihubmix.com",
-    // 说明：该供应商使用 ANTHROPIC_API_KEY（而非 ANTHROPIC_AUTH_TOKEN）
-    apiKeyField: "ANTHROPIC_API_KEY",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://aihubmix.com",
-        ANTHROPIC_API_KEY: "",
-        // 可选的模型默认值（留空表示使用系统默认）
-        // ANTHROPIC_MODEL: "",
-        // ANTHROPIC_DEFAULT_HAIKU_MODEL: "",
-        // ANTHROPIC_DEFAULT_SONNET_MODEL: "",
-        // ANTHROPIC_DEFAULT_OPUS_MODEL: "",
-      },
-    },
-    // 请求地址候选（用于地址管理/测速），用户可自行选择/覆盖
-    endpointCandidates: ["https://aihubmix.com", "https://api.aihubmix.com"],
-    category: "aggregator",
-  },
-  {
     name: "DeepSeek",
     websiteUrl: "https://platform.deepseek.com",
     settingsConfig: {
@@ -212,6 +191,36 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+  },
+  {
+    name: "AiHubMix",
+    websiteUrl: "https://aihubmix.com",
+    apiKeyUrl: "https://aihubmix.com",
+    // 说明：该供应商使用 ANTHROPIC_API_KEY（而非 ANTHROPIC_AUTH_TOKEN）
+    apiKeyField: "ANTHROPIC_API_KEY",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://aihubmix.com",
+        ANTHROPIC_API_KEY: "",
+      },
+    },
+    // 请求地址候选（用于地址管理/测速），用户可自行选择/覆盖
+    endpointCandidates: ["https://aihubmix.com", "https://api.aihubmix.com"],
+    category: "aggregator",
+  },
+  {
+    name: "DMXAPI",
+    websiteUrl: "https://www.dmxapi.cn",
+    apiKeyUrl: "https://www.dmxapi.cn",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://www.dmxapi.cn",
+        ANTHROPIC_API_KEY: "",
+      },
+    },
+    // 请求地址候选（用于地址管理/测速），用户可自行选择/覆盖
+    endpointCandidates: ["https://aihubmix.com", "https://api.aihubmix.com"],
+    category: "aggregator",
   },
   {
     name: "PackyCode",
