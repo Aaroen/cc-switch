@@ -105,7 +105,7 @@ export const useUsageQuery = (
         : false,
     refetchOnWindowFocus: false,
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5分钟
+    staleTime: 0, // 不使用缓存策略，确保 refetchInterval 准确执行
   });
 
   return {
