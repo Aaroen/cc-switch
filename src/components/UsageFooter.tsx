@@ -333,7 +333,7 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
 function formatRelativeTime(
   timestamp: number,
   now: number,
-  t: (key: string, options?: { count?: number }) => string
+  t: (key: string, options?: { count?: number }) => string,
 ): string {
   const diff = Math.floor((now - timestamp) / 1000); // 秒
 

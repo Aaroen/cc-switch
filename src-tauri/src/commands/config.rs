@@ -73,8 +73,7 @@ pub async fn open_config_folder(handle: AppHandle, app: String) -> Result<bool, 
 #[tauri::command]
 pub async fn pick_directory(
     app: AppHandle,
-    #[allow(non_snake_case)]
-    defaultPath: Option<String>,
+    #[allow(non_snake_case)] defaultPath: Option<String>,
 ) -> Result<Option<String>, String> {
     let initial = defaultPath
         .map(|p| p.trim().to_string())

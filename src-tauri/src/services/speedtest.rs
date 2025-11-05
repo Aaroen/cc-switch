@@ -101,11 +101,13 @@ impl SpeedtestService {
             .redirect(reqwest::redirect::Policy::limited(5))
             .user_agent("cc-switch-speedtest/1.0")
             .build()
-            .map_err(|e| AppError::localized(
-                "speedtest.client_create_failed",
-                format!("创建 HTTP 客户端失败: {e}"),
-                format!("Failed to create HTTP client: {e}")
-            ))
+            .map_err(|e| {
+                AppError::localized(
+                    "speedtest.client_create_failed",
+                    format!("创建 HTTP 客户端失败: {e}"),
+                    format!("Failed to create HTTP client: {e}"),
+                )
+            })
     }
 
     fn sanitize_timeout(timeout_secs: Option<u64>) -> u64 {

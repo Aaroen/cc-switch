@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
+use crate::init_status::InitErrorPayload;
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
-use crate::init_status::InitErrorPayload;
 
 /// 打开外部链接
 #[tauri::command]

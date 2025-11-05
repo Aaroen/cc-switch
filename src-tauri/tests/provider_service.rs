@@ -240,8 +240,8 @@ fn provider_service_switch_missing_provider_returns_error() {
     let err = ProviderService::switch(&state, AppType::Claude, "missing")
         .expect_err("switching missing provider should fail");
     match err {
-        AppError::ProviderNotFound(id) => assert_eq!(id, "missing"),
-        other => panic!("expected ProviderNotFound, got {other:?}"),
+        AppError::Localized { key, .. } => assert_eq!(key, "provider.not_found"),
+        other => panic!("expected Localized error for provider not found, got {other:?}"),
     }
 }
 

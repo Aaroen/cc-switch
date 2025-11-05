@@ -12,8 +12,7 @@ use crate::store::AppState;
 /// 导出配置文件
 #[tauri::command]
 pub async fn export_config_to_file(
-    #[allow(non_snake_case)]
-    filePath: String
+    #[allow(non_snake_case)] filePath: String,
 ) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let target_path = PathBuf::from(&filePath);
@@ -32,8 +31,7 @@ pub async fn export_config_to_file(
 /// 从文件导入配置
 #[tauri::command]
 pub async fn import_config_from_file(
-    #[allow(non_snake_case)]
-    filePath: String,
+    #[allow(non_snake_case)] filePath: String,
     state: State<'_, AppState>,
 ) -> Result<Value, String> {
     let (new_config, backup_id) = tauri::async_runtime::spawn_blocking(move || {
@@ -81,8 +79,7 @@ pub async fn sync_current_providers_live(state: State<'_, AppState>) -> Result<V
 #[tauri::command]
 pub async fn save_file_dialog<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    #[allow(non_snake_case)]
-    defaultName: String,
+    #[allow(non_snake_case)] defaultName: String,
 ) -> Result<Option<String>, String> {
     let dialog = app.dialog();
     let result = dialog

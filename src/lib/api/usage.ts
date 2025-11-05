@@ -33,7 +33,7 @@ export const usageApi = {
     scriptCode: string,
     timeout?: number,
     accessToken?: string,
-    userId?: string
+    userId?: string,
   ): Promise<UsageResult> {
     try {
       return await invoke("testUsageScript", {

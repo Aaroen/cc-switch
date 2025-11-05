@@ -112,8 +112,7 @@ pub fn import_default_config(state: State<'_, AppState>, app: String) -> Result<
 #[tauri::command]
 pub async fn queryProviderUsage(
     state: State<'_, AppState>,
-    #[allow(non_snake_case)]
-    providerId: String,  // 使用 camelCase 匹配前端
+    #[allow(non_snake_case)] providerId: String, // 使用 camelCase 匹配前端
     app: String,
 ) -> Result<crate::provider::UsageResult, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
@@ -127,16 +126,12 @@ pub async fn queryProviderUsage(
 #[tauri::command]
 pub async fn testUsageScript(
     state: State<'_, AppState>,
-    #[allow(non_snake_case)]
-    providerId: String,
+    #[allow(non_snake_case)] providerId: String,
     app: String,
-    #[allow(non_snake_case)]
-    scriptCode: String,
+    #[allow(non_snake_case)] scriptCode: String,
     timeout: Option<u64>,
-    #[allow(non_snake_case)]
-    accessToken: Option<String>,
-    #[allow(non_snake_case)]
-    userId: Option<String>,
+    #[allow(non_snake_case)] accessToken: Option<String>,
+    #[allow(non_snake_case)] userId: Option<String>,
 ) -> Result<crate::provider::UsageResult, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::test_usage_script(
@@ -163,8 +158,7 @@ pub fn read_live_provider_settings(app: String) -> Result<serde_json::Value, Str
 #[tauri::command]
 pub async fn test_api_endpoints(
     urls: Vec<String>,
-    #[allow(non_snake_case)]
-    timeoutSecs: Option<u64>,
+    #[allow(non_snake_case)] timeoutSecs: Option<u64>,
 ) -> Result<Vec<EndpointLatency>, String> {
     SpeedtestService::test_endpoints(urls, timeoutSecs)
         .await
@@ -176,8 +170,7 @@ pub async fn test_api_endpoints(
 pub fn get_custom_endpoints(
     state: State<'_, AppState>,
     app: String,
-    #[allow(non_snake_case)]
-    providerId: String,
+    #[allow(non_snake_case)] providerId: String,
 ) -> Result<Vec<crate::settings::CustomEndpoint>, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::get_custom_endpoints(state.inner(), app_type, &providerId)
@@ -189,8 +182,7 @@ pub fn get_custom_endpoints(
 pub fn add_custom_endpoint(
     state: State<'_, AppState>,
     app: String,
-    #[allow(non_snake_case)]
-    providerId: String,
+    #[allow(non_snake_case)] providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
@@ -203,8 +195,7 @@ pub fn add_custom_endpoint(
 pub fn remove_custom_endpoint(
     state: State<'_, AppState>,
     app: String,
-    #[allow(non_snake_case)]
-    providerId: String,
+    #[allow(non_snake_case)] providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
@@ -217,8 +208,7 @@ pub fn remove_custom_endpoint(
 pub fn update_endpoint_last_used(
     state: State<'_, AppState>,
     app: String,
-    #[allow(non_snake_case)]
-    providerId: String,
+    #[allow(non_snake_case)] providerId: String,
     url: String,
 ) -> Result<(), String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;

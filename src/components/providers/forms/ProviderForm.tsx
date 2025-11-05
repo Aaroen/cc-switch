@@ -331,26 +331,34 @@ export function ProviderForm({
     // 处理 meta 字段：基于 draftCustomEndpoints 生成 custom_endpoints
     // 注意：不使用 customEndpointsMap，因为它包含了候选端点（预设、Base URL 等）
     // 而我们只需要保存用户真正添加的自定义端点
-    const customEndpointsToSave: Record<string, import("@/types").CustomEndpoint> | null =
+    const customEndpointsToSave: Record<
+      string,
+      import("@/types").CustomEndpoint
+    > | null =
       draftCustomEndpoints.length > 0
-        ? draftCustomEndpoints.reduce((acc, url) => {
-            // 尝试从 initialData.meta 中获取原有的端点元数据（保留 addedAt 和 lastUsed）
-            const existing = initialData?.meta?.custom_endpoints?.[url];
-            if (existing) {
-              acc[url] = existing;
-            } else {
-              // 新端点：使用当前时间戳
-              const now = Date.now();
-              acc[url] = { url, addedAt: now, lastUsed: undefined };
-            }
-            return acc;
-          }, {} as Record<string, import("@/types").CustomEndpoint>)
+        ? draftCustomEndpoints.reduce(
+            (acc, url) => {
+              // 尝试从 initialData.meta 中获取原有的端点元数据（保留 addedAt 和 lastUsed）
+              const existing = initialData?.meta?.custom_endpoints?.[url];
+              if (existing) {
+                acc[url] = existing;
+              } else {
+                // 新端点：使用当前时间戳
+                const now = Date.now();
+                acc[url] = { url, addedAt: now, lastUsed: undefined };
+              }
+              return acc;
+            },
+            {} as Record<string, import("@/types").CustomEndpoint>,
+          )
         : null;
 
     // 检测是否需要清空端点（重要：区分"用户清空端点"和"用户没有修改端点"）
-    const hadEndpoints = initialData?.meta?.custom_endpoints &&
-                         Object.keys(initialData.meta.custom_endpoints).length > 0;
-    const needsClearEndpoints = hadEndpoints && draftCustomEndpoints.length === 0;
+    const hadEndpoints =
+      initialData?.meta?.custom_endpoints &&
+      Object.keys(initialData.meta.custom_endpoints).length > 0;
+    const needsClearEndpoints =
+      hadEndpoints && draftCustomEndpoints.length === 0;
 
     // 如果用户明确清空了端点，传递空对象（而不是 null）让后端知道要删除
     const mergedMeta = needsClearEndpoints

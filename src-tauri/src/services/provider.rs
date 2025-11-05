@@ -142,19 +142,31 @@ impl ProviderService {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let target_haiku = current_haiku.or_else(|| small_fast.clone()).or_else(|| model.clone());
-        let target_sonnet = current_sonnet.or_else(|| model.clone()).or_else(|| small_fast.clone());
-        let target_opus = current_opus.or_else(|| model.clone()).or_else(|| small_fast.clone());
+        let target_haiku = current_haiku
+            .or_else(|| small_fast.clone())
+            .or_else(|| model.clone());
+        let target_sonnet = current_sonnet
+            .or_else(|| model.clone())
+            .or_else(|| small_fast.clone());
+        let target_opus = current_opus
+            .or_else(|| model.clone())
+            .or_else(|| small_fast.clone());
 
         if env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL").is_none() {
             if let Some(v) = target_haiku {
-                env.insert("ANTHROPIC_DEFAULT_HAIKU_MODEL".to_string(), Value::String(v));
+                env.insert(
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL".to_string(),
+                    Value::String(v),
+                );
                 changed = true;
             }
         }
         if env.get("ANTHROPIC_DEFAULT_SONNET_MODEL").is_none() {
             if let Some(v) = target_sonnet {
-                env.insert("ANTHROPIC_DEFAULT_SONNET_MODEL".to_string(), Value::String(v));
+                env.insert(
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL".to_string(),
+                    Value::String(v),
+                );
                 changed = true;
             }
         }
@@ -619,16 +631,13 @@ impl ProviderService {
             let manager = cfg
                 .get_manager_mut(&app_type)
                 .ok_or_else(|| Self::app_not_found(&app_type))?;
-            let provider = manager
-                .providers
-                .get_mut(provider_id)
-                .ok_or_else(|| {
-                    AppError::localized(
-                        "provider.not_found",
-                        format!("供应商不存在: {}", provider_id),
-                        format!("Provider not found: {}", provider_id),
-                    )
-                })?;
+            let provider = manager.providers.get_mut(provider_id).ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?;
             let meta = provider.meta.get_or_insert_with(ProviderMeta::default);
 
             let endpoint = CustomEndpoint {
@@ -737,19 +746,21 @@ impl ProviderService {
         {
             Ok(data) => {
                 let usage_list: Vec<UsageData> = if data.is_array() {
-                    serde_json::from_value(data)
-                        .map_err(|e| AppError::localized(
+                    serde_json::from_value(data).map_err(|e| {
+                        AppError::localized(
                             "usage_script.data_format_error",
                             format!("数据格式错误: {}", e),
-                            format!("Data format error: {}", e)
-                        ))?
+                            format!("Data format error: {}", e),
+                        )
+                    })?
                 } else {
-                    let single: UsageData = serde_json::from_value(data)
-                        .map_err(|e| AppError::localized(
+                    let single: UsageData = serde_json::from_value(data).map_err(|e| {
+                        AppError::localized(
                             "usage_script.data_format_error",
                             format!("数据格式错误: {}", e),
-                            format!("Data format error: {}", e)
-                        ))?;
+                            format!("Data format error: {}", e),
+                        )
+                    })?;
                     vec![single]
                 };
 
@@ -766,7 +777,11 @@ impl ProviderService {
 
                 let msg = match err {
                     AppError::Localized { zh, en, .. } => {
-                        if lang == "en" { en } else { zh }
+                        if lang == "en" {
+                            en
+                        } else {
+                            zh
+                        }
                     }
                     other => other.to_string(),
                 };
@@ -791,17 +806,13 @@ impl ProviderService {
             let manager = config
                 .get_manager(&app_type)
                 .ok_or_else(|| Self::app_not_found(&app_type))?;
-            let provider = manager
-                .providers
-                .get(provider_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::localized(
-                        "provider.not_found",
-                        format!("供应商不存在: {}", provider_id),
-                        format!("Provider not found: {}", provider_id),
-                    )
-                })?;
+            let provider = manager.providers.get(provider_id).cloned().ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?;
             let (script_code, timeout, access_token, user_id) = {
                 let usage_script = provider
                     .meta
@@ -861,17 +872,13 @@ impl ProviderService {
             let manager = config
                 .get_manager(&app_type)
                 .ok_or_else(|| Self::app_not_found(&app_type))?;
-            manager
-                .providers
-                .get(provider_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::localized(
-                        "provider.not_found",
-                        format!("供应商不存在: {}", provider_id),
-                        format!("Provider not found: {}", provider_id),
-                    )
-                })?
+            manager.providers.get(provider_id).cloned().ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?
         };
 
         let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
@@ -1206,12 +1213,13 @@ impl ProviderService {
                     .unwrap_or("");
 
                 let base_url = if config_toml.contains("base_url") {
-                    let re = Regex::new(r#"base_url\s*=\s*["']([^"']+)["']"#)
-                        .map_err(|e| AppError::localized(
+                    let re = Regex::new(r#"base_url\s*=\s*["']([^"']+)["']"#).map_err(|e| {
+                        AppError::localized(
                             "provider.regex_init_failed",
                             format!("正则初始化失败: {}", e),
-                            format!("Failed to initialize regex: {}", e)
-                        ))?;
+                            format!("Failed to initialize regex: {}", e),
+                        )
+                    })?;
                     re.captures(config_toml)
                         .and_then(|caps| caps.get(1))
                         .map(|m| m.as_str().to_string())
@@ -1239,7 +1247,7 @@ impl ProviderService {
         AppError::localized(
             "provider.app_not_found",
             format!("应用类型不存在: {:?}", app_type),
-            format!("App type not found: {:?}", app_type)
+            format!("App type not found: {:?}", app_type),
         )
     }
 
@@ -1265,17 +1273,13 @@ impl ProviderService {
                 ));
             }
 
-            manager
-                .providers
-                .get(provider_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::localized(
-                        "provider.not_found",
-                        format!("供应商不存在: {}", provider_id),
-                        format!("Provider not found: {}", provider_id),
-                    )
-                })?
+            manager.providers.get(provider_id).cloned().ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?
         };
 
         match app_type {

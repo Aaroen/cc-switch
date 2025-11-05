@@ -39,4 +39,3 @@ mod tests {
         assert_eq!(got.error, payload.error);
     }
 }
-

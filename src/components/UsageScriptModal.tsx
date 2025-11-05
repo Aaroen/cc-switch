@@ -33,7 +33,9 @@ const TEMPLATE_KEYS = {
 } as const;
 
 // 生成预设模板的函数（支持国际化）
-const generatePresetTemplates = (t: (key: string) => string): Record<string, string> => ({
+const generatePresetTemplates = (
+  t: (key: string) => string,
+): Record<string, string> => ({
   [TEMPLATE_KEYS.CUSTOM]: `({
   request: {
     url: "",
@@ -135,7 +137,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         return TEMPLATE_KEYS.NEW_API;
       }
       return null;
-    }
+    },
   );
 
   const handleSave = () => {
@@ -165,7 +167,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         script.code,
         script.timeout,
         script.accessToken,
-        script.userId
+        script.userId,
       );
       if (result.success && result.data && result.data.length > 0) {
         // 显示所有套餐数据
@@ -183,7 +185,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           `${t("usageScript.testFailed")}: ${result.error || t("endpointTest.noResult")}`,
           {
             duration: 5000,
-          }
+          },
         );
       }
     } catch (error: any) {
@@ -191,7 +193,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         `${t("usageScript.testFailed")}: ${error?.message || t("common.unknown")}`,
         {
           duration: 5000,
-        }
+        },
       );
     } finally {
       setTesting(false);
@@ -215,7 +217,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         `${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`,
         {
           duration: 3000,
-        }
+        },
       );
     }
   };

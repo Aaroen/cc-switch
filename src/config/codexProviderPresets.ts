@@ -121,9 +121,7 @@ requires_openai_auth = true`,
       "https://www.dmxapi.cn/v1",
       "gpt-5-codex",
     ),
-    endpointCandidates: [
-      "https://www.dmxapi.cn/v1",
-    ],
+    endpointCandidates: ["https://www.dmxapi.cn/v1"],
   },
   {
     name: "PackyCode",
