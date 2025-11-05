@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Play, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Provider, UsageScript } from "../types";
+import { Provider, UsageScript } from "@/types";
 import { usageApi, type AppId } from "@/lib/api";
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";

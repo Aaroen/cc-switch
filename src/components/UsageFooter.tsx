@@ -3,8 +3,7 @@ import { RefreshCw, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type AppId } from "@/lib/api";
 import { useUsageQuery } from "@/lib/query/queries";
-import { useAutoUsageQuery } from "@/hooks/useAutoUsageQuery";
-import { UsageData, Provider } from "../types";
+import { UsageData, Provider } from "@/types";
 
 interface UsageFooterProps {
   provider: Provider;
@@ -23,20 +22,34 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // 手动查询（点击刷新按钮时使用）
+  // 统一的用量查询（自动查询仅对当前激活的供应商启用）
+  const autoQueryInterval = isCurrent
+    ? provider.meta?.usage_script?.autoQueryInterval || 0
+    : 0;
+
   const {
-    data: manualUsage,
+    data: usage,
     isFetching: loading,
+    lastQueriedAt,
     refetch,
-  } = useUsageQuery(providerId, appId, usageEnabled);
+  } = useUsageQuery(providerId, appId, {
+    enabled: usageEnabled,
+    autoQueryInterval,
+  });
 
-  // 自动查询（仅对当前激活的供应商启用）
-  const autoQuery = useAutoUsageQuery(provider, appId, isCurrent && usageEnabled);
+  // 🆕 定期更新当前时间，用于刷新相对时间显示
+  const [now, setNow] = React.useState(Date.now());
 
-  // 优先使用自动查询结果，如果没有则使用手动查询结果
-  const usage = autoQuery.result || manualUsage;
-  const isAutoQuerying = autoQuery.isQuerying;
-  const lastQueriedAt = autoQuery.lastQueriedAt;
+  React.useEffect(() => {
+    if (!lastQueriedAt) return;
+
+    // 每30秒更新一次当前时间，触发相对时间显示的刷新
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 30000); // 30秒
+
+    return () => clearInterval(interval);
+  }, [lastQueriedAt]);
 
   // 只在启用用量查询且有数据时显示
   if (!usageEnabled || !usage) return null;
@@ -82,18 +95,18 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
           {lastQueriedAt && (
             <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
               <Clock size={10} />
-              {formatRelativeTime(lastQueriedAt, t)}
+              {formatRelativeTime(lastQueriedAt, now, t)}
             </span>
           )}
           <button
             onClick={() => refetch()}
-            disabled={loading || isAutoQuerying}
+            disabled={loading}
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
             title={t("usage.refreshUsage")}
           >
             <RefreshCw
               size={12}
-              className={loading || isAutoQuerying ? "animate-spin" : ""}
+              className={loading ? "animate-spin" : ""}
             />
           </button>
         </div>
@@ -227,9 +240,9 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
 // 格式化相对时间
 function formatRelativeTime(
   timestamp: number,
+  now: number,
   t: (key: string, options?: { count?: number }) => string
 ): string {
-  const now = Date.now();
   const diff = Math.floor((now - timestamp) / 1000); // 秒
 
   if (diff < 60) {

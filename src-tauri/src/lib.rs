@@ -539,8 +539,8 @@ pub fn run() {
             commands::delete_claude_mcp_server,
             commands::validate_mcp_command,
             // usage query
-            commands::query_provider_usage,
-            commands::test_usage_script,
+            commands::queryProviderUsage,
+            commands::testUsageScript,
             // New MCP via config.json (SSOT)
             commands::get_mcp_config,
             commands::upsert_mcp_server_in_config,

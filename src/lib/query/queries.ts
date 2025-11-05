@@ -83,17 +83,33 @@ export const useSettingsQuery = (): UseQueryResult<Settings> => {
   });
 };
 
+export interface UseUsageQueryOptions {
+  enabled?: boolean;
+  autoQueryInterval?: number; // 自动查询间隔（分钟），0 表示禁用
+}
+
 export const useUsageQuery = (
   providerId: string,
   appId: AppId,
-  enabled: boolean = true,
-): UseQueryResult<UsageResult> => {
-  return useQuery({
+  options?: UseUsageQueryOptions,
+) => {
+  const { enabled = true, autoQueryInterval = 0 } = options || {};
+
+  const query = useQuery<UsageResult>({
     queryKey: ["usage", providerId, appId],
     queryFn: async () => usageApi.query(providerId, appId),
     enabled: enabled && !!providerId,
+    refetchInterval:
+      autoQueryInterval > 0
+        ? Math.max(autoQueryInterval, 1) * 60 * 1000 // 最小1分钟
+        : false,
     refetchOnWindowFocus: false,
     retry: false,
     staleTime: 5 * 60 * 1000, // 5分钟
   });
+
+  return {
+    ...query,
+    lastQueriedAt: query.dataUpdatedAt || null,
+  };
 };

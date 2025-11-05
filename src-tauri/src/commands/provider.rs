@@ -108,8 +108,9 @@ pub fn import_default_config(state: State<'_, AppState>, app: String) -> Result<
 }
 
 /// 查询供应商用量
+#[allow(non_snake_case)]
 #[tauri::command]
-pub async fn query_provider_usage(
+pub async fn queryProviderUsage(
     state: State<'_, AppState>,
     #[allow(non_snake_case)]
     providerId: String,  // 使用 camelCase 匹配前端
@@ -122,8 +123,9 @@ pub async fn query_provider_usage(
 }
 
 /// 测试用量脚本（使用当前编辑器中的脚本，不保存）
+#[allow(non_snake_case)]
 #[tauri::command]
-pub async fn test_usage_script(
+pub async fn testUsageScript(
     state: State<'_, AppState>,
     #[allow(non_snake_case)]
     providerId: String,

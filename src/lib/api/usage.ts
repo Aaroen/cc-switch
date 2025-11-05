@@ -6,7 +6,7 @@ import i18n from "@/i18n";
 export const usageApi = {
   async query(providerId: string, appId: AppId): Promise<UsageResult> {
     try {
-      return await invoke("query_provider_usage", {
+      return await invoke("queryProviderUsage", {
         providerId: providerId,
         app: appId,
       });
@@ -36,7 +36,7 @@ export const usageApi = {
     userId?: string
   ): Promise<UsageResult> {
     try {
-      return await invoke("test_usage_script", {
+      return await invoke("testUsageScript", {
         providerId: providerId,
         app: appId,
         scriptCode: scriptCode,
@@ -59,4 +59,3 @@ export const usageApi = {
     }
   },
 };
-
