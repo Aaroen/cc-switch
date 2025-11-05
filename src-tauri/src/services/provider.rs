@@ -728,10 +728,18 @@ impl ProviderService {
             Ok(data) => {
                 let usage_list: Vec<UsageData> = if data.is_array() {
                     serde_json::from_value(data)
-                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?
+                        .map_err(|e| AppError::localized(
+                            "usage_script.data_format_error",
+                            format!("数据格式错误: {}", e),
+                            format!("Data format error: {}", e)
+                        ))?
                 } else {
                     let single: UsageData = serde_json::from_value(data)
-                        .map_err(|e| AppError::Message(format!("数据格式错误: {}", e)))?;
+                        .map_err(|e| AppError::localized(
+                            "usage_script.data_format_error",
+                            format!("数据格式错误: {}", e),
+                            format!("Data format error: {}", e)
+                        ))?;
                     vec![single]
                 };
 
@@ -1152,7 +1160,11 @@ impl ProviderService {
 
                 let base_url = if config_toml.contains("base_url") {
                     let re = Regex::new(r#"base_url\s*=\s*["']([^"']+)["']"#)
-                        .map_err(|e| AppError::Message(format!("正则初始化失败: {}", e)))?;
+                        .map_err(|e| AppError::localized(
+                            "provider.regex_init_failed",
+                            format!("正则初始化失败: {}", e),
+                            format!("Failed to initialize regex: {}", e)
+                        ))?;
                     re.captures(config_toml)
                         .and_then(|caps| caps.get(1))
                         .map(|m| m.as_str().to_string())
@@ -1177,7 +1189,11 @@ impl ProviderService {
     }
 
     fn app_not_found(app_type: &AppType) -> AppError {
-        AppError::Message(format!("应用类型不存在: {:?}", app_type))
+        AppError::localized(
+            "provider.app_not_found",
+            format!("应用类型不存在: {:?}", app_type),
+            format!("App type not found: {:?}", app_type)
+        )
     }
 
     fn now_millis() -> i64 {
