@@ -337,7 +337,7 @@
     "planUsage": "套餐用量",
     "invalid": "已失效",
     "total": "总：",
-    "used": "使用：",
+    "used": "已使用：",
     "remaining": "剩余：",
     "justNow": "刚刚",
     "minutesAgo": "{{count}} 分钟前",

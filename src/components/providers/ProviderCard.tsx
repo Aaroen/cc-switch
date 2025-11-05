@@ -170,22 +170,25 @@ export function ProviderCard({
           </div>
         </div>
 
-        <ProviderActions
-          isCurrent={isCurrent}
-          onSwitch={() => onSwitch(provider)}
-          onEdit={() => onEdit(provider)}
-          onConfigureUsage={() => onConfigureUsage(provider)}
-          onDelete={() => onDelete(provider)}
-        />
-      </div>
+        <div className="flex items-center gap-3">
+          <UsageFooter
+            provider={provider}
+            providerId={provider.id}
+            appId={appId}
+            usageEnabled={usageEnabled}
+            isCurrent={isCurrent}
+            inline={true}
+          />
 
-      <UsageFooter
-        provider={provider}
-        providerId={provider.id}
-        appId={appId}
-        usageEnabled={usageEnabled}
-        isCurrent={isCurrent}
-      />
+          <ProviderActions
+            isCurrent={isCurrent}
+            onSwitch={() => onSwitch(provider)}
+            onEdit={() => onEdit(provider)}
+            onConfigureUsage={() => onConfigureUsage(provider)}
+            onDelete={() => onDelete(provider)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
