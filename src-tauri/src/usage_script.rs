@@ -137,7 +137,13 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
     let method: reqwest::Method = config
         .method
         .parse()
-        .map_err(|_| AppError::InvalidHttpMethod(config.method.clone()))?;
+        .map_err(|_| {
+            AppError::localized(
+                "usage_script.invalid_http_method",
+                format!("不支持的 HTTP 方法: {}", config.method),
+                format!("Unsupported HTTP method: {}", config.method),
+            )
+        })?;
 
     let mut req = client.request(method.clone(), &config.url);
 

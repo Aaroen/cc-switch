@@ -13,7 +13,7 @@ use crate::config::{
 use crate::error::AppError;
 use crate::mcp;
 use crate::provider::{Provider, ProviderMeta, UsageData, UsageResult};
-use crate::settings::CustomEndpoint;
+use crate::settings::{self, CustomEndpoint};
 use crate::store::AppState;
 use crate::usage_script;
 
@@ -433,7 +433,11 @@ impl ProviderService {
                 .ok_or_else(|| Self::app_not_found(&app_type_clone))?;
 
             if !manager.providers.contains_key(&provider_id) {
-                return Err(AppError::ProviderNotFound(provider_id.clone()));
+                return Err(AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                ));
             }
 
             let is_current = manager.current == provider_id;
@@ -618,7 +622,13 @@ impl ProviderService {
             let provider = manager
                 .providers
                 .get_mut(provider_id)
-                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+                .ok_or_else(|| {
+                    AppError::localized(
+                        "provider.not_found",
+                        format!("供应商不存在: {}", provider_id),
+                        format!("Provider not found: {}", provider_id),
+                    )
+                })?;
             let meta = provider.meta.get_or_insert_with(ProviderMeta::default);
 
             let endpoint = CustomEndpoint {
@@ -749,11 +759,24 @@ impl ProviderService {
                     error: None,
                 })
             }
-            Err(err) => Ok(UsageResult {
-                success: false,
-                data: None,
-                error: Some(err.to_string()),
-            }),
+            Err(err) => {
+                let lang = settings::get_settings()
+                    .language
+                    .unwrap_or_else(|| "zh".to_string());
+
+                let msg = match err {
+                    AppError::Localized { zh, en, .. } => {
+                        if lang == "en" { en } else { zh }
+                    }
+                    other => other.to_string(),
+                };
+
+                Ok(UsageResult {
+                    success: false,
+                    data: None,
+                    error: Some(msg),
+                })
+            }
         }
     }
 
@@ -772,7 +795,13 @@ impl ProviderService {
                 .providers
                 .get(provider_id)
                 .cloned()
-                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+                .ok_or_else(|| {
+                    AppError::localized(
+                        "provider.not_found",
+                        format!("供应商不存在: {}", provider_id),
+                        format!("Provider not found: {}", provider_id),
+                    )
+                })?;
             let (script_code, timeout, access_token, user_id) = {
                 let usage_script = provider
                     .meta
@@ -836,7 +865,13 @@ impl ProviderService {
                 .providers
                 .get(provider_id)
                 .cloned()
-                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?
+                .ok_or_else(|| {
+                    AppError::localized(
+                        "provider.not_found",
+                        format!("供应商不存在: {}", provider_id),
+                        format!("Provider not found: {}", provider_id),
+                    )
+                })?
         };
 
         let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
@@ -886,7 +921,13 @@ impl ProviderService {
             .providers
             .get(provider_id)
             .cloned()
-            .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+            .ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?;
 
         Self::backfill_codex_current(config, provider_id)?;
 
@@ -967,7 +1008,13 @@ impl ProviderService {
             .providers
             .get(provider_id)
             .cloned()
-            .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?;
+            .ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {}", provider_id),
+                    format!("Provider not found: {}", provider_id),
+                )
+            })?;
 
         Self::backfill_claude_current(config, provider_id)?;
 
@@ -1222,7 +1269,13 @@ impl ProviderService {
                 .providers
                 .get(provider_id)
                 .cloned()
-                .ok_or_else(|| AppError::ProviderNotFound(provider_id.to_string()))?
+                .ok_or_else(|| {
+                    AppError::localized(
+                        "provider.not_found",
+                        format!("供应商不存在: {}", provider_id),
+                        format!("Provider not found: {}", provider_id),
+                    )
+                })?
         };
 
         match app_type {
