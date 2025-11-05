@@ -45,6 +45,7 @@ export interface UsageScript {
   timeout?: number; // 超时时间（秒，默认 10）
   accessToken?: string; // 访问令牌（用于需要登录的接口）
   userId?: string; // 用户ID（用于需要用户标识的接口）
+  autoQueryInterval?: number; // 自动查询间隔（单位：分钟，0 表示禁用）
 }
 
 // 单个套餐用量数据

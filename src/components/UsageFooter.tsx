@@ -1,27 +1,42 @@
 import React from "react";
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type AppId } from "@/lib/api";
 import { useUsageQuery } from "@/lib/query/queries";
-import { UsageData } from "../types";
+import { useAutoUsageQuery } from "@/hooks/useAutoUsageQuery";
+import { UsageData, Provider } from "../types";
 
 interface UsageFooterProps {
+  provider: Provider;
   providerId: string;
   appId: AppId;
   usageEnabled: boolean; // 是否启用了用量查询
+  isCurrent: boolean; // 是否为当前激活的供应商
 }
 
 const UsageFooter: React.FC<UsageFooterProps> = ({
+  provider,
   providerId,
   appId,
   usageEnabled,
+  isCurrent,
 }) => {
   const { t } = useTranslation();
+
+  // 手动查询（点击刷新按钮时使用）
   const {
-    data: usage,
+    data: manualUsage,
     isFetching: loading,
     refetch,
   } = useUsageQuery(providerId, appId, usageEnabled);
+
+  // 自动查询（仅对当前激活的供应商启用）
+  const autoQuery = useAutoUsageQuery(provider, appId, isCurrent && usageEnabled);
+
+  // 优先使用自动查询结果，如果没有则使用手动查询结果
+  const usage = autoQuery.result || manualUsage;
+  const isAutoQuerying = autoQuery.isQuerying;
+  const lastQueriedAt = autoQuery.lastQueriedAt;
 
   // 只在启用用量查询且有数据时显示
   if (!usageEnabled || !usage) return null;
@@ -57,19 +72,31 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
   return (
     <div className="mt-3 pt-3 border-t border-border-default ">
-      {/* 标题行：包含刷新按钮 */}
+      {/* 标题行：包含刷新按钮和自动查询时间 */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
           {t("usage.planUsage")}
         </span>
-        <button
-          onClick={() => refetch()}
-          disabled={loading}
-          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          title={t("usage.refreshUsage")}
-        >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 自动查询时间提示 */}
+          {lastQueriedAt && (
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+              <Clock size={10} />
+              {formatRelativeTime(lastQueriedAt, t)}
+            </span>
+          )}
+          <button
+            onClick={() => refetch()}
+            disabled={loading || isAutoQuerying}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            title={t("usage.refreshUsage")}
+          >
+            <RefreshCw
+              size={12}
+              className={loading || isAutoQuerying ? "animate-spin" : ""}
+            />
+          </button>
+        </div>
       </div>
 
       {/* 套餐列表 */}
@@ -196,5 +223,27 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
     </div>
   );
 };
+
+// 格式化相对时间
+function formatRelativeTime(
+  timestamp: number,
+  t: (key: string, options?: { count?: number }) => string
+): string {
+  const now = Date.now();
+  const diff = Math.floor((now - timestamp) / 1000); // 秒
+
+  if (diff < 60) {
+    return t("usage.justNow");
+  } else if (diff < 3600) {
+    const minutes = Math.floor(diff / 60);
+    return t("usage.minutesAgo", { count: minutes });
+  } else if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return t("usage.hoursAgo", { count: hours });
+  } else {
+    const days = Math.floor(diff / 86400);
+    return t("usage.daysAgo", { count: days });
+  }
+}
 
 export default UsageFooter;

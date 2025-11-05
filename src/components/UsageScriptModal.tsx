@@ -368,6 +368,30 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                     className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
+
+                {/* 🆕 自动查询间隔 */}
+                <label className="block">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {t("usageScript.autoQueryInterval")}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1440"
+                    step="1"
+                    value={script.autoQueryInterval || 0}
+                    onChange={(e) =>
+                      setScript({
+                        ...script,
+                        autoQueryInterval: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t("usageScript.autoQueryIntervalHint")}
+                  </p>
+                </label>
               </div>
 
               {/* 脚本说明 */}

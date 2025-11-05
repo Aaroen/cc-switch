@@ -180,9 +180,11 @@ export function ProviderCard({
       </div>
 
       <UsageFooter
+        provider={provider}
         providerId={provider.id}
         appId={appId}
         usageEnabled={usageEnabled}
+        isCurrent={isCurrent}
       />
     </div>
   );

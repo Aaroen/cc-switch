@@ -338,7 +338,11 @@
     "invalid": "已失效",
     "total": "总：",
     "used": "使用：",
-    "remaining": "剩余："
+    "remaining": "剩余：",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
   },
   "usageScript": {
     "title": "配置用量查询",
@@ -355,6 +359,8 @@
     "queryFailedMessage": "查询失败",
     "queryScript": "查询脚本（JavaScript）",
     "timeoutSeconds": "超时时间（秒）",
+    "autoQueryInterval": "自动查询间隔（分钟）",
+    "autoQueryIntervalHint": "0 表示不自动查询，建议设置 5-60 分钟",
     "scriptHelp": "脚本编写说明：",
     "configFormat": "配置格式：",
     "commentOptional": "可选",

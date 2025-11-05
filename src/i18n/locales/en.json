@@ -338,7 +338,11 @@
     "invalid": "Expired",
     "total": "Total:",
     "used": "Used:",
-    "remaining": "Remaining:"
+    "remaining": "Remaining:",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} hr ago",
+    "daysAgo": "{{count}} day ago"
   },
   "usageScript": {
     "title": "Configure Usage Query",
@@ -355,6 +359,8 @@
     "queryFailedMessage": "Query failed",
     "queryScript": "Query script (JavaScript)",
     "timeoutSeconds": "Timeout (seconds)",
+    "autoQueryInterval": "Auto Query Interval (minutes)",
+    "autoQueryIntervalHint": "0 to disable, recommend 5-60 minutes",
     "scriptHelp": "Script writing instructions:",
     "configFormat": "Configuration format:",
     "commentOptional": "optional",
