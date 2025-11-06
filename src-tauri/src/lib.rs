@@ -8,7 +8,6 @@ mod config;
 mod error;
 mod init_status;
 mod mcp;
-mod migration;
 mod provider;
 mod services;
 mod settings;
@@ -466,14 +465,9 @@ pub fn run() {
                 log::warn!("迁移 app_config_dir 失败: {}", e);
             }
 
-            // 首次启动迁移：扫描副本文件，合并到 config.json，并归档副本；旧 config.json 先归档
+            // 确保配置结构就绪（已移除旧版本的副本迁移逻辑）
             {
                 let mut config_guard = app_state.config.write().unwrap();
-                let migrated = migration::migrate_copies_into_config(&mut config_guard)?;
-                if migrated {
-                    log::info!("已将副本文件导入到 config.json，并完成归档");
-                }
-                // 确保两个 App 条目存在
                 config_guard.ensure_app(&app_config::AppType::Claude);
                 config_guard.ensure_app(&app_config::AppType::Codex);
             }
