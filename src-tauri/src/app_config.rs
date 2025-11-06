@@ -89,7 +89,7 @@ impl Default for MultiAppConfig {
 }
 
 impl MultiAppConfig {
-    /// 从文件加载配置（处理v1到v2的迁移）
+    /// 从文件加载配置（仅支持 v2 结构）
     pub fn load() -> Result<Self, AppError> {
         let config_path = get_app_config_path();
 
@@ -102,45 +102,33 @@ impl MultiAppConfig {
         let content =
             std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
 
-        // 检查是否是旧版本格式（v1）
-        if let Ok(v1_config) = serde_json::from_str::<ProviderManager>(&content) {
-            log::info!("检测到v1配置，自动迁移到v2");
-
-            // 迁移到新格式
-            let mut apps = HashMap::new();
-            apps.insert("claude".to_string(), v1_config);
-            apps.insert("codex".to_string(), ProviderManager::default());
-
-            let config = Self {
-                version: 2,
-                apps,
-                mcp: McpRoot::default(),
-            };
-
-            // 迁移前备份旧版(v1)配置文件
-            let backup_dir = get_app_config_dir();
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let backup_path = backup_dir.join(format!("config.v1.backup.{}.json", ts));
-
-            match copy_file(&config_path, &backup_path) {
-                Ok(()) => log::info!(
-                    "已备份旧版配置文件: {} -> {}",
-                    config_path.display(),
-                    backup_path.display()
-                ),
-                Err(e) => log::warn!("备份旧版配置文件失败: {}", e),
-            }
-
-            // 保存迁移后的配置
-            config.save()?;
-            return Ok(config);
+        // 先解析为 Value，以便严格判定是否为 v1 结构；
+        // 满足：顶层同时包含 providers(object) + current(string)，且不包含 version/apps/mcp 关键键，即视为 v1
+        let value: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| AppError::json(&config_path, e))?;
+        let is_v1 = value.as_object().map_or(false, |map| {
+            let has_providers = map
+                .get("providers")
+                .map(|v| v.is_object())
+                .unwrap_or(false);
+            let has_current = map
+                .get("current")
+                .map(|v| v.is_string())
+                .unwrap_or(false);
+            // v1 的充分必要条件：有 providers 和 current，且 apps 不存在（version/mcp 可能存在但不作为 v2 判据）
+            let has_apps = map.contains_key("apps");
+            has_providers && has_current && !has_apps
+        });
+        if is_v1 {
+            return Err(AppError::localized(
+                "config.unsupported_v1",
+                "检测到旧版 v1 配置格式。当前版本已不再支持运行时自动迁移。\n\n解决方案：\n1. 安装 v3.2.x 版本进行一次性自动迁移\n2. 或手动编辑 ~/.cc-switch/config.json，将顶层结构调整为：\n   {\"version\": 2, \"claude\": {...}, \"codex\": {...}, \"mcp\": {...}}\n\n",
+                "Detected legacy v1 config. Runtime auto-migration is no longer supported.\n\nSolutions:\n1. Install v3.2.x for one-time auto-migration\n2. Or manually edit ~/.cc-switch/config.json to adjust the top-level structure:\n   {\"version\": 2, \"claude\": {...}, \"codex\": {...}, \"mcp\": {...}}\n\n",
+            ));
         }
 
-        // 尝试读取v2格式
-        serde_json::from_str::<Self>(&content).map_err(|e| AppError::json(&config_path, e))
+        // 解析 v2 结构
+        serde_json::from_value::<Self>(value).map_err(|e| AppError::json(&config_path, e))
     }
 
     /// 保存配置到文件
