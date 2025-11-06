@@ -257,13 +257,35 @@ For users upgrading from v2.x (Electron version):
 
 ### ⚠️ Breaking Changes
 
-- Tauri 命令统一仅接受 `app` 参数，移除历史 `app_type`/`appType` 兼容路径；传入未知 `app` 时会明确报错，并提示可选值。
+- **Runtime auto-migration from v1 to v2 config format has been removed**
+  - `MultiAppConfig::load()` no longer automatically migrates v1 configs
+  - When a v1 config is detected, the app now returns a clear error with migration instructions
+  - **Migration path**: Install v3.2.x to perform one-time auto-migration, OR manually edit `~/.cc-switch/config.json` to v2 format
+  - **Rationale**: Separates concerns (load() should be read-only), fail-fast principle, simplifies maintenance
+  - Related: `app_config.rs` (v1 detection improved with structural analysis), `app_config_load.rs` (comprehensive test coverage added)
+
+- **Legacy v1 copy file migration logic has been removed**
+  - Removed entire `migration.rs` module (435 lines) that handled one-time migration from v3.1.0 to v3.2.0
+  - No longer scans/merges legacy copy files (`settings-*.json`, `auth-*.json`, `config-*.toml`)
+  - No longer archives copy files or performs automatic deduplication
+  - **Migration path**: Users upgrading from v3.1.0 must first upgrade to v3.2.x to automatically migrate their configurations
+  - **Benefits**: Improved startup performance (no file scanning), reduced code complexity, cleaner codebase
+
+- **Tauri commands now only accept `app` parameter**
+  - Removed legacy `app_type`/`appType` compatibility paths
+  - Explicit error with available values when unknown `app` is provided
 
 ### 🔧 Improvements
 
-- 统一 `AppType` 解析：集中到 `FromStr` 实现，命令层不再各自实现 `parse_app()`，减少重复与漂移。
-- 错误消息本地化与更友好：对不支持的 `app` 返回中英双语提示，并包含可选值清单。
+- Unified `AppType` parsing: centralized to `FromStr` implementation, command layer no longer implements separate `parse_app()`, reducing code duplication and drift
+- Localized and user-friendly error messages: returns bilingual (Chinese/English) hints for unsupported `app` values with a list of available options
+- Simplified startup logic: Only ensures config structure exists, no migration overhead
 
 ### 🧪 Tests
 
-- 新增单元测试覆盖 `AppType::from_str`：大小写、裁剪空白、未知值错误消息。
+- Added unit tests covering `AppType::from_str`: case sensitivity, whitespace trimming, unknown value error messages
+- Added comprehensive config loading tests:
+  - `load_v1_config_returns_error_and_does_not_write`
+  - `load_v1_with_extra_version_still_treated_as_v1`
+  - `load_invalid_json_returns_parse_error_and_does_not_write`
+  - `load_valid_v2_config_succeeds`
