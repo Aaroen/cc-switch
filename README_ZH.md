@@ -1,6 +1,6 @@
-# Claude Code & Codex 供应商管理器
-
 <div align="center">
+
+# Claude Code & Codex 供应商管理器
 
 [![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
@@ -61,6 +61,23 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 - **供应商复制功能**：快速复制现有供应商配置，轻松创建变体配置
 - **手动排序功能**：通过拖拽来对供应商进行手动排序
 - **自定义端点管理**：支持聚合类供应商的多端点配置
+- **自定义配置目录（云同步支持）**：
+  - 自定义 CC Switch 的配置存储位置
+  - 指定到云同步文件夹（Dropbox、OneDrive、iCloud、坚果云等）即可实现跨设备配置自动同步
+  - 通过 Tauri Store 独立管理
+- **Claude 配置数据结构增强**
+  - **细粒度模型配置**：从双键系统升级到四键系统，以匹配官方最新数据结构
+    - 新增字段：`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_MODEL`
+    - 替换旧版 `ANTHROPIC_SMALL_FAST_MODEL`，支持自动迁移
+    - 后端在首次读写时自动规范化旧配置，带有智能回退链
+    - UI 从 2 个模型输入字段扩展到 4 个，具有智能默认值
+  - 支持 `ANTHROPIC_API_KEY` 字段（除 `ANTHROPIC_AUTH_TOKEN` 外）
+  - 模板变量系统，支持动态配置替换（如 KAT-Coder 的 ENDPOINT_ID）
+  - 端点候选列表，用于速度测试和端点管理
+  - 视觉主题配置（供应商卡片自定义图标和颜色）
+  - 合作伙伴推广机制与国际化支持
+- **供应商模型更新**
+  - Kimi：更新到最新的 `kimi-k2-thinking`
 - **使用量查询功能**
   - 自动刷新间隔：支持定时自动查询使用量
   - 测试脚本 API：测试 JavaScript 脚本是否正确
@@ -186,13 +203,13 @@ brew upgrade --cask cc-switch
 **内部优化（用户无感知）**：
 
 - **移除遗留迁移逻辑**：v3.6 移除了 v1 配置自动迁移和副本文件扫描逻辑
-  - ✅ **影响**：启动性能提升，代码更简洁
-  - ✅ **兼容性**：v2 格式配置完全兼容，无需任何操作
+  - **影响**：启动性能提升，代码更简洁
+  - **兼容性**：v2 格式配置完全兼容，无需任何操作
   - ⚠️ **注意**：从 v3.1.0 或更早版本升级的用户，请先升级到 v3.2.x 或 v3.5.x 完成一次性迁移，再升级到 v3.6
 
 - **命令参数标准化**：后端统一使用 `app` 参数（取值：`claude` 或 `codex`）
-  - ✅ **影响**：代码更规范，错误提示更友好
-  - ✅ **兼容性**：前端已完全适配，用户无需关心此变更
+  - **影响**：代码更规范，错误提示更友好
+  - **兼容性**：前端已完全适配，用户无需关心此变更
 
 #### 启动失败与恢复
 

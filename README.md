@@ -1,6 +1,6 @@
-# Claude Code & Codex Provider Switcher
-
 <div align="center">
+
+# Claude Code & Codex Provider Switcher
 
 [![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
@@ -61,6 +61,23 @@ Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJ
 - **Provider Duplication**: Quickly duplicate existing provider configs to easily create variants
 - **Manual Sorting**: Drag and drop to manually reorder providers
 - **Custom Endpoint Management**: Support multi-endpoint configuration for aggregator providers
+- **Custom Configuration Directory (Cloud Sync Support)**:
+  - Customize CC Switch's configuration storage location
+  - Point to cloud sync folders (Dropbox, OneDrive, iCloud, etc.) to enable automatic config synchronization across devices
+  - Supports independent management via Tauri Store
+- **Claude Configuration Data Structure Enhancements**
+  - **Granular Model Configuration**: Migrated from dual-key to quad-key system for better model tier differentiation
+    - New fields: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_MODEL`
+    - Replaces legacy `ANTHROPIC_SMALL_FAST_MODEL` with automatic migration
+    - Backend normalizes old configs on first read/write with smart fallback chain
+    - UI expanded from 2 to 4 model input fields with intelligent defaults
+  - Support for `ANTHROPIC_API_KEY` field (in addition to `ANTHROPIC_AUTH_TOKEN`)
+  - Template variable system for dynamic configuration replacement (e.g., KAT-Coder's ENDPOINT_ID)
+  - Endpoint candidates list for speed testing and endpoint management
+  - Visual theme configuration (custom icons and colors for provider cards)
+  - Partner promotion mechanism with i18n support
+- **Updated Provider Models**
+  - Kimi: Updated to latest `kimi-k2-thinking` model
 - **Usage Query Features**
   - Auto-refresh interval: Supports periodic automatic usage queries
   - Test Script API: Validate JavaScript scripts before execution
@@ -186,13 +203,13 @@ Download the latest `CC-Switch-v{version}-Linux.deb` package or `CC-Switch-v{ver
 **Internal Optimizations (User Transparent)**:
 
 - **Removed Legacy Migration Logic**: v3.6 removed v1 config auto-migration and copy file scanning logic
-  - ✅ **Impact**: Improved startup performance, cleaner code
-  - ✅ **Compatibility**: v2 format configs are fully compatible, no action required
+  - **Impact**: Improved startup performance, cleaner code
+  - **Compatibility**: v2 format configs are fully compatible, no action required
   - ⚠️ **Note**: Users upgrading from v3.1.0 or earlier should first upgrade to v3.2.x or v3.5.x for one-time migration, then upgrade to v3.6
 
 - **Command Parameter Standardization**: Backend unified to use `app` parameter (values: `claude` or `codex`)
-  - ✅ **Impact**: More standardized code, friendlier error messages
-  - ✅ **Compatibility**: Frontend fully adapted, users don't need to care about this change
+  - **Impact**: More standardized code, friendlier error messages
+  - **Compatibility**: Frontend fully adapted, users don't need to care about this change
 
 #### Startup Failure & Recovery
 
