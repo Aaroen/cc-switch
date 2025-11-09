@@ -1,14 +1,32 @@
 import { z } from "zod";
 
-const mcpServerSpecSchema = z.object({
-  type: z.enum(["stdio", "http"]).optional(),
-  command: z.string().trim().min(1, "请输入可执行命令").optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  cwd: z.string().optional(),
-  url: z.string().url("请输入有效的 URL").optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-});
+const mcpServerSpecSchema = z
+  .object({
+    type: z.enum(["stdio", "http"]).optional(),
+    command: z.string().trim().optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    cwd: z.string().optional(),
+    url: z.string().trim().url("请输入有效的 URL").optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  })
+  .superRefine((server, ctx) => {
+    const type = server.type ?? "stdio";
+    if (type === "stdio" && !server.command?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "stdio 类型需填写 command",
+        path: ["command"],
+      });
+    }
+    if (type === "http" && !server.url?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "http 类型需填写 url",
+        path: ["url"],
+      });
+    }
+  });
 
 export const mcpServerSchema = z.object({
   id: z.string().min(1, "请输入服务器 ID"),

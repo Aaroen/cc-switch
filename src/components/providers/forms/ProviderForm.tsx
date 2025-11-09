@@ -3,7 +3,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppId } from "@/lib/api";
 import type { ProviderCategory, ProviderMeta } from "@/types";
@@ -575,36 +580,60 @@ export function ProviderForm({
 
         {/* 配置编辑器：Claude 使用通用配置编辑器，Codex 使用专用编辑器 */}
         {appId === "codex" ? (
-          <CodexConfigEditor
-            authValue={codexAuth}
-            configValue={codexConfig}
-            onAuthChange={setCodexAuth}
-            onConfigChange={handleCodexConfigChange}
-            useCommonConfig={useCodexCommonConfigFlag}
-            onCommonConfigToggle={handleCodexCommonConfigToggle}
-            commonConfigSnippet={codexCommonConfigSnippet}
-            onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
-            commonConfigError={codexCommonConfigError}
-            authError={codexAuthError}
-            configError={codexConfigError}
-            onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
-            onNameChange={(name) => form.setValue("name", name)}
-            isTemplateModalOpen={isCodexTemplateModalOpen}
-            setIsTemplateModalOpen={setIsCodexTemplateModalOpen}
-          />
+          <>
+            <CodexConfigEditor
+              authValue={codexAuth}
+              configValue={codexConfig}
+              onAuthChange={setCodexAuth}
+              onConfigChange={handleCodexConfigChange}
+              useCommonConfig={useCodexCommonConfigFlag}
+              onCommonConfigToggle={handleCodexCommonConfigToggle}
+              commonConfigSnippet={codexCommonConfigSnippet}
+              onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
+              commonConfigError={codexCommonConfigError}
+              authError={codexAuthError}
+              configError={codexConfigError}
+              onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
+              onNameChange={(name) => form.setValue("name", name)}
+              isTemplateModalOpen={isCodexTemplateModalOpen}
+              setIsTemplateModalOpen={setIsCodexTemplateModalOpen}
+            />
+            {/* 配置验证错误显示 */}
+            <FormField
+              control={form.control}
+              name="settingsConfig"
+              render={() => (
+                <FormItem className="space-y-0">
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         ) : (
-          <CommonConfigEditor
-            value={form.watch("settingsConfig")}
-            onChange={(value) => form.setValue("settingsConfig", value)}
-            useCommonConfig={useCommonConfig}
-            onCommonConfigToggle={handleCommonConfigToggle}
-            commonConfigSnippet={commonConfigSnippet}
-            onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
-            commonConfigError={commonConfigError}
-            onEditClick={() => setIsCommonConfigModalOpen(true)}
-            isModalOpen={isCommonConfigModalOpen}
-            onModalClose={() => setIsCommonConfigModalOpen(false)}
-          />
+          <>
+            <CommonConfigEditor
+              value={form.watch("settingsConfig")}
+              onChange={(value) => form.setValue("settingsConfig", value)}
+              useCommonConfig={useCommonConfig}
+              onCommonConfigToggle={handleCommonConfigToggle}
+              commonConfigSnippet={commonConfigSnippet}
+              onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
+              commonConfigError={commonConfigError}
+              onEditClick={() => setIsCommonConfigModalOpen(true)}
+              isModalOpen={isCommonConfigModalOpen}
+              onModalClose={() => setIsCommonConfigModalOpen(false)}
+            />
+            {/* 配置验证错误显示 */}
+            <FormField
+              control={form.control}
+              name="settingsConfig"
+              render={() => (
+                <FormItem className="space-y-0">
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         )}
 
         {showButtons && (
