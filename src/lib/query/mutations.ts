@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import type { Provider, Settings } from "@/types";
+import { extractErrorMessage } from "@/utils/errorUtils";
 
 export const useAddProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
@@ -143,11 +144,24 @@ export const useSwitchProviderMutation = (appId: AppId) => {
       );
     },
     onError: (error: Error) => {
+      const detail = extractErrorMessage(error) || t("common.unknown");
+
+      // 标题与详情分离，便于扫描 + 一键复制
       toast.error(
-        t("notifications.switchFailed", {
-          defaultValue: "切换供应商失败: {{error}}",
-          error: error.message,
-        }),
+        t("notifications.switchFailedTitle", { defaultValue: "切换失败" }),
+        {
+          description: t("notifications.switchFailed", {
+            defaultValue: "切换失败：{{error}}",
+            error: detail,
+          }),
+          duration: 6000,
+          action: {
+            label: t("common.copy", { defaultValue: "复制" }),
+            onClick: () => {
+              navigator.clipboard?.writeText(detail).catch(() => undefined);
+            },
+          },
+        },
       );
     },
   });

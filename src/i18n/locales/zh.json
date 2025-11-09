@@ -25,7 +25,8 @@
     "toggleTheme": "切换主题",
     "format": "格式化",
     "formatSuccess": "格式化成功",
-    "formatError": "格式化失败：{{error}}"
+    "formatError": "格式化失败：{{error}}",
+    "copy": "复制"
   },
   "apiKeyInput": {
     "placeholder": "请输入API Key",
@@ -97,7 +98,8 @@
     "providerSaved": "供应商配置已保存",
     "providerDeleted": "供应商删除成功",
     "switchSuccess": "切换成功！请重启 {{appName}} 终端以生效",
-    "switchFailed": "切换失败，请检查配置",
+    "switchFailedTitle": "切换失败",
+    "switchFailed": "切换失败：{{error}}",
     "autoImported": "已从现有配置创建默认供应商",
     "addFailed": "添加供应商失败：{{error}}",
     "saveFailed": "保存失败：{{error}}",

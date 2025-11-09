@@ -25,7 +25,8 @@
     "toggleTheme": "Toggle theme",
     "format": "Format",
     "formatSuccess": "Formatted successfully",
-    "formatError": "Format failed: {{error}}"
+    "formatError": "Format failed: {{error}}",
+    "copy": "Copy"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",
@@ -97,7 +98,8 @@
     "providerSaved": "Provider configuration saved",
     "providerDeleted": "Provider deleted successfully",
     "switchSuccess": "Switch successful! Please restart {{appName}} terminal to take effect",
-    "switchFailed": "Switch failed, please check configuration",
+    "switchFailedTitle": "Switch failed",
+    "switchFailed": "Switch failed: {{error}}",
     "autoImported": "Default provider created from existing configuration",
     "addFailed": "Failed to add provider: {{error}}",
     "saveFailed": "Save failed: {{error}}",
