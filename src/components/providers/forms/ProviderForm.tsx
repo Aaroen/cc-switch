@@ -3,12 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type { AppId } from "@/lib/api";
 import type { ProviderCategory, ProviderMeta } from "@/types";

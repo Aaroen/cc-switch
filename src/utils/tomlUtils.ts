@@ -23,21 +23,11 @@ export const validateToml = (text: string): string => {
 /**
  * 将 McpServerSpec 对象转换为 TOML 字符串
  * 使用 @iarna/toml 的 stringify，自动处理转义与嵌套表
+ * 保留所有字段（包括扩展字段如 timeout_ms）
  */
 export const mcpServerToToml = (server: McpServerSpec): string => {
-  const obj: any = {};
-  if (server.type) obj.type = server.type;
-
-  if (server.type === "stdio") {
-    if (server.command !== undefined) obj.command = server.command;
-    if (server.args && Array.isArray(server.args)) obj.args = server.args;
-    if (server.cwd !== undefined) obj.cwd = server.cwd;
-    if (server.env && typeof server.env === "object") obj.env = server.env;
-  } else if (server.type === "http") {
-    if (server.url !== undefined) obj.url = server.url;
-    if (server.headers && typeof server.headers === "object")
-      obj.headers = server.headers;
-  }
+  // 先复制所有字段（保留扩展字段）
+  const obj: any = { ...server };
 
   // 去除未定义字段，确保输出更干净
   for (const k of Object.keys(obj)) {
@@ -103,6 +93,7 @@ export const tomlToMcpServer = (tomlText: string): McpServerSpec => {
 
 /**
  * 规范化服务器配置对象为 McpServer 格式
+ * 保留所有字段（包括扩展字段如 timeout_ms）
  */
 function normalizeServerConfig(config: any): McpServerSpec {
   if (!config || typeof config !== "object") {
@@ -110,6 +101,9 @@ function normalizeServerConfig(config: any): McpServerSpec {
   }
 
   const type = (config.type as string) || "stdio";
+
+  // 已知字段列表（用于后续排除）
+  const knownFields = new Set<string>();
 
   if (type === "stdio") {
     if (!config.command || typeof config.command !== "string") {
@@ -120,10 +114,13 @@ function normalizeServerConfig(config: any): McpServerSpec {
       type: "stdio",
       command: config.command,
     };
+    knownFields.add("type");
+    knownFields.add("command");
 
     // 可选字段
     if (config.args && Array.isArray(config.args)) {
       server.args = config.args.map((arg: any) => String(arg));
+      knownFields.add("args");
     }
     if (config.env && typeof config.env === "object") {
       const env: Record<string, string> = {};
@@ -131,9 +128,18 @@ function normalizeServerConfig(config: any): McpServerSpec {
         env[k] = String(v);
       }
       server.env = env;
+      knownFields.add("env");
     }
     if (config.cwd && typeof config.cwd === "string") {
       server.cwd = config.cwd;
+      knownFields.add("cwd");
+    }
+
+    // 保留所有未知字段（如 timeout_ms 等扩展字段）
+    for (const key of Object.keys(config)) {
+      if (!knownFields.has(key)) {
+        server[key] = config[key];
+      }
     }
 
     return server;
@@ -146,6 +152,8 @@ function normalizeServerConfig(config: any): McpServerSpec {
       type: "http",
       url: config.url,
     };
+    knownFields.add("type");
+    knownFields.add("url");
 
     // 可选字段
     if (config.headers && typeof config.headers === "object") {
@@ -154,6 +162,14 @@ function normalizeServerConfig(config: any): McpServerSpec {
         headers[k] = String(v);
       }
       server.headers = headers;
+      knownFields.add("headers");
+    }
+
+    // 保留所有未知字段
+    for (const key of Object.keys(config)) {
+      if (!knownFields.has(key)) {
+        server[key] = config[key];
+      }
     }
 
     return server;
