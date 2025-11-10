@@ -123,6 +123,7 @@ pub async fn queryProviderUsage(
 
 /// 测试用量脚本（使用当前编辑器中的脚本，不保存）
 #[allow(non_snake_case)]
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn testUsageScript(
     state: State<'_, AppState>,
@@ -130,6 +131,8 @@ pub async fn testUsageScript(
     app: String,
     #[allow(non_snake_case)] scriptCode: String,
     timeout: Option<u64>,
+    #[allow(non_snake_case)] apiKey: Option<String>,
+    #[allow(non_snake_case)] baseUrl: Option<String>,
     #[allow(non_snake_case)] accessToken: Option<String>,
     #[allow(non_snake_case)] userId: Option<String>,
 ) -> Result<crate::provider::UsageResult, String> {
@@ -140,6 +143,8 @@ pub async fn testUsageScript(
         &providerId,
         &scriptCode,
         timeout.unwrap_or(10),
+        apiKey.as_deref(),
+        baseUrl.as_deref(),
         accessToken.as_deref(),
         userId.as_deref(),
     )

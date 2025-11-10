@@ -356,6 +356,7 @@
     "templateCustom": "自定义",
     "templateGeneral": "通用模板",
     "templateNewAPI": "NewAPI",
+    "credentialsConfig": "凭证配置",
     "accessToken": "访问令牌",
     "accessTokenPlaceholder": "在'安全设置'里生成",
     "userId": "用户 ID",

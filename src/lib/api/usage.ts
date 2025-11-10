@@ -32,6 +32,8 @@ export const usageApi = {
     appId: AppId,
     scriptCode: string,
     timeout?: number,
+    apiKey?: string,
+    baseUrl?: string,
     accessToken?: string,
     userId?: string,
   ): Promise<UsageResult> {
@@ -41,6 +43,8 @@ export const usageApi = {
         app: appId,
         scriptCode: scriptCode,
         timeout: timeout,
+        apiKey: apiKey,
+        baseUrl: baseUrl,
         accessToken: accessToken,
         userId: userId,
       });

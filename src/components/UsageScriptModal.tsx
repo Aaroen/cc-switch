@@ -166,6 +166,8 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         appId,
         script.code,
         script.timeout,
+        script.apiKey,
+        script.baseUrl,
         script.accessToken,
         script.userId,
       );
@@ -225,23 +227,40 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const handleUsePreset = (presetName: string) => {
     const preset = PRESET_TEMPLATES[presetName];
     if (preset) {
-      // 如果选择的不是 NewAPI 模板，清空高级配置字段
-      if (presetName !== TEMPLATE_KEYS.NEW_API) {
+      // 根据模板类型清空不同的字段
+      if (presetName === TEMPLATE_KEYS.CUSTOM) {
+        // 自定义：清空所有凭证字段
+        setScript({
+          ...script,
+          code: preset,
+          apiKey: undefined,
+          baseUrl: undefined,
+          accessToken: undefined,
+          userId: undefined,
+        });
+      } else if (presetName === TEMPLATE_KEYS.GENERAL) {
+        // 通用：保留 apiKey 和 baseUrl，清空 NewAPI 字段
         setScript({
           ...script,
           code: preset,
           accessToken: undefined,
           userId: undefined,
         });
-      } else {
-        setScript({ ...script, code: preset });
+      } else if (presetName === TEMPLATE_KEYS.NEW_API) {
+        // NewAPI：清空 apiKey（NewAPI 不使用通用的 apiKey）
+        setScript({
+          ...script,
+          code: preset,
+          apiKey: undefined,
+        });
       }
       setSelectedTemplate(presetName); // 记录选择的模板
     }
   };
 
-  // 判断是否应该显示高级配置（仅 NewAPI 模板需要）
-  const shouldShowAdvancedConfig = selectedTemplate === TEMPLATE_KEYS.NEW_API;
+  // 判断是否应该显示凭证配置区域
+  const shouldShowCredentialsConfig =
+    selectedTemplate === TEMPLATE_KEYS.GENERAL || selectedTemplate === TEMPLATE_KEYS.NEW_API;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -296,38 +315,97 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 </div>
               </div>
 
-              {/* 高级配置：Access Token 和 User ID（仅 NewAPI 模板显示） */}
-              {shouldShowAdvancedConfig && (
+              {/* 凭证配置区域：通用和 NewAPI 模板显示 */}
+              {shouldShowCredentialsConfig && (
                 <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                  <label className="block">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {t("usageScript.accessToken")}
-                    </span>
-                    <input
-                      type="text"
-                      value={script.accessToken || ""}
-                      onChange={(e) =>
-                        setScript({ ...script, accessToken: e.target.value })
-                      }
-                      placeholder={t("usageScript.accessTokenPlaceholder")}
-                      className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                    />
-                  </label>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t("usageScript.credentialsConfig")}
+                  </h4>
 
-                  <label className="block">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {t("usageScript.userId")}
-                    </span>
-                    <input
-                      type="text"
-                      value={script.userId || ""}
-                      onChange={(e) =>
-                        setScript({ ...script, userId: e.target.value })
-                      }
-                      placeholder={t("usageScript.userIdPlaceholder")}
-                      className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                    />
-                  </label>
+                  {/* 通用模板：显示 apiKey + baseUrl */}
+                  {selectedTemplate === TEMPLATE_KEYS.GENERAL && (
+                    <>
+                      <label className="block">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          API Key
+                        </span>
+                        <input
+                          type="password"
+                          value={script.apiKey || ""}
+                          onChange={(e) =>
+                            setScript({ ...script, apiKey: e.target.value })
+                          }
+                          placeholder="sk-xxxxx"
+                          className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Base URL
+                        </span>
+                        <input
+                          type="text"
+                          value={script.baseUrl || ""}
+                          onChange={(e) =>
+                            setScript({ ...script, baseUrl: e.target.value })
+                          }
+                          placeholder="https://api.example.com"
+                          className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {/* NewAPI 模板：显示 baseUrl + accessToken + userId */}
+                  {selectedTemplate === TEMPLATE_KEYS.NEW_API && (
+                    <>
+                      <label className="block">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Base URL
+                        </span>
+                        <input
+                          type="text"
+                          value={script.baseUrl || ""}
+                          onChange={(e) =>
+                            setScript({ ...script, baseUrl: e.target.value })
+                          }
+                          placeholder="https://api.newapi.com"
+                          className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {t("usageScript.accessToken")}
+                        </span>
+                        <input
+                          type="text"
+                          value={script.accessToken || ""}
+                          onChange={(e) =>
+                            setScript({ ...script, accessToken: e.target.value })
+                          }
+                          placeholder={t("usageScript.accessTokenPlaceholder")}
+                          className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {t("usageScript.userId")}
+                        </span>
+                        <input
+                          type="text"
+                          value={script.userId || ""}
+                          onChange={(e) =>
+                            setScript({ ...script, userId: e.target.value })
+                          }
+                          placeholder={t("usageScript.userIdPlaceholder")}
+                          className="mt-1 w-full px-3 py-2 border border-border-default dark:border-border-default rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
               )}
 

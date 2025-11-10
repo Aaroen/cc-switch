@@ -63,11 +63,19 @@ pub struct UsageScript {
     pub code: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<u64>,
-    /// 访问令牌（用于需要登录的接口）
+    /// 用量查询专用的 API Key（通用模板使用）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "apiKey")]
+    pub api_key: Option<String>,
+    /// 用量查询专用的 Base URL（通用和 NewAPI 模板使用）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "baseUrl")]
+    pub base_url: Option<String>,
+    /// 访问令牌（用于需要登录的接口，NewAPI 模板使用）
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "accessToken")]
     pub access_token: Option<String>,
-    /// 用户ID（用于需要用户标识的接口）
+    /// 用户ID（用于需要用户标识的接口，NewAPI 模板使用）
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "userId")]
     pub user_id: Option<String>,

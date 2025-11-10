@@ -45,8 +45,10 @@ export interface UsageScript {
   language: "javascript"; // 脚本语言
   code: string; // 脚本代码（JSON 格式配置）
   timeout?: number; // 超时时间（秒，默认 10）
-  accessToken?: string; // 访问令牌（用于需要登录的接口）
-  userId?: string; // 用户ID（用于需要用户标识的接口）
+  apiKey?: string; // 用量查询专用的 API Key（通用模板使用）
+  baseUrl?: string; // 用量查询专用的 Base URL（通用和 NewAPI 模板使用）
+  accessToken?: string; // 访问令牌（NewAPI 模板使用）
+  userId?: string; // 用户ID（NewAPI 模板使用）
   autoQueryInterval?: number; // 自动查询间隔（单位：分钟，0 表示禁用）
 }
 

@@ -802,7 +802,7 @@ impl ProviderService {
         app_type: AppType,
         provider_id: &str,
     ) -> Result<UsageResult, AppError> {
-        let (provider, script_code, timeout, access_token, user_id) = {
+        let (script_code, timeout, api_key, base_url, access_token, user_id) = {
             let config = state.config.read().map_err(AppError::from)?;
             let manager = config
                 .get_manager(&app_type)
@@ -814,37 +814,36 @@ impl ProviderService {
                     format!("Provider not found: {}", provider_id),
                 )
             })?;
-            let (script_code, timeout, access_token, user_id) = {
-                let usage_script = provider
-                    .meta
-                    .as_ref()
-                    .and_then(|m| m.usage_script.as_ref())
-                    .ok_or_else(|| {
-                        AppError::localized(
-                            "provider.usage.script.missing",
-                            "未配置用量查询脚本",
-                            "Usage script is not configured",
-                        )
-                    })?;
-                if !usage_script.enabled {
-                    return Err(AppError::localized(
-                        "provider.usage.disabled",
-                        "用量查询未启用",
-                        "Usage query is disabled",
-                    ));
-                }
-                (
-                    usage_script.code.clone(),
-                    usage_script.timeout.unwrap_or(10),
-                    usage_script.access_token.clone(),
-                    usage_script.user_id.clone(),
-                )
-            };
 
-            (provider, script_code, timeout, access_token, user_id)
+            let usage_script = provider
+                .meta
+                .as_ref()
+                .and_then(|m| m.usage_script.as_ref())
+                .ok_or_else(|| {
+                    AppError::localized(
+                        "provider.usage.script.missing",
+                        "未配置用量查询脚本",
+                        "Usage script is not configured",
+                    )
+                })?;
+            if !usage_script.enabled {
+                return Err(AppError::localized(
+                    "provider.usage.disabled",
+                    "用量查询未启用",
+                    "Usage query is disabled",
+                ));
+            }
+
+            // 直接从 UsageScript 中获取凭证，不再从供应商配置提取
+            (
+                usage_script.code.clone(),
+                usage_script.timeout.unwrap_or(10),
+                usage_script.api_key.clone().unwrap_or_default(),
+                usage_script.base_url.clone().unwrap_or_default(),
+                usage_script.access_token.clone(),
+                usage_script.user_id.clone(),
+            )
         };
-
-        let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
 
         Self::execute_and_format_usage_result(
             &script_code,
@@ -858,36 +857,23 @@ impl ProviderService {
     }
 
     /// 测试用量脚本（使用临时脚本内容，不保存）
+    #[allow(clippy::too_many_arguments)]
     pub async fn test_usage_script(
-        state: &AppState,
-        app_type: AppType,
-        provider_id: &str,
+        _state: &AppState,
+        _app_type: AppType,
+        _provider_id: &str,
         script_code: &str,
         timeout: u64,
+        api_key: Option<&str>,
+        base_url: Option<&str>,
         access_token: Option<&str>,
         user_id: Option<&str>,
     ) -> Result<UsageResult, AppError> {
-        // 获取 provider 的 API 凭证
-        let provider = {
-            let config = state.config.read().map_err(AppError::from)?;
-            let manager = config
-                .get_manager(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-            manager.providers.get(provider_id).cloned().ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
-                )
-            })?
-        };
-
-        let (api_key, base_url) = Self::extract_credentials(&provider, &app_type)?;
-
+        // 直接使用传入的凭证参数进行测试
         Self::execute_and_format_usage_result(
             script_code,
-            &api_key,
-            &base_url,
+            api_key.unwrap_or(""),
+            base_url.unwrap_or(""),
             timeout,
             access_token,
             user_id,
@@ -1137,6 +1123,7 @@ impl ProviderService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn extract_credentials(
         provider: &Provider,
         app_type: &AppType,
