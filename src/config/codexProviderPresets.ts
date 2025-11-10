@@ -128,6 +128,7 @@ requires_openai_auth = true`,
   {
     name: "PackyCode",
     websiteUrl: "https://www.packyapi.com",
+    apiKeyUrl: "https://www.packyapi.com/register?aff=cc-switch",
     category: "third_party",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
@@ -139,6 +140,8 @@ requires_openai_auth = true`,
       "https://www.packyapi.com/v1",
       "https://api-slb.packyapi.com/v1",
     ],
+    isPartner: true, // 合作伙伴
+    partnerPromotionKey: "packycode", // 促销信息 i18n key
   },
   {
     name: "AnyRouter",
