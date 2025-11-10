@@ -2,7 +2,7 @@
 
 # Claude Code & Codex 供应商管理器
 
-[![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Version](https://img.shields.io/badge/version-3.6.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
 
@@ -26,7 +26,7 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 
 <table>
 <tr>
-<td width="120"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="100"></td>
+<td width="180"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="150"></td>
 <td>感谢 PackyCode 赞助了本项目！PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode 为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.com/register?aff=cc-switch">此链接</a>注册并在充值时填写"cc-switch"优惠码，可以享受9折优惠。</td>
 </tr>
 </table>
@@ -39,7 +39,7 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 
 ## 功能特性
 
-### 当前版本：v3.6.0 | [完整更新日志](CHANGELOG.md)
+### 当前版本：v3.6.1 | [完整更新日志](CHANGELOG.md)
 
 **核心功能**
 

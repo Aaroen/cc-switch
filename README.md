@@ -2,7 +2,7 @@
 
 # Claude Code & Codex Provider Switcher
 
-[![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Version](https://img.shields.io/badge/version-3.6.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
 
@@ -26,7 +26,7 @@ Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJ
 
 <table>
 <tr>
-<td width="120"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="100"></td>
+<td width="180"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="150"></td>
 <td>Thanks to PackyCode for sponsoring this project! PackyCode is a reliable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides special discounts for our software users: register using <a href="https://www.packyapi.com/register?aff=cc-switch">this link</a> and enter the "cc-switch" promo code during recharge to get 10% off.</td>
 </tr>
 </table>
@@ -39,7 +39,7 @@ Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJ
 
 ## Features
 
-### Current Version: v3.6.0 | [Full Changelog](CHANGELOG.md)
+### Current Version: v3.6.1 | [Full Changelog](CHANGELOG.md)
 
 **Core Capabilities**
 
