@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FormLabel } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 
 interface UsageScriptModalProps {
   provider: Provider;
@@ -298,9 +298,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
             <>
               {/* 预设模板选择 */}
               <div>
-                <FormLabel className="mb-2">
+                <Label className="mb-2">
                   {t("usageScript.presetTemplate")}
-                </FormLabel>
+                </Label>
                 <div className="flex gap-2">
                   {Object.keys(PRESET_TEMPLATES).map((name) => {
                     const isSelected = selectedTemplate === name;
@@ -332,9 +332,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {selectedTemplate === TEMPLATE_KEYS.GENERAL && (
                     <>
                       <div className="space-y-2">
-                        <FormLabel htmlFor="usage-api-key">
+                        <Label htmlFor="usage-api-key">
                           API Key
-                        </FormLabel>
+                        </Label>
                         <div className="relative">
                           <Input
                             id="usage-api-key"
@@ -360,9 +360,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       </div>
 
                       <div className="space-y-2">
-                        <FormLabel htmlFor="usage-base-url">
+                        <Label htmlFor="usage-base-url">
                           Base URL
-                        </FormLabel>
+                        </Label>
                         <Input
                           id="usage-base-url"
                           type="text"
@@ -381,9 +381,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {selectedTemplate === TEMPLATE_KEYS.NEW_API && (
                     <>
                       <div className="space-y-2">
-                        <FormLabel htmlFor="usage-newapi-base-url">
+                        <Label htmlFor="usage-newapi-base-url">
                           Base URL
-                        </FormLabel>
+                        </Label>
                         <Input
                           id="usage-newapi-base-url"
                           type="text"
@@ -397,9 +397,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       </div>
 
                       <div className="space-y-2">
-                        <FormLabel htmlFor="usage-access-token">
+                        <Label htmlFor="usage-access-token">
                           {t("usageScript.accessToken")}
-                        </FormLabel>
+                        </Label>
                         <div className="relative">
                           <Input
                             id="usage-access-token"
@@ -425,9 +425,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       </div>
 
                       <div className="space-y-2">
-                        <FormLabel htmlFor="usage-user-id">
+                        <Label htmlFor="usage-user-id">
                           {t("usageScript.userId")}
-                        </FormLabel>
+                        </Label>
                         <Input
                           id="usage-user-id"
                           type="text"
@@ -446,9 +446,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
               {/* 脚本编辑器 */}
               <div>
-                <FormLabel className="mb-2">
+                <Label className="mb-2">
                   {t("usageScript.queryScript")}
-                </FormLabel>
+                </Label>
                 <JsonEditor
                   value={script.code}
                   onChange={(code) => setScript({ ...script, code })}
@@ -466,9 +466,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
               {/* 配置选项 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <FormLabel htmlFor="usage-timeout">
+                  <Label htmlFor="usage-timeout">
                     {t("usageScript.timeoutSeconds")}
-                  </FormLabel>
+                  </Label>
                   <Input
                     id="usage-timeout"
                     type="number"
@@ -486,9 +486,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
                 {/* 🆕 自动查询间隔 */}
                 <div className="space-y-2">
-                  <FormLabel htmlFor="usage-auto-interval">
+                  <Label htmlFor="usage-auto-interval">
                     {t("usageScript.autoQueryInterval")}
-                  </FormLabel>
+                  </Label>
                   <Input
                     id="usage-auto-interval"
                     type="number"
