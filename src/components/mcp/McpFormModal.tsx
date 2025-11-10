@@ -32,6 +32,7 @@ import {
   extractIdFromToml,
   mcpServerToToml,
 } from "@/utils/tomlUtils";
+import { normalizeTomlText } from "@/utils/textNormalization";
 import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
@@ -228,19 +229,21 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   };
 
   const handleConfigChange = (value: string) => {
-    setFormConfig(value);
+    // 若为 TOML 模式，先做引号归一化，避免中文输入法导致的格式错误
+    const nextValue = useToml ? normalizeTomlText(value) : value;
+    setFormConfig(nextValue);
 
     if (useToml) {
       // TOML validation (use hook's complete validation)
-      const err = validateTomlConfig(value);
+      const err = validateTomlConfig(nextValue);
       if (err) {
         setConfigError(err);
         return;
       }
 
       // Try to extract ID (if user hasn't filled it yet)
-      if (value.trim() && !formId.trim()) {
-        const extractedId = extractIdFromToml(value);
+      if (nextValue.trim() && !formId.trim()) {
+        const extractedId = extractIdFromToml(nextValue);
         if (extractedId) {
           setFormId(extractedId);
         }

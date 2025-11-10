@@ -1,6 +1,7 @@
 // 供应商配置处理工具函数
 
 import type { TemplateValueConfig } from "../config/claudeProviderPresets";
+import { normalizeQuotes } from "@/utils/textNormalization";
 
 const isPlainObject = (value: unknown): value is Record<string, any> => {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -357,7 +358,9 @@ export const extractCodexBaseUrl = (
   configText: string | undefined | null,
 ): string | undefined => {
   try {
-    const text = typeof configText === "string" ? configText : "";
+    const raw = typeof configText === "string" ? configText : "";
+    // 归一化中文/全角引号，避免正则提取失败
+    const text = normalizeQuotes(raw);
     if (!text) return undefined;
     const m = text.match(/base_url\s*=\s*(['"])([^'\"]+)\1/);
     return m && m[2] ? m[2] : undefined;
@@ -390,16 +393,20 @@ export const setCodexBaseUrl = (
   if (!trimmed) {
     return configText;
   }
+  // 归一化原文本中的引号（既能匹配，也能输出稳定格式）
+  const normalizedText = normalizeQuotes(configText);
 
   const normalizedUrl = trimmed.replace(/\s+/g, "").replace(/\/+$/, "");
   const replacementLine = `base_url = "${normalizedUrl}"`;
   const pattern = /base_url\s*=\s*(["'])([^"']+)\1/;
 
-  if (pattern.test(configText)) {
-    return configText.replace(pattern, replacementLine);
+  if (pattern.test(normalizedText)) {
+    return normalizedText.replace(pattern, replacementLine);
   }
 
   const prefix =
-    configText && !configText.endsWith("\n") ? `${configText}\n` : configText;
+    normalizedText && !normalizedText.endsWith("\n")
+      ? `${normalizedText}\n`
+      : normalizedText;
   return `${prefix}${replacementLine}\n`;
 };

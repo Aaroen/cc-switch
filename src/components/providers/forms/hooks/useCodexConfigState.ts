@@ -3,6 +3,7 @@ import {
   extractCodexBaseUrl,
   setCodexBaseUrl as setCodexBaseUrlInConfig,
 } from "@/utils/providerConfigUtils";
+import { normalizeTomlText } from "@/utils/textNormalization";
 
 interface UseCodexConfigStateProps {
   initialData?: {
@@ -159,10 +160,12 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
   // 处理 config 变化（同步 Base URL）
   const handleCodexConfigChange = useCallback(
     (value: string) => {
-      setCodexConfig(value);
+      // 归一化中文/全角/弯引号，避免 TOML 解析报错
+      const normalized = normalizeTomlText(value);
+      setCodexConfig(normalized);
 
       if (!isUpdatingCodexBaseUrlRef.current) {
-        const extracted = extractCodexBaseUrl(value) || "";
+        const extracted = extractCodexBaseUrl(normalized) || "";
         if (extracted !== codexBaseUrl) {
           setCodexBaseUrl(extracted);
         }
