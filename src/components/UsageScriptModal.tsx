@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 interface UsageScriptModalProps {
   provider: Provider;
@@ -280,19 +281,20 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* 启用开关 */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border-default p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium leading-none">
+                {t("usageScript.enableUsageQuery")}
+              </p>
+            </div>
+            <Switch
               checked={script.enabled}
-              onChange={(e) =>
-                setScript({ ...script, enabled: e.target.checked })
+              onCheckedChange={(checked) =>
+                setScript({ ...script, enabled: checked })
               }
-              className="w-4 h-4"
+              aria-label={t("usageScript.enableUsageQuery")}
             />
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              {t("usageScript.enableUsageQuery")}
-            </span>
-          </label>
+          </div>
 
           {script.enabled && (
             <>
