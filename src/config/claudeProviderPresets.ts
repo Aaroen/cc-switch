@@ -140,6 +140,21 @@ export const providerPresets: ProviderPreset[] = [
     category: "cn_official",
   },
   {
+    name: "Kimi For Coding",
+    websiteUrl: "https://www.kimi.com/coding/docs/",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://api.kimi.com/coding/",
+        ANTHROPIC_AUTH_TOKEN: "",
+        ANTHROPIC_MODEL: "kimi-for-coding",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "kimi-for-coding",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "kimi-for-coding",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "kimi-for-coding",
+      },
+    },
+    category: "cn_official",
+  },
+  {
     name: "ModelScope",
     websiteUrl: "https://modelscope.cn",
     settingsConfig: {
@@ -211,6 +226,21 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2",
+      },
+    },
+    category: "cn_official",
+  },
+  {
+    name: "BaiLing",
+    websiteUrl: "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://api.tbox.cn/api/anthropic",
+        ANTHROPIC_AUTH_TOKEN: "",
+        ANTHROPIC_MODEL: "Ling-1T",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "Ling-1T",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "Ling-1T",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "Ling-1T",
       },
     },
     category: "cn_official",
