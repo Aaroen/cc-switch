@@ -3,6 +3,7 @@
 # Claude Code & Codex Provider Switcher
 
 [![Version](https://img.shields.io/badge/version-3.6.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Trending](https://img.shields.io/badge/🔥_TypeScript_Trending-Daily%20%7C%20Weekly%20%7C%20Monthly-ff6b6b.svg)](https://github.com/trending/typescript)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
 
@@ -340,7 +341,7 @@ Before submitting PRs, please ensure:
 - Pass type check: `pnpm typecheck`
 - Pass format check: `pnpm format:check`
 - Pass unit tests: `pnpm test:unit`
-- Functional PRs should be discussed in the issue area first
+- 💡 For new features, please open an issue for discussion before submitting a PR
 
 ## Star History
 

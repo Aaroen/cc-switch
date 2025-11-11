@@ -3,6 +3,7 @@
 # Claude Code & Codex 供应商管理器
 
 [![Version](https://img.shields.io/badge/version-3.6.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Trending](https://img.shields.io/badge/🔥_TypeScript_Trending-Daily%20%7C%20Weekly%20%7C%20Monthly-ff6b6b.svg)](https://github.com/trending/typescript)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
 
@@ -340,7 +341,7 @@ pnpm test:unit --coverage
 - 通过类型检查：`pnpm typecheck`
 - 通过格式检查：`pnpm format:check`
 - 通过单元测试：`pnpm test:unit`
-- 功能性 PR 请先经过 issue 区讨论
+- 💡 新功能开发前，欢迎先开 issue 讨论实现方案
 
 ## Star History
 
