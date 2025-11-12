@@ -6,7 +6,7 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
-mod gemini_config;  // 新增
+mod gemini_config; // 新增
 mod init_status;
 mod mcp;
 mod prompt;
@@ -63,6 +63,129 @@ impl TrayTexts {
     }
 }
 
+struct TrayAppSection {
+    app_type: AppType,
+    prefix: &'static str,
+    header_id: &'static str,
+    empty_id: &'static str,
+    header_label: &'static str,
+    log_name: &'static str,
+}
+
+const TRAY_SECTIONS: [TrayAppSection; 3] = [
+    TrayAppSection {
+        app_type: AppType::Claude,
+        prefix: "claude_",
+        header_id: "claude_header",
+        empty_id: "claude_empty",
+        header_label: "─── Claude ───",
+        log_name: "Claude",
+    },
+    TrayAppSection {
+        app_type: AppType::Codex,
+        prefix: "codex_",
+        header_id: "codex_header",
+        empty_id: "codex_empty",
+        header_label: "─── Codex ───",
+        log_name: "Codex",
+    },
+    TrayAppSection {
+        app_type: AppType::Gemini,
+        prefix: "gemini_",
+        header_id: "gemini_header",
+        empty_id: "gemini_empty",
+        header_label: "─── Gemini ───",
+        log_name: "Gemini",
+    },
+];
+
+fn append_provider_section<'a>(
+    app: &'a tauri::AppHandle,
+    mut menu_builder: MenuBuilder<'a, tauri::Wry, tauri::AppHandle<tauri::Wry>>,
+    manager: Option<&crate::provider::ProviderManager>,
+    section: &TrayAppSection,
+    tray_texts: &TrayTexts,
+) -> Result<MenuBuilder<'a, tauri::Wry, tauri::AppHandle<tauri::Wry>>, AppError> {
+    let Some(manager) = manager else {
+        return Ok(menu_builder);
+    };
+
+    let header = MenuItem::with_id(
+        app,
+        section.header_id,
+        section.header_label,
+        false,
+        None::<&str>,
+    )
+    .map_err(|e| AppError::Message(format!("创建{}标题失败: {e}", section.log_name)))?;
+    menu_builder = menu_builder.item(&header);
+
+    if manager.providers.is_empty() {
+        let empty_hint = MenuItem::with_id(
+            app,
+            section.empty_id,
+            tray_texts.no_provider_hint,
+            false,
+            None::<&str>,
+        )
+        .map_err(|e| AppError::Message(format!("创建{}空提示失败: {e}", section.log_name)))?;
+        return Ok(menu_builder.item(&empty_hint));
+    }
+
+    let mut sorted_providers: Vec<_> = manager.providers.iter().collect();
+    sorted_providers.sort_by(|(_, a), (_, b)| {
+        match (a.sort_index, b.sort_index) {
+            (Some(idx_a), Some(idx_b)) => return idx_a.cmp(&idx_b),
+            (Some(_), None) => return std::cmp::Ordering::Less,
+            (None, Some(_)) => return std::cmp::Ordering::Greater,
+            _ => {}
+        }
+
+        match (a.created_at, b.created_at) {
+            (Some(time_a), Some(time_b)) => return time_a.cmp(&time_b),
+            (Some(_), None) => return std::cmp::Ordering::Greater,
+            (None, Some(_)) => return std::cmp::Ordering::Less,
+            _ => {}
+        }
+
+        a.name.cmp(&b.name)
+    });
+
+    for (id, provider) in sorted_providers {
+        let is_current = manager.current == *id;
+        let item = CheckMenuItem::with_id(
+            app,
+            format!("{}{}", section.prefix, id),
+            &provider.name,
+            true,
+            is_current,
+            None::<&str>,
+        )
+        .map_err(|e| AppError::Message(format!("创建{}菜单项失败: {e}", section.log_name)))?;
+        menu_builder = menu_builder.item(&item);
+    }
+
+    Ok(menu_builder)
+}
+
+fn handle_provider_tray_event(app: &tauri::AppHandle, event_id: &str) -> bool {
+    for section in TRAY_SECTIONS.iter() {
+        if let Some(provider_id) = event_id.strip_prefix(section.prefix) {
+            log::info!("切换到{}供应商: {provider_id}", section.log_name);
+            let app_handle = app.clone();
+            let provider_id = provider_id.to_string();
+            let app_type = section.app_type.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(e) = switch_provider_internal(&app_handle, app_type, provider_id) {
+                    log::error!("切换{}供应商失败: {e}", section.log_name);
+                }
+            });
+            return true;
+        }
+    }
+    false
+}
+
 /// 创建动态托盘菜单
 fn create_tray_menu(
     app: &tauri::AppHandle,
@@ -82,116 +205,14 @@ fn create_tray_menu(
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
-    if let Some(claude_manager) = config.get_manager(&crate::app_config::AppType::Claude) {
-        // 添加Claude标题（禁用状态，仅作为分组标识）
-        let claude_header =
-            MenuItem::with_id(app, "claude_header", "─── Claude ───", false, None::<&str>)
-                .map_err(|e| AppError::Message(format!("创建Claude标题失败: {e}")))?;
-        menu_builder = menu_builder.item(&claude_header);
-
-        if !claude_manager.providers.is_empty() {
-            // Sort providers by sortIndex, then by createdAt, then by name
-            let mut sorted_providers: Vec<_> = claude_manager.providers.iter().collect();
-            sorted_providers.sort_by(|(_, a), (_, b)| {
-                // Priority 1: sortIndex
-                match (a.sort_index, b.sort_index) {
-                    (Some(idx_a), Some(idx_b)) => return idx_a.cmp(&idx_b),
-                    (Some(_), None) => return std::cmp::Ordering::Less,
-                    (None, Some(_)) => return std::cmp::Ordering::Greater,
-                    _ => {}
-                }
-                // Priority 2: createdAt
-                match (a.created_at, b.created_at) {
-                    (Some(time_a), Some(time_b)) => return time_a.cmp(&time_b),
-                    (Some(_), None) => return std::cmp::Ordering::Greater,
-                    (None, Some(_)) => return std::cmp::Ordering::Less,
-                    _ => {}
-                }
-                // Priority 3: name
-                a.name.cmp(&b.name)
-            });
-
-            for (id, provider) in sorted_providers {
-                let is_current = claude_manager.current == *id;
-                let item = CheckMenuItem::with_id(
-                    app,
-                    format!("claude_{id}"),
-                    &provider.name,
-                    true,
-                    is_current,
-                    None::<&str>,
-                )
-                .map_err(|e| AppError::Message(format!("创建菜单项失败: {e}")))?;
-                menu_builder = menu_builder.item(&item);
-            }
-        } else {
-            // 没有供应商时显示提示
-            let empty_hint = MenuItem::with_id(
-                app,
-                "claude_empty",
-                tray_texts.no_provider_hint,
-                false,
-                None::<&str>,
-            )
-            .map_err(|e| AppError::Message(format!("创建Claude空提示失败: {e}")))?;
-            menu_builder = menu_builder.item(&empty_hint);
-        }
-    }
-
-    if let Some(codex_manager) = config.get_manager(&crate::app_config::AppType::Codex) {
-        // 添加Codex标题（禁用状态，仅作为分组标识）
-        let codex_header =
-            MenuItem::with_id(app, "codex_header", "─── Codex ───", false, None::<&str>)
-                .map_err(|e| AppError::Message(format!("创建Codex标题失败: {e}")))?;
-        menu_builder = menu_builder.item(&codex_header);
-
-        if !codex_manager.providers.is_empty() {
-            // Sort providers by sortIndex, then by createdAt, then by name
-            let mut sorted_providers: Vec<_> = codex_manager.providers.iter().collect();
-            sorted_providers.sort_by(|(_, a), (_, b)| {
-                // Priority 1: sortIndex
-                match (a.sort_index, b.sort_index) {
-                    (Some(idx_a), Some(idx_b)) => return idx_a.cmp(&idx_b),
-                    (Some(_), None) => return std::cmp::Ordering::Less,
-                    (None, Some(_)) => return std::cmp::Ordering::Greater,
-                    _ => {}
-                }
-                // Priority 2: createdAt
-                match (a.created_at, b.created_at) {
-                    (Some(time_a), Some(time_b)) => return time_a.cmp(&time_b),
-                    (Some(_), None) => return std::cmp::Ordering::Greater,
-                    (None, Some(_)) => return std::cmp::Ordering::Less,
-                    _ => {}
-                }
-                // Priority 3: name
-                a.name.cmp(&b.name)
-            });
-
-            for (id, provider) in sorted_providers {
-                let is_current = codex_manager.current == *id;
-                let item = CheckMenuItem::with_id(
-                    app,
-                    format!("codex_{id}"),
-                    &provider.name,
-                    true,
-                    is_current,
-                    None::<&str>,
-                )
-                .map_err(|e| AppError::Message(format!("创建菜单项失败: {e}")))?;
-                menu_builder = menu_builder.item(&item);
-            }
-        } else {
-            // 没有供应商时显示提示
-            let empty_hint = MenuItem::with_id(
-                app,
-                "codex_empty",
-                tray_texts.no_provider_hint,
-                false,
-                None::<&str>,
-            )
-            .map_err(|e| AppError::Message(format!("创建Codex空提示失败: {e}")))?;
-            menu_builder = menu_builder.item(&empty_hint);
-        }
+    for section in TRAY_SECTIONS.iter() {
+        menu_builder = append_provider_section(
+            app,
+            menu_builder,
+            config.get_manager(&section.app_type),
+            section,
+            &tray_texts,
+        )?;
     }
 
     // 分隔符和退出菜单
@@ -246,47 +267,10 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             log::info!("退出应用");
             app.exit(0);
         }
-        id if id.starts_with("claude_") => {
-            let Some(provider_id) = id.strip_prefix("claude_") else {
-                log::error!("无效的 Claude 菜单项 ID: {id}");
-                return;
-            };
-            log::info!("切换到Claude供应商: {provider_id}");
-
-            // 执行切换
-            let app_handle = app.clone();
-            let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn_blocking(move || {
-                if let Err(e) = switch_provider_internal(
-                    &app_handle,
-                    crate::app_config::AppType::Claude,
-                    provider_id,
-                ) {
-                    log::error!("切换Claude供应商失败: {e}");
-                }
-            });
-        }
-        id if id.starts_with("codex_") => {
-            let Some(provider_id) = id.strip_prefix("codex_") else {
-                log::error!("无效的 Codex 菜单项 ID: {id}");
-                return;
-            };
-            log::info!("切换到Codex供应商: {provider_id}");
-
-            // 执行切换
-            let app_handle = app.clone();
-            let provider_id = provider_id.to_string();
-            tauri::async_runtime::spawn_blocking(move || {
-                if let Err(e) = switch_provider_internal(
-                    &app_handle,
-                    crate::app_config::AppType::Codex,
-                    provider_id,
-                ) {
-                    log::error!("切换Codex供应商失败: {e}");
-                }
-            });
-        }
         _ => {
+            if handle_provider_tray_event(app, event_id) {
+                return;
+            }
             log::warn!("未处理的菜单事件: {event_id}");
         }
     }

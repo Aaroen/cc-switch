@@ -136,9 +136,7 @@ fn normalize_server_keys(map: &mut HashMap<String, Value>) -> usize {
             continue;
         }
         if map.contains_key(&new_key) {
-            log::warn!(
-                "MCP 条目 '{old_key}' 的内部 id '{new_key}' 与现有键冲突，回退为原键"
-            );
+            log::warn!("MCP 条目 '{old_key}' 的内部 id '{new_key}' 与现有键冲突，回退为原键");
             if let Some(value) = map.get_mut(&old_key) {
                 if let Some(obj) = value.as_object_mut() {
                     if obj

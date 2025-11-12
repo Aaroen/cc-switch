@@ -18,7 +18,7 @@ pub struct McpRoot {
     #[serde(default)]
     pub codex: McpConfig,
     #[serde(default)]
-    pub gemini: McpConfig,  // Gemini MCP 配置（预留）
+    pub gemini: McpConfig, // Gemini MCP 配置（预留）
 }
 
 /// Prompt 配置：单客户端维度
@@ -49,7 +49,7 @@ use crate::provider::ProviderManager;
 pub enum AppType {
     Claude,
     Codex,
-    Gemini,  // 新增
+    Gemini, // 新增
 }
 
 impl AppType {
@@ -57,7 +57,7 @@ impl AppType {
         match self {
             AppType::Claude => "claude",
             AppType::Codex => "codex",
-            AppType::Gemini => "gemini",  // 新增
+            AppType::Gemini => "gemini", // 新增
         }
     }
 }
@@ -70,7 +70,7 @@ impl FromStr for AppType {
         match normalized.as_str() {
             "claude" => Ok(AppType::Claude),
             "codex" => Ok(AppType::Codex),
-            "gemini" => Ok(AppType::Gemini),  // 新增
+            "gemini" => Ok(AppType::Gemini), // 新增
             other => Err(AppError::localized(
                 "unsupported_app",
                 format!("不支持的应用标识: '{other}'。可选值: claude, codex, gemini。"),
@@ -105,7 +105,7 @@ impl Default for MultiAppConfig {
         let mut apps = HashMap::new();
         apps.insert("claude".to_string(), ProviderManager::default());
         apps.insert("codex".to_string(), ProviderManager::default());
-        apps.insert("gemini".to_string(), ProviderManager::default());  // 新增
+        apps.insert("gemini".to_string(), ProviderManager::default()); // 新增
 
         Self {
             version: 2,
@@ -150,13 +150,16 @@ impl MultiAppConfig {
         }
 
         // 解析 v2 结构
-        let mut config: Self = serde_json::from_value(value).map_err(|e| AppError::json(&config_path, e))?;
-        
+        let mut config: Self =
+            serde_json::from_value(value).map_err(|e| AppError::json(&config_path, e))?;
+
         // 确保 gemini 应用存在（兼容旧配置文件）
         if !config.apps.contains_key("gemini") {
-            config.apps.insert("gemini".to_string(), ProviderManager::default());
+            config
+                .apps
+                .insert("gemini".to_string(), ProviderManager::default());
         }
-        
+
         Ok(config)
     }
 

@@ -173,9 +173,7 @@ impl ConfigService {
             AppError::Config(format!("供应商 {provider_id} 的 Codex 配置必须是对象"))
         })?;
         let auth = settings.get("auth").ok_or_else(|| {
-            AppError::Config(format!(
-                "供应商 {provider_id} 的 Codex 配置缺少 auth 字段"
-            ))
+            AppError::Config(format!("供应商 {provider_id} 的 Codex 配置缺少 auth 字段"))
         })?;
         if !auth.is_object() {
             return Err(AppError::Config(format!(
@@ -231,7 +229,9 @@ impl ConfigService {
         provider_id: &str,
         provider: &Provider,
     ) -> Result<(), AppError> {
-        use crate::gemini_config::{json_to_env, write_gemini_env_atomic, read_gemini_env, env_to_json};
+        use crate::gemini_config::{
+            env_to_json, json_to_env, read_gemini_env, write_gemini_env_atomic,
+        };
 
         let env_path = crate::gemini_config::get_gemini_env_path();
         if let Some(parent) = env_path.parent() {
@@ -265,7 +265,7 @@ impl ConfigService {
         // 读回实际写入的内容并更新到配置中
         let live_after_env = read_gemini_env()?;
         let live_after = env_to_json(&live_after_env);
-        
+
         if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
             if let Some(target) = manager.providers.get_mut(provider_id) {
                 target.settings_config = live_after;

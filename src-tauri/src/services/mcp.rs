@@ -121,7 +121,7 @@ impl McpService {
                 match app {
                     AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
                     AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => {},  // Gemini 暂不支持 MCP 同步
+                    AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
                 }
             }
         }
@@ -148,7 +148,7 @@ impl McpService {
                 match app {
                     AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
                     AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => {},  // Gemini 暂不支持 MCP 同步
+                    AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
                 }
             }
         }
@@ -168,7 +168,7 @@ impl McpService {
         match app {
             AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
             AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-            AppType::Gemini => {},  // Gemini 暂不支持 MCP 同步
+            AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
         }
         Ok(())
     }

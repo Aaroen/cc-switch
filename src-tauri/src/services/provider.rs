@@ -30,7 +30,7 @@ enum LiveSnapshot {
         config: Option<String>,
     },
     Gemini {
-        env: Option<HashMap<String, String>>,  // 新增
+        env: Option<HashMap<String, String>>, // 新增
     },
 }
 
@@ -69,7 +69,8 @@ impl LiveSnapshot {
                     delete_file(&config_path)?;
                 }
             }
-            LiveSnapshot::Gemini { env } => {  // 新增
+            LiveSnapshot::Gemini { env } => {
+                // 新增
                 use crate::gemini_config::{get_gemini_env_path, write_gemini_env_atomic};
                 let path = get_gemini_env_path();
                 if let Some(env_map) = env {
@@ -348,11 +349,11 @@ impl ProviderService {
 
         // 写入应用级别的 settings.json (~/.cc-switch/settings.json)
         settings::ensure_security_auth_selected_type(Self::PACKYCODE_SECURITY_SELECTED_TYPE)?;
-        
+
         // 写入 Gemini 目录的 settings.json (~/.gemini/settings.json)
         use crate::gemini_config::write_packycode_settings;
         write_packycode_settings()?;
-        
+
         Ok(())
     }
 
@@ -394,11 +395,11 @@ impl ProviderService {
 
         // 写入应用级别的 settings.json (~/.cc-switch/settings.json)
         settings::ensure_security_auth_selected_type(Self::GOOGLE_OAUTH_SECURITY_SELECTED_TYPE)?;
-        
+
         // 写入 Gemini 目录的 settings.json (~/.gemini/settings.json)
         use crate::gemini_config::write_google_oauth_settings;
         write_google_oauth_settings()?;
-        
+
         Ok(())
     }
 
@@ -502,9 +503,7 @@ impl ProviderService {
                 return Err(AppError::localized(
                     "config.save.rollback_failed",
                     format!("保存配置失败: {save_err}；回滚失败: {rollback_err}"),
-                    format!(
-                        "Failed to save config: {save_err}; rollback failed: {rollback_err}"
-                    ),
+                    format!("Failed to save config: {save_err}; rollback failed: {rollback_err}"),
                 ));
             }
             return Err(save_err);
@@ -518,9 +517,7 @@ impl ProviderService {
                     return Err(AppError::localized(
                         "post_commit.rollback_failed",
                         format!("后置操作失败: {err}；回滚失败: {rollback_err}"),
-                        format!(
-                            "Post-commit step failed: {err}; rollback failed: {rollback_err}"
-                        ),
+                        format!("Post-commit step failed: {err}; rollback failed: {rollback_err}"),
                     ));
                 }
                 return Err(err);
@@ -618,8 +615,8 @@ impl ProviderService {
                 state.save()?;
             }
             AppType::Gemini => {
-                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
-                
+                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+
                 let env_path = get_gemini_env_path();
                 if !env_path.exists() {
                     return Err(AppError::localized(
@@ -630,7 +627,7 @@ impl ProviderService {
                 }
                 let env_map = read_gemini_env()?;
                 let live_after = env_to_json(&env_map);
-                
+
                 {
                     let mut guard = state.config.write().map_err(AppError::from)?;
                     if let Some(manager) = guard.get_manager_mut(app_type) {
@@ -674,7 +671,8 @@ impl ProviderService {
                 };
                 Ok(LiveSnapshot::Codex { auth, config })
             }
-            AppType::Gemini => {  // 新增
+            AppType::Gemini => {
+                // 新增
                 use crate::gemini_config::{get_gemini_env_path, read_gemini_env};
                 let path = get_gemini_env_path();
                 let env = if path.exists() {
@@ -851,9 +849,10 @@ impl ProviderService {
                 let _ = Self::normalize_claude_models_in_value(&mut v);
                 v
             }
-            AppType::Gemini => {  // 新增
-                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
-                
+            AppType::Gemini => {
+                // 新增
+                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+
                 let path = get_gemini_env_path();
                 if !path.exists() {
                     return Err(AppError::localized(
@@ -917,9 +916,10 @@ impl ProviderService {
                 }
                 read_json_file(&path)
             }
-            AppType::Gemini => {  // 新增
-                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
-                
+            AppType::Gemini => {
+                // 新增
+                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+
                 let path = get_gemini_env_path();
                 if !path.exists() {
                     return Err(AppError::localized(
@@ -928,7 +928,7 @@ impl ProviderService {
                         "Gemini .env file not found",
                     ));
                 }
-                
+
                 let env_map = read_gemini_env()?;
                 Ok(env_to_json(&env_map))
             }
@@ -1429,8 +1429,8 @@ impl ProviderService {
         config: &mut MultiAppConfig,
         next_provider: &str,
     ) -> Result<(), AppError> {
-        use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
-        
+        use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+
         let env_path = get_gemini_env_path();
         if !env_path.exists() {
             return Ok(());
@@ -1464,7 +1464,9 @@ impl ProviderService {
     }
 
     fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
-        use crate::gemini_config::{json_to_env, validate_gemini_settings, write_gemini_env_atomic};
+        use crate::gemini_config::{
+            json_to_env, validate_gemini_settings, write_gemini_env_atomic,
+        };
 
         // 一次性检测认证类型，避免重复检测
         let auth_type = Self::detect_gemini_auth_type(provider);
@@ -1498,7 +1500,7 @@ impl ProviderService {
         match app_type {
             AppType::Codex => Self::write_codex_live(provider),
             AppType::Claude => Self::write_claude_live(provider),
-            AppType::Gemini => Self::write_gemini_live(provider),  // 新增
+            AppType::Gemini => Self::write_gemini_live(provider), // 新增
         }
     }
 
@@ -1553,7 +1555,8 @@ impl ProviderService {
                     }
                 }
             }
-            AppType::Gemini => {  // 新增
+            AppType::Gemini => {
+                // 新增
                 use crate::gemini_config::validate_gemini_settings;
                 validate_gemini_settings(&provider.settings_config)?
             }
@@ -1667,25 +1670,25 @@ impl ProviderService {
 
                 Ok((api_key, base_url))
             }
-            AppType::Gemini => {  // 新增
+            AppType::Gemini => {
+                // 新增
                 use crate::gemini_config::json_to_env;
-                
+
                 let env_map = json_to_env(&provider.settings_config)?;
-                
-                let api_key = env_map
-                    .get("GEMINI_API_KEY")
-                    .cloned()
-                    .ok_or_else(|| AppError::localized(
+
+                let api_key = env_map.get("GEMINI_API_KEY").cloned().ok_or_else(|| {
+                    AppError::localized(
                         "gemini.missing_api_key",
                         "缺少 GEMINI_API_KEY",
                         "Missing GEMINI_API_KEY",
-                    ))?;
-                
+                    )
+                })?;
+
                 let base_url = env_map
                     .get("GOOGLE_GEMINI_BASE_URL")
                     .cloned()
                     .unwrap_or_else(|| "https://generativelanguage.googleapis.com".to_string());
-                
+
                 Ok((api_key, base_url))
             }
         }

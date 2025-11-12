@@ -56,9 +56,7 @@ fn read_override_from_store(app: &tauri::AppHandle) -> Option<PathBuf> {
             Some(path)
         }
         Some(_) => {
-            log::warn!(
-                "Store 中的 {STORE_KEY_APP_CONFIG_DIR} 类型不正确，应为字符串"
-            );
+            log::warn!("Store 中的 {STORE_KEY_APP_CONFIG_DIR} 类型不正确，应为字符串");
             None
         }
         None => None,

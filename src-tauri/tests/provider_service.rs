@@ -220,9 +220,7 @@ fn packycode_partner_meta_triggers_security_flag_even_without_keywords() {
             partner_promotion_key: Some("packycode".to_string()),
             ..ProviderMeta::default()
         });
-        manager
-            .providers
-            .insert("packy-meta".to_string(), provider);
+        manager.providers.insert("packy-meta".to_string(), provider);
     }
 
     let state = AppState {

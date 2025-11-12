@@ -149,8 +149,7 @@ pub fn read_gemini_env() -> Result<HashMap<String, String>, AppError> {
         return Ok(HashMap::new());
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| AppError::io(&path, e))?;
+    let content = fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?;
 
     Ok(parse_env_file(&content))
 }
@@ -161,8 +160,7 @@ pub fn write_gemini_env_atomic(map: &HashMap<String, String>) -> Result<(), AppE
 
     // 确保目录存在
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| AppError::io(parent, e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
 
         // 设置目录权限为 700（仅所有者可读写执行）
         #[cfg(unix)]
@@ -172,8 +170,7 @@ pub fn write_gemini_env_atomic(map: &HashMap<String, String>) -> Result<(), AppE
                 .map_err(|e| AppError::io(parent, e))?
                 .permissions();
             perms.set_mode(0o700);
-            fs::set_permissions(parent, perms)
-                .map_err(|e| AppError::io(parent, e))?;
+            fs::set_permissions(parent, perms).map_err(|e| AppError::io(parent, e))?;
         }
     }
 
@@ -188,8 +185,7 @@ pub fn write_gemini_env_atomic(map: &HashMap<String, String>) -> Result<(), AppE
             .map_err(|e| AppError::io(&path, e))?
             .permissions();
         perms.set_mode(0o600);
-        fs::set_permissions(&path, perms)
-            .map_err(|e| AppError::io(&path, e))?;
+        fs::set_permissions(&path, perms).map_err(|e| AppError::io(&path, e))?;
     }
 
     Ok(())
@@ -243,66 +239,66 @@ pub fn validate_gemini_settings(settings: &Value) -> Result<(), AppError> {
 }
 
 /// 获取 Gemini settings.json 文件路径
-/// 
+///
 /// 返回路径：`~/.gemini/settings.json`（与 `.env` 文件同级）
 pub fn get_gemini_settings_path() -> PathBuf {
     get_gemini_dir().join("settings.json")
 }
 
 /// 更新 Gemini 目录 settings.json 中的 security.auth.selectedType 字段
-/// 
+///
 /// 此函数会：
 /// 1. 读取现有的 settings.json（如果存在）
 /// 2. 只更新 `security.auth.selectedType` 字段，保留其他所有字段
 /// 3. 原子性写入文件
-/// 
+///
 /// # 参数
 /// - `selected_type`: 要设置的 selectedType 值（如 "gemini-api-key" 或 "oauth-personal"）
 fn update_selected_type(selected_type: &str) -> Result<(), AppError> {
     let settings_path = get_gemini_settings_path();
-    
+
     // 确保目录存在
     if let Some(parent) = settings_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| AppError::io(parent, e))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
     }
-    
+
     // 读取现有的 settings.json（如果存在）
     let mut settings_content = if settings_path.exists() {
-        let content = fs::read_to_string(&settings_path)
-            .map_err(|e| AppError::io(&settings_path, e))?;
-        serde_json::from_str::<Value>(&content)
-            .unwrap_or_else(|_| serde_json::json!({}))
+        let content =
+            fs::read_to_string(&settings_path).map_err(|e| AppError::io(&settings_path, e))?;
+        serde_json::from_str::<Value>(&content).unwrap_or_else(|_| serde_json::json!({}))
     } else {
         serde_json::json!({})
     };
-    
+
     // 只更新 security.auth.selectedType 字段
     if let Some(obj) = settings_content.as_object_mut() {
-        let security = obj.entry("security")
+        let security = obj
+            .entry("security")
             .or_insert_with(|| serde_json::json!({}));
-        
+
         if let Some(security_obj) = security.as_object_mut() {
-            let auth = security_obj.entry("auth")
+            let auth = security_obj
+                .entry("auth")
                 .or_insert_with(|| serde_json::json!({}));
-            
+
             if let Some(auth_obj) = auth.as_object_mut() {
                 auth_obj.insert(
                     "selectedType".to_string(),
-                    Value::String(selected_type.to_string())
+                    Value::String(selected_type.to_string()),
                 );
             }
         }
     }
-    
+
     // 写入文件
     crate::config::write_json_file(&settings_path, &settings_content)?;
-    
+
     Ok(())
 }
 
 /// 为 Packycode Gemini 供应商写入 settings.json
-/// 
+///
 /// 设置 `~/.gemini/settings.json` 中的：
 /// ```json
 /// {
@@ -313,14 +309,14 @@ fn update_selected_type(selected_type: &str) -> Result<(), AppError> {
 ///   }
 /// }
 /// ```
-/// 
+///
 /// 保留文件中的其他所有字段。
 pub fn write_packycode_settings() -> Result<(), AppError> {
     update_selected_type("gemini-api-key")
 }
 
 /// 为 Google 官方 Gemini 供应商写入 settings.json（OAuth 模式）
-/// 
+///
 /// 设置 `~/.gemini/settings.json` 中的：
 /// ```json
 /// {
@@ -331,7 +327,7 @@ pub fn write_packycode_settings() -> Result<(), AppError> {
 ///   }
 /// }
 /// ```
-/// 
+///
 /// 保留文件中的其他所有字段。
 pub fn write_google_oauth_settings() -> Result<(), AppError> {
     update_selected_type("oauth-personal")
@@ -355,7 +351,10 @@ GEMINI_MODEL=gemini-2.5-pro
         let map = parse_env_file(content);
 
         assert_eq!(map.len(), 3);
-        assert_eq!(map.get("GOOGLE_GEMINI_BASE_URL"), Some(&"https://example.com".to_string()));
+        assert_eq!(
+            map.get("GOOGLE_GEMINI_BASE_URL"),
+            Some(&"https://example.com".to_string())
+        );
         assert_eq!(map.get("GEMINI_API_KEY"), Some(&"sk-test123".to_string()));
         assert_eq!(map.get("GEMINI_MODEL"), Some(&"gemini-2.5-pro".to_string()));
     }
@@ -380,7 +379,10 @@ GEMINI_MODEL=gemini-2.5-pro
         let json = env_to_json(&env_map);
         let converted = json_to_env(&json).unwrap();
 
-        assert_eq!(converted.get("GEMINI_API_KEY"), Some(&"test-key".to_string()));
+        assert_eq!(
+            converted.get("GEMINI_API_KEY"),
+            Some(&"test-key".to_string())
+        );
     }
 
     #[test]
@@ -400,7 +402,10 @@ GEMINI_MODEL=gemini-2.5-pro
 
         let map = result.unwrap();
         assert_eq!(map.len(), 3);
-        assert_eq!(map.get("GOOGLE_GEMINI_BASE_URL"), Some(&"https://example.com".to_string()));
+        assert_eq!(
+            map.get("GOOGLE_GEMINI_BASE_URL"),
+            Some(&"https://example.com".to_string())
+        );
         assert_eq!(map.get("GEMINI_API_KEY"), Some(&"sk-test123".to_string()));
         assert_eq!(map.get("GEMINI_MODEL"), Some(&"gemini-2.5-pro".to_string()));
     }
@@ -502,17 +507,19 @@ KEY_WITH-DASH=value";
 
         // 模拟更新 selectedType
         if let Some(obj) = existing_settings.as_object_mut() {
-            let security = obj.entry("security")
+            let security = obj
+                .entry("security")
                 .or_insert_with(|| serde_json::json!({}));
-            
+
             if let Some(security_obj) = security.as_object_mut() {
-                let auth = security_obj.entry("auth")
+                let auth = security_obj
+                    .entry("auth")
                     .or_insert_with(|| serde_json::json!({}));
-                
+
                 if let Some(auth_obj) = auth.as_object_mut() {
                     auth_obj.insert(
                         "selectedType".to_string(),
-                        Value::String("gemini-api-key".to_string())
+                        Value::String("gemini-api-key".to_string()),
                     );
                 }
             }
@@ -521,8 +528,14 @@ KEY_WITH-DASH=value";
         // 验证所有字段都被保留
         assert_eq!(existing_settings["otherField"], "should-be-kept");
         assert_eq!(existing_settings["security"]["otherSetting"], "also-kept");
-        assert_eq!(existing_settings["security"]["auth"]["otherAuth"], "preserved");
-        assert_eq!(existing_settings["security"]["auth"]["selectedType"], "gemini-api-key");
+        assert_eq!(
+            existing_settings["security"]["auth"]["otherAuth"],
+            "preserved"
+        );
+        assert_eq!(
+            existing_settings["security"]["auth"]["selectedType"],
+            "gemini-api-key"
+        );
     }
 
     #[test]
