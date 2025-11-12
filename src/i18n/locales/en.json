@@ -550,5 +550,46 @@
         "description": "Context7 documentation search tool providing latest library docs and code examples, with higher limits when configured with a key"
       }
     }
+  },
+  "prompts": {
+    "manage": "Prompts",
+    "title": "{{appName}} Prompt Management",
+    "claudeTitle": "Claude Prompt Management",
+    "codexTitle": "Codex Prompt Management",
+    "add": "Add Prompt",
+    "edit": "Edit Prompt",
+    "addTitle": "Add {{appName}} Prompt",
+    "editTitle": "Edit {{appName}} Prompt",
+    "import": "Import Existing",
+    "count": "{{count}} prompts",
+    "enabled": "Enabled",
+    "enable": "Enable",
+    "enabledName": "Enabled: {{name}}",
+    "noneEnabled": "No prompt enabled",
+    "currentFile": "Current {{filename}} Content",
+    "empty": "No prompts yet",
+    "emptyDescription": "Click the button above to add or import prompts",
+    "loading": "Loading...",
+    "name": "Name",
+    "namePlaceholder": "e.g., Default Project Prompt",
+    "description": "Description",
+    "descriptionPlaceholder": "Optional description",
+    "content": "Content",
+    "contentPlaceholder": "# {{filename}}\n\nEnter prompt content here...",
+    "loadFailed": "Failed to load prompts",
+    "saveSuccess": "Saved successfully",
+    "saveFailed": "Failed to save",
+    "deleteSuccess": "Deleted successfully",
+    "deleteFailed": "Failed to delete",
+    "enableSuccess": "Enabled successfully",
+    "enableFailed": "Failed to enable",
+    "disableSuccess": "Disabled successfully",
+    "disableFailed": "Failed to disable",
+    "importSuccess": "Imported successfully",
+    "importFailed": "Failed to import",
+    "confirm": {
+      "deleteTitle": "Confirm Delete",
+      "deleteMessage": "Are you sure you want to delete prompt \"{{name}}\"?"
+    }
   }
 }
