@@ -24,7 +24,7 @@ interface CodexFormFieldsProps {
   onBaseUrlChange: (url: string) => void;
   isEndpointModalOpen: boolean;
   onEndpointModalToggle: (open: boolean) => void;
-  onCustomEndpointsChange: (endpoints: string[]) => void;
+  onCustomEndpointsChange?: (endpoints: string[]) => void;
 
   // Speed Test Endpoints
   speedTestEndpoints: EndpointCandidate[];

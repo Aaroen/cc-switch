@@ -34,7 +34,7 @@ interface ClaudeFormFieldsProps {
   onBaseUrlChange: (url: string) => void;
   isEndpointModalOpen: boolean;
   onEndpointModalToggle: (open: boolean) => void;
-  onCustomEndpointsChange: (endpoints: string[]) => void;
+  onCustomEndpointsChange?: (endpoints: string[]) => void;
 
   // Model Selector
   shouldShowModelSelector: boolean;

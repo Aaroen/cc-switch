@@ -100,16 +100,16 @@ export function ProviderForm({
     partnerPromotionKey?: string;
   } | null>(null);
   const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
+  const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
+    useState(false);
 
   // 新建供应商：收集端点测速弹窗中的"自定义端点"，提交时一次性落盘到 meta.custom_endpoints
-  // 编辑供应商：从 initialData.meta.custom_endpoints 恢复端点列表
+  // 编辑供应商：端点已通过 API 直接保存，不再需要此状态
   const [draftCustomEndpoints, setDraftCustomEndpoints] = useState<string[]>(
     () => {
-      if (!initialData?.meta?.custom_endpoints) {
-        return [];
-      }
-      // 从 Record<string, CustomEndpoint> 中提取 URL 列表
-      return Object.keys(initialData.meta.custom_endpoints);
+      // 仅在新建模式下使用
+      if (initialData) return [];
+      return [];
     },
   );
 
@@ -125,10 +125,8 @@ export function ProviderForm({
     setSelectedPresetId(initialData ? null : "custom");
     setActivePreset(null);
 
-    // 重新初始化 draftCustomEndpoints（编辑模式时从 meta 恢复）
-    if (initialData?.meta?.custom_endpoints) {
-      setDraftCustomEndpoints(Object.keys(initialData.meta.custom_endpoints));
-    } else {
+    // 编辑模式不需要恢复 draftCustomEndpoints，端点已通过 API 管理
+    if (!initialData) {
       setDraftCustomEndpoints([]);
     }
   }, [appId, initialData]);
@@ -220,8 +218,6 @@ export function ProviderForm({
     [originalHandleCodexConfigChange, debouncedValidate],
   );
 
-  const [isCodexEndpointModalOpen, setIsCodexEndpointModalOpen] =
-    useState(false);
   const [isCodexTemplateModalOpen, setIsCodexTemplateModalOpen] =
     useState(false);
 
@@ -361,60 +357,51 @@ export function ProviderForm({
       }
     }
 
-    // 处理 meta 字段：基于 draftCustomEndpoints 生成 custom_endpoints
-    // 注意：不使用 customEndpointsMap，因为它包含了候选端点（预设、Base URL 等）
-    // 而我们只需要保存用户真正添加的自定义端点
-    const customEndpointsToSave: Record<
-      string,
-      import("@/types").CustomEndpoint
-    > | null =
-      draftCustomEndpoints.length > 0
-        ? draftCustomEndpoints.reduce(
-            (acc, url) => {
-              // 尝试从 initialData.meta 中获取原有的端点元数据（保留 addedAt 和 lastUsed）
-              const existing = initialData?.meta?.custom_endpoints?.[url];
-              if (existing) {
-                acc[url] = existing;
-              } else {
-                // 新端点：使用当前时间戳
-                const now = Date.now();
-                acc[url] = { url, addedAt: now, lastUsed: undefined };
-              }
-              return acc;
-            },
-            {} as Record<string, import("@/types").CustomEndpoint>,
-          )
-        : null;
+    // 处理 meta 字段：仅在新建模式下从 draftCustomEndpoints 生成 custom_endpoints
+    // 编辑模式：端点已通过 API 直接保存，不在此处理
+    if (!isEditMode && draftCustomEndpoints.length > 0) {
+      const customEndpointsToSave: Record<
+        string,
+        import("@/types").CustomEndpoint
+      > = draftCustomEndpoints.reduce(
+        (acc, url) => {
+          const now = Date.now();
+          acc[url] = { url, addedAt: now, lastUsed: undefined };
+          return acc;
+        },
+        {} as Record<string, import("@/types").CustomEndpoint>,
+      );
 
-    // 检测是否需要清空端点（重要：区分"用户清空端点"和"用户没有修改端点"）
-    const hadEndpoints =
-      initialData?.meta?.custom_endpoints &&
-      Object.keys(initialData.meta.custom_endpoints).length > 0;
-    const needsClearEndpoints =
-      hadEndpoints && draftCustomEndpoints.length === 0;
+      // 检测是否需要清空端点（重要：区分"用户清空端点"和"用户没有修改端点"）
+      const hadEndpoints =
+        initialData?.meta?.custom_endpoints &&
+        Object.keys(initialData.meta.custom_endpoints).length > 0;
+      const needsClearEndpoints =
+        hadEndpoints && draftCustomEndpoints.length === 0;
 
-    // 如果用户明确清空了端点，传递空对象（而不是 null）让后端知道要删除
-    let mergedMeta = needsClearEndpoints
-      ? mergeProviderMeta(initialData?.meta, {})
-      : mergeProviderMeta(initialData?.meta, customEndpointsToSave);
+      // 如果用户明确清空了端点，传递空对象（而不是 null）让后端知道要删除
+      let mergedMeta = needsClearEndpoints
+        ? mergeProviderMeta(initialData?.meta, {})
+        : mergeProviderMeta(initialData?.meta, customEndpointsToSave);
 
-    // 添加合作伙伴标识与促销 key
-    if (activePreset?.isPartner) {
-      mergedMeta = {
-        ...(mergedMeta ?? {}),
-        isPartner: true,
-      };
-    }
+      // 添加合作伙伴标识与促销 key
+      if (activePreset?.isPartner) {
+        mergedMeta = {
+          ...(mergedMeta ?? {}),
+          isPartner: true,
+        };
+      }
 
-    if (activePreset?.partnerPromotionKey) {
-      mergedMeta = {
-        ...(mergedMeta ?? {}),
-        partnerPromotionKey: activePreset.partnerPromotionKey,
-      };
-    }
+      if (activePreset?.partnerPromotionKey) {
+        mergedMeta = {
+          ...(mergedMeta ?? {}),
+          partnerPromotionKey: activePreset.partnerPromotionKey,
+        };
+      }
 
-    if (mergedMeta !== undefined) {
-      payload.meta = mergedMeta;
+      if (mergedMeta !== undefined) {
+        payload.meta = mergedMeta;
+      }
     }
 
     onSubmit(payload);
@@ -609,7 +596,9 @@ export function ProviderForm({
             onBaseUrlChange={handleClaudeBaseUrlChange}
             isEndpointModalOpen={isEndpointModalOpen}
             onEndpointModalToggle={setIsEndpointModalOpen}
-            onCustomEndpointsChange={setDraftCustomEndpoints}
+            onCustomEndpointsChange={
+              isEditMode ? undefined : setDraftCustomEndpoints
+            }
             shouldShowModelSelector={category !== "official"}
             claudeModel={claudeModel}
             defaultHaikuModel={defaultHaikuModel}
@@ -636,7 +625,9 @@ export function ProviderForm({
             onBaseUrlChange={handleCodexBaseUrlChange}
             isEndpointModalOpen={isCodexEndpointModalOpen}
             onEndpointModalToggle={setIsCodexEndpointModalOpen}
-            onCustomEndpointsChange={setDraftCustomEndpoints}
+            onCustomEndpointsChange={
+              isEditMode ? undefined : setDraftCustomEndpoints
+            }
             speedTestEndpoints={speedTestEndpoints}
           />
         )}

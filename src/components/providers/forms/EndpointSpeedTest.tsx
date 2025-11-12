@@ -36,7 +36,8 @@ interface EndpointSpeedTestProps {
   initialEndpoints: EndpointCandidate[];
   visible?: boolean;
   onClose: () => void;
-  // 当自定义端点列表变化时回传（仅包含 isCustom 的条目）
+  // 新建模式：当自定义端点列表变化时回传（仅包含 isCustom 的条目）
+  // 编辑模式：不使用此回调，端点直接保存到后端
   onCustomEndpointsChange?: (urls: string[]) => void;
 }
 
@@ -101,25 +102,31 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
   const [autoSelect, setAutoSelect] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 记录初始的自定义端点，用于对比变化
+  const [initialCustomUrls, setInitialCustomUrls] = useState<Set<string>>(
+    new Set(),
+  );
 
   const normalizedSelected = normalizeEndpointUrl(value);
 
   const hasEndpoints = entries.length > 0;
+  const isEditMode = Boolean(providerId); // 编辑模式有 providerId
 
-  // 加载保存的自定义端点（按正在编辑的供应商）
+  // 编辑模式：加载已保存的自定义端点
   useEffect(() => {
     let cancelled = false;
 
     const loadCustomEndpoints = async () => {
       try {
-        if (!providerId) return;
+        if (!providerId) return; // 新建模式不加载
 
         const customEndpoints = await vscodeApi.getCustomEndpoints(
           appId,
           providerId,
         );
 
-        // 检查是否已取消
         if (cancelled) return;
 
         const candidates: EndpointCandidate[] = customEndpoints.map(
@@ -129,6 +136,13 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           }),
         );
 
+        // 记录初始的自定义端点
+        const customUrls = new Set(
+          customEndpoints.map((ep) => normalizeEndpointUrl(ep.url)),
+        );
+        setInitialCustomUrls(customUrls);
+
+        // 合并自定义端点与初始端点
         setEntries((prev) => {
           const map = new Map<string, EndpointEntry>();
 
@@ -137,7 +151,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
             map.set(entry.url, entry);
           });
 
-          // 合并自定义端点
+          // 添加从后端加载的自定义端点
           candidates.forEach((candidate) => {
             const sanitized = normalizeEndpointUrl(candidate.url);
             if (sanitized && !map.has(sanitized)) {
@@ -161,60 +175,20 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       }
     };
 
-    if (visible) {
+    // 只在编辑模式下加载
+    if (providerId) {
       loadCustomEndpoints();
     }
 
     return () => {
       cancelled = true;
     };
-  }, [appId, visible, providerId, t]);
+  }, [appId, providerId, t, initialEndpoints]);
 
+  // 新建模式：将自定义端点变化透传给父组件（仅限 isCustom）
+  // 编辑模式：不使用此回调，端点已通过 API 直接保存
   useEffect(() => {
-    setEntries((prev) => {
-      const map = new Map<string, EndpointEntry>();
-      prev.forEach((entry) => {
-        map.set(entry.url, entry);
-      });
-
-      let changed = false;
-
-      const mergeCandidate = (candidate: EndpointCandidate) => {
-        const sanitized = candidate.url
-          ? normalizeEndpointUrl(candidate.url)
-          : "";
-        if (!sanitized) return;
-        const existing = map.get(sanitized);
-        if (existing) return;
-
-        map.set(sanitized, {
-          id: candidate.id ?? randomId(),
-          url: sanitized,
-          isCustom: candidate.isCustom ?? false,
-          latency: null,
-          status: undefined,
-          error: null,
-        });
-        changed = true;
-      };
-
-      initialEndpoints.forEach(mergeCandidate);
-
-      if (normalizedSelected && !map.has(normalizedSelected)) {
-        mergeCandidate({ url: normalizedSelected, isCustom: true });
-      }
-
-      if (!changed) {
-        return prev;
-      }
-
-      return Array.from(map.values());
-    });
-  }, [initialEndpoints, normalizedSelected]);
-
-  // 将自定义端点变化透传给父组件（仅限 isCustom）
-  useEffect(() => {
-    if (!onCustomEndpointsChange) return;
+    if (!onCustomEndpointsChange || isEditMode) return; // 编辑模式不使用回调
     try {
       const customUrls = Array.from(
         new Set(
@@ -228,8 +202,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     } catch (err) {
       // ignore
     }
-    // 仅在 entries 变化时同步
-  }, [entries, onCustomEndpointsChange]);
+  }, [entries, onCustomEndpointsChange, isEditMode]);
 
   const sortedEntries = useMemo(() => {
     return entries.slice().sort((a: TestResult, b: TestResult) => {
@@ -268,7 +241,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     let sanitized = "";
     if (!errorMsg && parsed) {
       sanitized = normalizeEndpointUrl(parsed.toString());
-      // 使用当前 entries 做去重校验，避免依赖可能过期的 addError
+      // 使用当前 entries 做去重校验
       const isDuplicate = entries.some((entry) => entry.url === sanitized);
       if (isDuplicate) {
         errorMsg = t("endpointTest.urlExists");
@@ -281,8 +254,9 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     }
 
     setAddError(null);
+    setLastError(null);
 
-    // 更新本地状态（延迟提交，不立即保存到后端）
+    // 更新本地状态（延迟保存，点击保存按钮时统一处理）
     setEntries((prev) => {
       if (prev.some((e) => e.url === sanitized)) return prev;
       return [
@@ -303,14 +277,14 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     }
 
     setCustomUrl("");
-  }, [customUrl, entries, normalizedSelected, onChange]);
+  }, [customUrl, entries, normalizedSelected, onChange, t]);
 
   const handleRemoveEndpoint = useCallback(
     (entry: EndpointEntry) => {
       // 清空之前的错误提示
       setLastError(null);
 
-      // 更新本地状态（延迟提交，不立即从后端删除）
+      // 更新本地状态（延迟保存，点击保存按钮时统一处理）
       setEntries((prev) => {
         const next = prev.filter((item) => item.id !== entry.id);
         if (entry.url === normalizedSelected) {
@@ -404,6 +378,58 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     },
     [normalizedSelected, onChange],
   );
+
+  // 保存端点变更
+  const handleSave = useCallback(async () => {
+    // 编辑模式：对比初始端点和当前端点，批量保存变更
+    if (isEditMode && providerId) {
+      setIsSaving(true);
+      setLastError(null);
+
+      try {
+        // 获取当前的自定义端点
+        const currentCustomUrls = new Set(
+          entries
+            .filter((e) => e.isCustom)
+            .map((e) => normalizeEndpointUrl(e.url)),
+        );
+
+        // 找出新增的端点
+        const toAdd = Array.from(currentCustomUrls).filter(
+          (url) => !initialCustomUrls.has(url),
+        );
+
+        // 找出删除的端点
+        const toRemove = Array.from(initialCustomUrls).filter(
+          (url) => !currentCustomUrls.has(url),
+        );
+
+        // 批量添加
+        for (const url of toAdd) {
+          await vscodeApi.addCustomEndpoint(appId, providerId, url);
+        }
+
+        // 批量删除
+        for (const url of toRemove) {
+          await vscodeApi.removeCustomEndpoint(appId, providerId, url);
+        }
+
+        // 更新初始端点列表
+        setInitialCustomUrls(currentCustomUrls);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t("endpointTest.saveFailed");
+        setLastError(message);
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
+    // 关闭弹窗
+    onClose();
+  }, [isEditMode, providerId, entries, initialCustomUrls, appId, onClose, t]);
 
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
@@ -580,10 +606,32 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           )}
         </div>
 
-        <DialogFooter>
-          <Button type="button" onClick={onClose} className="gap-2">
-            <Save className="w-4 h-4" />
-            {t("common.save")}
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSaving}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t("common.saving")}
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                {t("common.save")}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
