@@ -128,6 +128,15 @@ pub struct ProviderMeta {
     /// 用量查询脚本配置
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage_script: Option<UsageScript>,
+    /// 合作伙伴标记（前端使用 isPartner，保持字段名一致）
+    #[serde(rename = "isPartner", skip_serializing_if = "Option::is_none")]
+    pub is_partner: Option<bool>,
+    /// 合作伙伴促销 key，用于识别 PackyCode 等特殊供应商
+    #[serde(
+        rename = "partnerPromotionKey",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub partner_promotion_key: Option<String>,
 }
 
 impl ProviderManager {

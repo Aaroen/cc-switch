@@ -11,6 +11,7 @@ interface UseApiKeyStateProps {
   onConfigChange: (config: string) => void;
   selectedPresetId: string | null;
   category?: ProviderCategory;
+  appType?: string;
 }
 
 /**
@@ -22,10 +23,11 @@ export function useApiKeyState({
   onConfigChange,
   selectedPresetId,
   category,
+  appType,
 }: UseApiKeyStateProps) {
   const [apiKey, setApiKey] = useState(() => {
     if (initialConfig) {
-      return getApiKeyFromConfig(initialConfig);
+      return getApiKeyFromConfig(initialConfig, appType);
     }
     return "";
   });
@@ -38,7 +40,7 @@ export function useApiKeyState({
         initialConfig || "{}",
         key.trim(),
         {
-          // 最佳实践：仅在"新增模式"且"非官方类别"时补齐缺失字段
+          // 最佳实践：仅在“新增模式”且“非官方类别”时补齐缺失字段
           // - 新增模式：selectedPresetId !== null
           // - 非官方类别：category !== undefined && category !== "official"
           // - 官方类别：不创建字段（UI 也会禁用输入框）
@@ -47,21 +49,23 @@ export function useApiKeyState({
             selectedPresetId !== null &&
             category !== undefined &&
             category !== "official",
+          appType,
         },
       );
 
       onConfigChange(configString);
     },
-    [initialConfig, selectedPresetId, category, onConfigChange],
+    [initialConfig, selectedPresetId, category, appType, onConfigChange],
   );
 
   const showApiKey = useCallback(
     (config: string, isEditMode: boolean) => {
       return (
-        selectedPresetId !== null || (isEditMode && hasApiKeyField(config))
+        selectedPresetId !== null ||
+        (isEditMode && hasApiKeyField(config, appType))
       );
     },
-    [selectedPresetId],
+    [selectedPresetId, appType],
   );
 
   return {

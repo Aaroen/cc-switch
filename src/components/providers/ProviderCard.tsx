@@ -40,7 +40,9 @@ const extractApiUrl = (provider: Provider, fallbackText: string) => {
   const config = provider.settingsConfig;
 
   if (config && typeof config === "object") {
-    const envBase = (config as Record<string, any>)?.env?.ANTHROPIC_BASE_URL;
+    const envBase =
+      (config as Record<string, any>)?.env?.ANTHROPIC_BASE_URL ||
+      (config as Record<string, any>)?.env?.GOOGLE_GEMINI_BASE_URL;
     if (typeof envBase === "string" && envBase.trim()) {
       return envBase;
     }
@@ -147,6 +149,17 @@ export function ProviderCard({
               <h3 className="text-base font-semibold leading-none">
                 {provider.name}
               </h3>
+              {provider.category === "third_party" &&
+                provider.meta?.isPartner && (
+                  <span
+                    className="text-yellow-500 dark:text-yellow-400"
+                    title={t("provider.officialPartner", {
+                      defaultValue: "官方合作伙伴",
+                    })}
+                  >
+                    ⭐
+                  </span>
+                )}
               <span
                 className={cn(
                   "rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400 transition-opacity duration-200",

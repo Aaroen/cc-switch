@@ -3,10 +3,11 @@ import type { AppId } from "@/lib/api";
 import type { ProviderCategory } from "@/types";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
+import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
 
 type PresetEntry = {
   id: string;
-  preset: ProviderPreset | CodexProviderPreset;
+  preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset;
 };
 
 interface UseApiKeyLinkProps {
@@ -73,11 +74,9 @@ export function useApiKeyLink({
 
   return {
     shouldShowApiKeyLink:
-      appId === "claude"
+      appId === "claude" || appId === "codex" || appId === "gemini"
         ? shouldShowApiKeyLink
-        : appId === "codex"
-          ? shouldShowApiKeyLink
-          : false,
+        : false,
     websiteUrl: getWebsiteUrl,
     isPartner,
     partnerPromotionKey,

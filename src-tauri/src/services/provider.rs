@@ -29,6 +29,9 @@ enum LiveSnapshot {
         auth: Option<Value>,
         config: Option<String>,
     },
+    Gemini {
+        env: Option<HashMap<String, String>>,  // 新增
+    },
 }
 
 #[derive(Clone)]
@@ -64,6 +67,15 @@ impl LiveSnapshot {
                     write_text_file(&config_path, text)?;
                 } else if config_path.exists() {
                     delete_file(&config_path)?;
+                }
+            }
+            LiveSnapshot::Gemini { env } => {  // 新增
+                use crate::gemini_config::{get_gemini_env_path, write_gemini_env_atomic};
+                let path = get_gemini_env_path();
+                if let Some(env_map) = env {
+                    write_gemini_env_atomic(env_map)?;
+                } else if path.exists() {
+                    delete_file(&path)?;
                 }
             }
         }
@@ -111,7 +123,285 @@ mod tests {
     }
 }
 
+/// Gemini 认证类型枚举
+///
+/// 用于优化性能，避免重复检测供应商类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GeminiAuthType {
+    /// PackyCode 供应商（使用 API Key）
+    Packycode,
+    /// Google 官方（使用 OAuth）
+    GoogleOfficial,
+    /// 通用 Gemini 供应商（使用 API Key）
+    Generic,
+}
+
 impl ProviderService {
+    // 认证类型常量
+    const PACKYCODE_SECURITY_SELECTED_TYPE: &'static str = "gemini-api-key";
+    const GOOGLE_OAUTH_SECURITY_SELECTED_TYPE: &'static str = "oauth-personal";
+
+    // Partner Promotion Key 常量
+    const PACKYCODE_PARTNER_KEY: &'static str = "packycode";
+    const GOOGLE_OFFICIAL_PARTNER_KEY: &'static str = "google-official";
+
+    // PackyCode 关键词常量
+    const PACKYCODE_KEYWORDS: [&'static str; 3] = ["packycode", "packyapi", "packy"];
+
+    /// 检测 Gemini 供应商的认证类型
+    ///
+    /// 一次性检测，避免在多个地方重复调用 `is_packycode_gemini` 和 `is_google_official_gemini`
+    ///
+    /// # 返回值
+    ///
+    /// - `GeminiAuthType::GoogleOfficial`: Google 官方，使用 OAuth
+    /// - `GeminiAuthType::Packycode`: PackyCode 供应商，使用 API Key
+    /// - `GeminiAuthType::Generic`: 其他通用供应商，使用 API Key
+    fn detect_gemini_auth_type(provider: &Provider) -> GeminiAuthType {
+        // 优先检查 partner_promotion_key（最可靠）
+        if let Some(key) = provider
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.partner_promotion_key.as_deref())
+        {
+            if key.eq_ignore_ascii_case(Self::GOOGLE_OFFICIAL_PARTNER_KEY) {
+                return GeminiAuthType::GoogleOfficial;
+            }
+            if key.eq_ignore_ascii_case(Self::PACKYCODE_PARTNER_KEY) {
+                return GeminiAuthType::Packycode;
+            }
+        }
+
+        // 检查 Google 官方（名称匹配）
+        let name_lower = provider.name.to_ascii_lowercase();
+        if name_lower == "google" || name_lower.starts_with("google ") {
+            return GeminiAuthType::GoogleOfficial;
+        }
+
+        // 检查 PackyCode 关键词
+        if Self::contains_packycode_keyword(&provider.name) {
+            return GeminiAuthType::Packycode;
+        }
+
+        if let Some(site) = provider.website_url.as_deref() {
+            if Self::contains_packycode_keyword(site) {
+                return GeminiAuthType::Packycode;
+            }
+        }
+
+        if let Some(base_url) = provider
+            .settings_config
+            .pointer("/env/GOOGLE_GEMINI_BASE_URL")
+            .and_then(|v| v.as_str())
+        {
+            if Self::contains_packycode_keyword(base_url) {
+                return GeminiAuthType::Packycode;
+            }
+        }
+
+        GeminiAuthType::Generic
+    }
+
+    /// 检查字符串是否包含 PackyCode 相关关键词（不区分大小写）
+    ///
+    /// 关键词列表：["packycode", "packyapi", "packy"]
+    fn contains_packycode_keyword(value: &str) -> bool {
+        let lower = value.to_ascii_lowercase();
+        Self::PACKYCODE_KEYWORDS
+            .iter()
+            .any(|keyword| lower.contains(keyword))
+    }
+
+    /// 检测供应商是否为 PackyCode Gemini（使用 API Key 认证）
+    ///
+    /// PackyCode 是官方合作伙伴，需要特殊的安全配置。
+    ///
+    /// # 检测规则（优先级从高到低）
+    ///
+    /// 1. **Partner Promotion Key**（最可靠）:
+    ///    - `provider.meta.partner_promotion_key == "packycode"`
+    ///
+    /// 2. **供应商名称**:
+    ///    - 名称包含 "packycode"、"packyapi" 或 "packy"（不区分大小写）
+    ///
+    /// 3. **网站 URL**:
+    ///    - `provider.website_url` 包含关键词
+    ///
+    /// 4. **Base URL**:
+    ///    - `settings_config.env.GOOGLE_GEMINI_BASE_URL` 包含关键词
+    ///
+    /// # 为什么需要多重检测
+    ///
+    /// - 用户可能手动创建供应商，没有 `partner_promotion_key`
+    /// - 从预设复制后可能修改了 meta 字段
+    /// - 确保所有 PackyCode 供应商都能正确设置安全标志
+    fn is_packycode_gemini(provider: &Provider) -> bool {
+        // 策略 1: 检查 partner_promotion_key（最可靠）
+        if provider
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.partner_promotion_key.as_deref())
+            .is_some_and(|key| key.eq_ignore_ascii_case(Self::PACKYCODE_PARTNER_KEY))
+        {
+            return true;
+        }
+
+        // 策略 2: 检查供应商名称
+        if Self::contains_packycode_keyword(&provider.name) {
+            return true;
+        }
+
+        // 策略 3: 检查网站 URL
+        if let Some(site) = provider.website_url.as_deref() {
+            if Self::contains_packycode_keyword(site) {
+                return true;
+            }
+        }
+
+        // 策略 4: 检查 Base URL
+        if let Some(base_url) = provider
+            .settings_config
+            .pointer("/env/GOOGLE_GEMINI_BASE_URL")
+            .and_then(|v| v.as_str())
+        {
+            if Self::contains_packycode_keyword(base_url) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// 检测供应商是否为 Google 官方 Gemini（使用 OAuth 认证）
+    ///
+    /// Google 官方 Gemini 使用 OAuth 个人认证，不需要 API Key。
+    ///
+    /// # 检测规则（优先级从高到低）
+    ///
+    /// 1. **Partner Promotion Key**（最可靠）:
+    ///    - `provider.meta.partner_promotion_key == "google-official"`
+    ///
+    /// 2. **供应商名称**:
+    ///    - 名称完全等于 "google"（不区分大小写）
+    ///    - 或名称以 "google " 开头（例如 "Google Official"）
+    ///
+    /// # OAuth vs API Key
+    ///
+    /// - **OAuth 模式**: `security.auth.selectedType = "oauth-personal"`
+    ///   - 用户需要通过浏览器登录 Google 账号
+    ///   - 不需要在 `.env` 文件中配置 API Key
+    ///
+    /// - **API Key 模式**: `security.auth.selectedType = "gemini-api-key"`
+    ///   - 用于第三方中转服务（如 PackyCode）
+    ///   - 需要在 `.env` 文件中配置 `GEMINI_API_KEY`
+    fn is_google_official_gemini(provider: &Provider) -> bool {
+        // 策略 1: 检查 partner_promotion_key（最可靠）
+        if provider
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.partner_promotion_key.as_deref())
+            .is_some_and(|key| key.eq_ignore_ascii_case(Self::GOOGLE_OFFICIAL_PARTNER_KEY))
+        {
+            return true;
+        }
+
+        // 策略 2: 检查名称匹配（备用方案）
+        let name_lower = provider.name.to_ascii_lowercase();
+        name_lower == "google" || name_lower.starts_with("google ")
+    }
+
+    /// 确保 PackyCode Gemini 供应商的安全标志正确设置
+    ///
+    /// PackyCode 是官方合作伙伴，使用 API Key 认证模式。
+    ///
+    /// # 写入两处 settings.json 的原因
+    ///
+    /// 1. **`~/.cc-switch/settings.json`** (应用级配置):
+    ///    - CC-Switch 应用的全局设置
+    ///    - 确保应用知道当前使用的认证类型
+    ///    - 用于 UI 显示和其他应用逻辑
+    ///
+    /// 2. **`~/.gemini/settings.json`** (Gemini 客户端配置):
+    ///    - Gemini CLI 客户端读取的配置文件
+    ///    - 直接影响 Gemini 客户端的认证行为
+    ///    - 确保 Gemini 使用正确的认证方式连接 API
+    ///
+    /// # 设置的值
+    ///
+    /// ```json
+    /// {
+    ///   "security": {
+    ///     "auth": {
+    ///       "selectedType": "gemini-api-key"
+    ///     }
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// # 错误处理
+    ///
+    /// 如果供应商不是 PackyCode，函数立即返回 `Ok(())`，不做任何操作。
+    pub(crate) fn ensure_packycode_security_flag(provider: &Provider) -> Result<(), AppError> {
+        if !Self::is_packycode_gemini(provider) {
+            return Ok(());
+        }
+
+        // 写入应用级别的 settings.json (~/.cc-switch/settings.json)
+        settings::ensure_security_auth_selected_type(Self::PACKYCODE_SECURITY_SELECTED_TYPE)?;
+        
+        // 写入 Gemini 目录的 settings.json (~/.gemini/settings.json)
+        use crate::gemini_config::write_packycode_settings;
+        write_packycode_settings()?;
+        
+        Ok(())
+    }
+
+    /// 确保 Google 官方 Gemini 供应商的安全标志正确设置（OAuth 模式）
+    ///
+    /// Google 官方 Gemini 使用 OAuth 个人认证，不需要 API Key。
+    ///
+    /// # 写入两处 settings.json 的原因
+    ///
+    /// 同 `ensure_packycode_security_flag`，需要同时配置应用级和客户端级设置。
+    ///
+    /// # 设置的值
+    ///
+    /// ```json
+    /// {
+    ///   "security": {
+    ///     "auth": {
+    ///       "selectedType": "oauth-personal"
+    ///     }
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// # OAuth 认证流程
+    ///
+    /// 1. 用户切换到 Google 官方供应商
+    /// 2. CC-Switch 设置 `selectedType = "oauth-personal"`
+    /// 3. 用户首次使用 Gemini CLI 时，会自动打开浏览器进行 OAuth 登录
+    /// 4. 登录成功后，凭证保存在 Gemini 的 credential store 中
+    /// 5. 后续请求自动使用保存的凭证
+    ///
+    /// # 错误处理
+    ///
+    /// 如果供应商不是 Google 官方，函数立即返回 `Ok(())`，不做任何操作。
+    pub(crate) fn ensure_google_oauth_security_flag(provider: &Provider) -> Result<(), AppError> {
+        if !Self::is_google_official_gemini(provider) {
+            return Ok(());
+        }
+
+        // 写入应用级别的 settings.json (~/.cc-switch/settings.json)
+        settings::ensure_security_auth_selected_type(Self::GOOGLE_OAUTH_SECURITY_SELECTED_TYPE)?;
+        
+        // 写入 Gemini 目录的 settings.json (~/.gemini/settings.json)
+        use crate::gemini_config::write_google_oauth_settings;
+        write_google_oauth_settings()?;
+        
+        Ok(())
+    }
+
     /// 归一化 Claude 模型键：读旧键(ANTHROPIC_SMALL_FAST_MODEL)，写新键(DEFAULT_*), 并删除旧键
     fn normalize_claude_models_in_value(settings: &mut Value) -> bool {
         let mut changed = false;
@@ -211,10 +501,9 @@ impl ProviderService {
             if let Err(rollback_err) = Self::restore_config_only(state, original.clone()) {
                 return Err(AppError::localized(
                     "config.save.rollback_failed",
-                    format!("保存配置失败: {}；回滚失败: {}", save_err, rollback_err),
+                    format!("保存配置失败: {save_err}；回滚失败: {rollback_err}"),
                     format!(
-                        "Failed to save config: {}; rollback failed: {}",
-                        save_err, rollback_err
+                        "Failed to save config: {save_err}; rollback failed: {rollback_err}"
                     ),
                 ));
             }
@@ -228,10 +517,9 @@ impl ProviderService {
                 {
                     return Err(AppError::localized(
                         "post_commit.rollback_failed",
-                        format!("后置操作失败: {}；回滚失败: {}", err, rollback_err),
+                        format!("后置操作失败: {err}；回滚失败: {rollback_err}"),
                         format!(
-                            "Post-commit step failed: {}; rollback failed: {}",
-                            err, rollback_err
+                            "Post-commit step failed: {err}; rollback failed: {rollback_err}"
                         ),
                     ));
                 }
@@ -319,12 +607,35 @@ impl ProviderService {
                         if let Some(target) = manager.providers.get_mut(provider_id) {
                             let obj = target.settings_config.as_object_mut().ok_or_else(|| {
                                 AppError::Config(format!(
-                                    "供应商 {} 的 Codex 配置必须是 JSON 对象",
-                                    provider_id
+                                    "供应商 {provider_id} 的 Codex 配置必须是 JSON 对象"
                                 ))
                             })?;
                             obj.insert("auth".to_string(), auth.clone());
                             obj.insert("config".to_string(), Value::String(cfg_text.clone()));
+                        }
+                    }
+                }
+                state.save()?;
+            }
+            AppType::Gemini => {
+                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
+                
+                let env_path = get_gemini_env_path();
+                if !env_path.exists() {
+                    return Err(AppError::localized(
+                        "gemini.live.missing",
+                        "Gemini .env 文件不存在，无法刷新快照",
+                        "Gemini .env file missing; cannot refresh snapshot",
+                    ));
+                }
+                let env_map = read_gemini_env()?;
+                let live_after = env_to_json(&env_map);
+                
+                {
+                    let mut guard = state.config.write().map_err(AppError::from)?;
+                    if let Some(manager) = guard.get_manager_mut(app_type) {
+                        if let Some(target) = manager.providers.get_mut(provider_id) {
+                            target.settings_config = live_after;
                         }
                     }
                 }
@@ -362,6 +673,16 @@ impl ProviderService {
                     None
                 };
                 Ok(LiveSnapshot::Codex { auth, config })
+            }
+            AppType::Gemini => {  // 新增
+                use crate::gemini_config::{get_gemini_env_path, read_gemini_env};
+                let path = get_gemini_env_path();
+                let env = if path.exists() {
+                    Some(read_gemini_env()?)
+                } else {
+                    None
+                };
+                Ok(LiveSnapshot::Gemini { env })
             }
         }
     }
@@ -447,8 +768,8 @@ impl ProviderService {
             if !manager.providers.contains_key(&provider_id) {
                 return Err(AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 ));
             }
 
@@ -530,6 +851,20 @@ impl ProviderService {
                 let _ = Self::normalize_claude_models_in_value(&mut v);
                 v
             }
+            AppType::Gemini => {  // 新增
+                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
+                
+                let path = get_gemini_env_path();
+                if !path.exists() {
+                    return Err(AppError::localized(
+                        "gemini.live.missing",
+                        "Gemini 配置文件不存在",
+                        "Gemini configuration file is missing",
+                    ));
+                }
+                let env_map = read_gemini_env()?;
+                env_to_json(&env_map)
+            }
         };
 
         let mut provider = Provider::with_id(
@@ -581,6 +916,21 @@ impl ProviderService {
                     ));
                 }
                 read_json_file(&path)
+            }
+            AppType::Gemini => {  // 新增
+                use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
+                
+                let path = get_gemini_env_path();
+                if !path.exists() {
+                    return Err(AppError::localized(
+                        "gemini.env.missing",
+                        "Gemini .env 文件不存在",
+                        "Gemini .env file not found",
+                    ));
+                }
+                
+                let env_map = read_gemini_env()?;
+                Ok(env_to_json(&env_map))
             }
         }
     }
@@ -635,8 +985,8 @@ impl ProviderService {
             let provider = manager.providers.get_mut(provider_id).ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 )
             })?;
             let meta = provider.meta.get_or_insert_with(ProviderMeta::default);
@@ -750,16 +1100,16 @@ impl ProviderService {
                     serde_json::from_value(data).map_err(|e| {
                         AppError::localized(
                             "usage_script.data_format_error",
-                            format!("数据格式错误: {}", e),
-                            format!("Data format error: {}", e),
+                            format!("数据格式错误: {e}"),
+                            format!("Data format error: {e}"),
                         )
                     })?
                 } else {
                     let single: UsageData = serde_json::from_value(data).map_err(|e| {
                         AppError::localized(
                             "usage_script.data_format_error",
-                            format!("数据格式错误: {}", e),
-                            format!("Data format error: {}", e),
+                            format!("数据格式错误: {e}"),
+                            format!("Data format error: {e}"),
                         )
                     })?;
                     vec![single]
@@ -810,8 +1160,8 @@ impl ProviderService {
             let provider = manager.providers.get(provider_id).cloned().ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 )
             })?;
 
@@ -891,6 +1241,7 @@ impl ProviderService {
             let provider = match app_type_clone {
                 AppType::Codex => Self::prepare_switch_codex(config, &provider_id_owned)?,
                 AppType::Claude => Self::prepare_switch_claude(config, &provider_id_owned)?,
+                AppType::Gemini => Self::prepare_switch_gemini(config, &provider_id_owned)?,
             };
 
             let action = PostCommitAction {
@@ -918,8 +1269,8 @@ impl ProviderService {
             .ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 )
             })?;
 
@@ -1005,14 +1356,41 @@ impl ProviderService {
             .ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 )
             })?;
 
         Self::backfill_claude_current(config, provider_id)?;
 
         if let Some(manager) = config.get_manager_mut(&AppType::Claude) {
+            manager.current = provider_id.to_string();
+        }
+
+        Ok(provider)
+    }
+
+    fn prepare_switch_gemini(
+        config: &mut MultiAppConfig,
+        provider_id: &str,
+    ) -> Result<Provider, AppError> {
+        let provider = config
+            .get_manager(&AppType::Gemini)
+            .ok_or_else(|| Self::app_not_found(&AppType::Gemini))?
+            .providers
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| {
+                AppError::localized(
+                    "provider.not_found",
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
+                )
+            })?;
+
+        Self::backfill_gemini_current(config, provider_id)?;
+
+        if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
             manager.current = provider_id.to_string();
         }
 
@@ -1047,16 +1425,72 @@ impl ProviderService {
         Ok(())
     }
 
-    fn write_claude_live(provider: &Provider) -> Result<(), AppError> {
-        let settings_path = get_claude_settings_path();
-        if let Some(parent) = settings_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
+    fn backfill_gemini_current(
+        config: &mut MultiAppConfig,
+        next_provider: &str,
+    ) -> Result<(), AppError> {
+        use crate::gemini_config::{get_gemini_env_path, read_gemini_env, env_to_json};
+        
+        let env_path = get_gemini_env_path();
+        if !env_path.exists() {
+            return Ok(());
         }
 
-        // 归一化后再写入
+        let current_id = config
+            .get_manager(&AppType::Gemini)
+            .map(|m| m.current.clone())
+            .unwrap_or_default();
+        if current_id.is_empty() || current_id == next_provider {
+            return Ok(());
+        }
+
+        let env_map = read_gemini_env()?;
+        let live = env_to_json(&env_map);
+        if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
+            if let Some(current) = manager.providers.get_mut(&current_id) {
+                current.settings_config = live;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_claude_live(provider: &Provider) -> Result<(), AppError> {
+        let settings_path = get_claude_settings_path();
         let mut content = provider.settings_config.clone();
         let _ = Self::normalize_claude_models_in_value(&mut content);
         write_json_file(&settings_path, &content)?;
+        Ok(())
+    }
+
+    fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
+        use crate::gemini_config::{json_to_env, validate_gemini_settings, write_gemini_env_atomic};
+
+        // 一次性检测认证类型，避免重复检测
+        let auth_type = Self::detect_gemini_auth_type(provider);
+
+        match auth_type {
+            GeminiAuthType::GoogleOfficial => {
+                // Google 官方使用 OAuth，清空 env
+                let empty_env = std::collections::HashMap::new();
+                write_gemini_env_atomic(&empty_env)?;
+                Self::ensure_google_oauth_security_flag(provider)?;
+            }
+            GeminiAuthType::Packycode => {
+                // PackyCode 供应商，使用 API Key
+                validate_gemini_settings(&provider.settings_config)?;
+                let env_map = json_to_env(&provider.settings_config)?;
+                write_gemini_env_atomic(&env_map)?;
+                Self::ensure_packycode_security_flag(provider)?;
+            }
+            GeminiAuthType::Generic => {
+                // 通用供应商，使用 API Key
+                validate_gemini_settings(&provider.settings_config)?;
+                let env_map = json_to_env(&provider.settings_config)?;
+                write_gemini_env_atomic(&env_map)?;
+            }
+        }
+
         Ok(())
     }
 
@@ -1064,6 +1498,7 @@ impl ProviderService {
         match app_type {
             AppType::Codex => Self::write_codex_live(provider),
             AppType::Claude => Self::write_claude_live(provider),
+            AppType::Gemini => Self::write_gemini_live(provider),  // 新增
         }
     }
 
@@ -1117,6 +1552,10 @@ impl ProviderService {
                         crate::codex_config::validate_config_toml(cfg_text)?;
                     }
                 }
+            }
+            AppType::Gemini => {  // 新增
+                use crate::gemini_config::validate_gemini_settings;
+                validate_gemini_settings(&provider.settings_config)?
             }
         }
 
@@ -1204,8 +1643,8 @@ impl ProviderService {
                     let re = Regex::new(r#"base_url\s*=\s*["']([^"']+)["']"#).map_err(|e| {
                         AppError::localized(
                             "provider.regex_init_failed",
-                            format!("正则初始化失败: {}", e),
-                            format!("Failed to initialize regex: {}", e),
+                            format!("正则初始化失败: {e}"),
+                            format!("Failed to initialize regex: {e}"),
                         )
                     })?;
                     re.captures(config_toml)
@@ -1228,14 +1667,35 @@ impl ProviderService {
 
                 Ok((api_key, base_url))
             }
+            AppType::Gemini => {  // 新增
+                use crate::gemini_config::json_to_env;
+                
+                let env_map = json_to_env(&provider.settings_config)?;
+                
+                let api_key = env_map
+                    .get("GEMINI_API_KEY")
+                    .cloned()
+                    .ok_or_else(|| AppError::localized(
+                        "gemini.missing_api_key",
+                        "缺少 GEMINI_API_KEY",
+                        "Missing GEMINI_API_KEY",
+                    ))?;
+                
+                let base_url = env_map
+                    .get("GOOGLE_GEMINI_BASE_URL")
+                    .cloned()
+                    .unwrap_or_else(|| "https://generativelanguage.googleapis.com".to_string());
+                
+                Ok((api_key, base_url))
+            }
         }
     }
 
     fn app_not_found(app_type: &AppType) -> AppError {
         AppError::localized(
             "provider.app_not_found",
-            format!("应用类型不存在: {:?}", app_type),
-            format!("App type not found: {:?}", app_type),
+            format!("应用类型不存在: {app_type:?}"),
+            format!("App type not found: {app_type:?}"),
         )
     }
 
@@ -1264,8 +1724,8 @@ impl ProviderService {
             manager.providers.get(provider_id).cloned().ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
-                    format!("供应商不存在: {}", provider_id),
-                    format!("Provider not found: {}", provider_id),
+                    format!("供应商不存在: {provider_id}"),
+                    format!("Provider not found: {provider_id}"),
                 )
             })?
         };
@@ -1284,6 +1744,9 @@ impl ProviderService {
                 let by_id = get_provider_config_path(provider_id, None);
                 delete_file(&by_name)?;
                 delete_file(&by_id)?;
+            }
+            AppType::Gemini => {
+                // Gemini 使用单一的 .env 文件，不需要删除单独的供应商配置文件
             }
         }
 

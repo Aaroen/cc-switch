@@ -37,8 +37,8 @@ pub fn get_codex_provider_paths(
         .map(sanitize_provider_name)
         .unwrap_or_else(|| sanitize_provider_name(provider_id));
 
-    let auth_path = get_codex_config_dir().join(format!("auth-{}.json", base_name));
-    let config_path = get_codex_config_dir().join(format!("config-{}.toml", base_name));
+    let auth_path = get_codex_config_dir().join(format!("auth-{base_name}.json"));
+    let config_path = get_codex_config_dir().join(format!("config-{base_name}.toml"));
 
     (auth_path, config_path)
 }

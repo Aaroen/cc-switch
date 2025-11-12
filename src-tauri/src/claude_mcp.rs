@@ -37,7 +37,7 @@ fn ensure_mcp_override_migrated() {
 
     if let Some(parent) = new_path.parent() {
         if let Err(err) = fs::create_dir_all(parent) {
-            log::warn!("创建 MCP 目录失败: {}", err);
+            log::warn!("创建 MCP 目录失败: {err}");
             return;
         }
     }
@@ -250,14 +250,13 @@ pub fn set_mcp_servers_map(
             map.clone()
         } else {
             return Err(AppError::McpValidation(format!(
-                "MCP 服务器 '{}' 不是对象",
-                id
+                "MCP 服务器 '{id}' 不是对象"
             )));
         };
 
         if let Some(server_val) = obj.remove("server") {
             let server_obj = server_val.as_object().cloned().ok_or_else(|| {
-                AppError::McpValidation(format!("MCP 服务器 '{}' server 字段不是对象", id))
+                AppError::McpValidation(format!("MCP 服务器 '{id}' server 字段不是对象"))
             })?;
             obj = server_obj;
         }

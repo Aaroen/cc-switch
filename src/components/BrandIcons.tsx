@@ -32,3 +32,18 @@ export function CodexIcon({ size = 16, className = "" }: IconProps) {
     </svg>
   );
 }
+
+export function GeminiIcon({ size = 16, className = "" }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 1024 1024"
+      fill="currentColor"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M471.04 824.32Q512 918.4 512 1024q0-106.24.93-199.68.96-93.44 110.08-162.56t162.56-108.8Q918.4 512 1024 512q-106.24 0-199.68-39.68a524.8 524.8 0 0 1-162.56-110.08 524.8 524.8 0 0 1-110.08-162.56Q512 106.24 512 0q0 106.24-40.96 199.68-39.68 93.44-108.8 162.56a524.8 524.8 0 0 1-162.56 110.08Q106.24 512 0 512q106.24 0 199.68 40.96 93.44 39.68 162.56 108.8t108.8 162.56" />
+    </svg>
+  );
+}

@@ -18,6 +18,7 @@ import {
 } from "@/components/providers/forms/ProviderForm";
 import { providerPresets } from "@/config/claudeProviderPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
+import { geminiProviderPresets } from "@/config/geminiProviderPresets";
 
 interface AddProviderDialogProps {
   open: boolean;
@@ -96,6 +97,21 @@ export function AddProviderDialog({
                 preset.endpointCandidates.forEach(addUrl);
               }
             }
+          } else if (appId === "gemini") {
+            const presets = geminiProviderPresets;
+            const presetIndex = parseInt(
+              values.presetId.replace("gemini-", ""),
+            );
+            if (
+              !isNaN(presetIndex) &&
+              presetIndex >= 0 &&
+              presetIndex < presets.length
+            ) {
+              const preset = presets[presetIndex];
+              if (Array.isArray(preset.endpointCandidates)) {
+                preset.endpointCandidates.forEach(addUrl);
+              }
+            }
           }
         }
 
@@ -113,6 +129,11 @@ export function AddProviderDialog({
             if (baseUrlMatch?.[1]) {
               addUrl(baseUrlMatch[1]);
             }
+          }
+        } else if (appId === "gemini") {
+          const env = parsedConfig.env as Record<string, any> | undefined;
+          if (env?.GOOGLE_GEMINI_BASE_URL) {
+            addUrl(env.GOOGLE_GEMINI_BASE_URL);
           }
         }
 
@@ -144,7 +165,9 @@ export function AddProviderDialog({
   const submitLabel =
     appId === "claude"
       ? t("provider.addClaudeProvider")
-      : t("provider.addCodexProvider");
+      : appId === "codex"
+        ? t("provider.addCodexProvider")
+        : t("provider.addGeminiProvider");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -77,6 +77,10 @@ export interface ProviderMeta {
   custom_endpoints?: Record<string, CustomEndpoint>;
   // 用量查询脚本配置
   usage_script?: UsageScript;
+  // 是否为官方合作伙伴
+  isPartner?: boolean;
+  // 合作伙伴促销 key（用于后端识别 PackyCode 等）
+  partnerPromotionKey?: string;
 }
 
 // 应用设置类型（用于设置对话框与 Tauri API）
@@ -97,6 +101,12 @@ export interface Settings {
   customEndpointsClaude?: Record<string, CustomEndpoint>;
   // Codex 自定义端点列表
   customEndpointsCodex?: Record<string, CustomEndpoint>;
+  // 安全设置（兼容未来扩展）
+  security?: {
+    auth?: {
+      selectedType?: string;
+    };
+  };
 }
 
 // MCP 服务器连接参数（宽松：允许扩展字段）

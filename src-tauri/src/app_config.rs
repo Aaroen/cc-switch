@@ -17,6 +17,8 @@ pub struct McpRoot {
     pub claude: McpConfig,
     #[serde(default)]
     pub codex: McpConfig,
+    #[serde(default)]
+    pub gemini: McpConfig,  // Gemini MCP 配置（预留）
 }
 
 use crate::config::{copy_file, get_app_config_dir, get_app_config_path, write_json_file};
@@ -24,11 +26,12 @@ use crate::error::AppError;
 use crate::provider::ProviderManager;
 
 /// 应用类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AppType {
     Claude,
     Codex,
+    Gemini,  // 新增
 }
 
 impl AppType {
@@ -36,6 +39,7 @@ impl AppType {
         match self {
             AppType::Claude => "claude",
             AppType::Codex => "codex",
+            AppType::Gemini => "gemini",  // 新增
         }
     }
 }
@@ -48,10 +52,11 @@ impl FromStr for AppType {
         match normalized.as_str() {
             "claude" => Ok(AppType::Claude),
             "codex" => Ok(AppType::Codex),
+            "gemini" => Ok(AppType::Gemini),  // 新增
             other => Err(AppError::localized(
                 "unsupported_app",
-                format!("不支持的应用标识: '{other}'。可选值: claude, codex。"),
-                format!("Unsupported app id: '{other}'. Allowed: claude, codex."),
+                format!("不支持的应用标识: '{other}'。可选值: claude, codex, gemini。"),
+                format!("Unsupported app id: '{other}'. Allowed: claude, codex, gemini."),
             )),
         }
     }
@@ -79,6 +84,7 @@ impl Default for MultiAppConfig {
         let mut apps = HashMap::new();
         apps.insert("claude".to_string(), ProviderManager::default());
         apps.insert("codex".to_string(), ProviderManager::default());
+        apps.insert("gemini".to_string(), ProviderManager::default());  // 新增
 
         Self {
             version: 2,
@@ -122,7 +128,14 @@ impl MultiAppConfig {
         }
 
         // 解析 v2 结构
-        serde_json::from_value::<Self>(value).map_err(|e| AppError::json(&config_path, e))
+        let mut config: Self = serde_json::from_value(value).map_err(|e| AppError::json(&config_path, e))?;
+        
+        // 确保 gemini 应用存在（兼容旧配置文件）
+        if !config.apps.contains_key("gemini") {
+            config.apps.insert("gemini".to_string(), ProviderManager::default());
+        }
+        
+        Ok(config)
     }
 
     /// 保存配置到文件
@@ -132,7 +145,7 @@ impl MultiAppConfig {
         if config_path.exists() {
             let backup_path = get_app_config_dir().join("config.json.bak");
             if let Err(e) = copy_file(&config_path, &backup_path) {
-                log::warn!("备份 config.json 到 .bak 失败: {}", e);
+                log::warn!("备份 config.json 到 .bak 失败: {e}");
             }
         }
 
@@ -163,6 +176,7 @@ impl MultiAppConfig {
         match app {
             AppType::Claude => &self.mcp.claude,
             AppType::Codex => &self.mcp.codex,
+            AppType::Gemini => &self.mcp.gemini,
         }
     }
 
@@ -171,6 +185,7 @@ impl MultiAppConfig {
         match app {
             AppType::Claude => &mut self.mcp.claude,
             AppType::Codex => &mut self.mcp.codex,
+            AppType::Gemini => &mut self.mcp.gemini,
         }
     }
 }

@@ -6,6 +6,7 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
+mod gemini_config;  // 新增
 mod init_status;
 mod mcp;
 mod provider;
@@ -22,7 +23,7 @@ pub use error::AppError;
 pub use mcp::{
     import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
 };
-pub use provider::Provider;
+pub use provider::{Provider, ProviderMeta};
 pub use services::{ConfigService, EndpointLatency, McpService, ProviderService, SpeedtestService};
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
@@ -74,7 +75,7 @@ fn create_tray_menu(
     // 顶部：打开主界面
     let show_main_item =
         MenuItem::with_id(app, "show_main", tray_texts.show_main, true, None::<&str>)
-            .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {}", e)))?;
+            .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {e}")))?;
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
@@ -82,7 +83,7 @@ fn create_tray_menu(
         // 添加Claude标题（禁用状态，仅作为分组标识）
         let claude_header =
             MenuItem::with_id(app, "claude_header", "─── Claude ───", false, None::<&str>)
-                .map_err(|e| AppError::Message(format!("创建Claude标题失败: {}", e)))?;
+                .map_err(|e| AppError::Message(format!("创建Claude标题失败: {e}")))?;
         menu_builder = menu_builder.item(&claude_header);
 
         if !claude_manager.providers.is_empty() {
@@ -111,13 +112,13 @@ fn create_tray_menu(
                 let is_current = claude_manager.current == *id;
                 let item = CheckMenuItem::with_id(
                     app,
-                    format!("claude_{}", id),
+                    format!("claude_{id}"),
                     &provider.name,
                     true,
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {e}")))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -129,7 +130,7 @@ fn create_tray_menu(
                 false,
                 None::<&str>,
             )
-            .map_err(|e| AppError::Message(format!("创建Claude空提示失败: {}", e)))?;
+            .map_err(|e| AppError::Message(format!("创建Claude空提示失败: {e}")))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
@@ -138,7 +139,7 @@ fn create_tray_menu(
         // 添加Codex标题（禁用状态，仅作为分组标识）
         let codex_header =
             MenuItem::with_id(app, "codex_header", "─── Codex ───", false, None::<&str>)
-                .map_err(|e| AppError::Message(format!("创建Codex标题失败: {}", e)))?;
+                .map_err(|e| AppError::Message(format!("创建Codex标题失败: {e}")))?;
         menu_builder = menu_builder.item(&codex_header);
 
         if !codex_manager.providers.is_empty() {
@@ -167,13 +168,13 @@ fn create_tray_menu(
                 let is_current = codex_manager.current == *id;
                 let item = CheckMenuItem::with_id(
                     app,
-                    format!("codex_{}", id),
+                    format!("codex_{id}"),
                     &provider.name,
                     true,
                     is_current,
                     None::<&str>,
                 )
-                .map_err(|e| AppError::Message(format!("创建菜单项失败: {}", e)))?;
+                .map_err(|e| AppError::Message(format!("创建菜单项失败: {e}")))?;
                 menu_builder = menu_builder.item(&item);
             }
         } else {
@@ -185,20 +186,20 @@ fn create_tray_menu(
                 false,
                 None::<&str>,
             )
-            .map_err(|e| AppError::Message(format!("创建Codex空提示失败: {}", e)))?;
+            .map_err(|e| AppError::Message(format!("创建Codex空提示失败: {e}")))?;
             menu_builder = menu_builder.item(&empty_hint);
         }
     }
 
     // 分隔符和退出菜单
     let quit_item = MenuItem::with_id(app, "quit", tray_texts.quit, true, None::<&str>)
-        .map_err(|e| AppError::Message(format!("创建退出菜单失败: {}", e)))?;
+        .map_err(|e| AppError::Message(format!("创建退出菜单失败: {e}")))?;
 
     menu_builder = menu_builder.separator().item(&quit_item);
 
     menu_builder
         .build()
-        .map_err(|e| AppError::Message(format!("构建菜单失败: {}", e)))
+        .map_err(|e| AppError::Message(format!("构建菜单失败: {e}")))
 }
 
 #[cfg(target_os = "macos")]
@@ -210,17 +211,17 @@ fn apply_tray_policy(app: &tauri::AppHandle, dock_visible: bool) {
     };
 
     if let Err(err) = app.set_dock_visibility(dock_visible) {
-        log::warn!("设置 Dock 显示状态失败: {}", err);
+        log::warn!("设置 Dock 显示状态失败: {err}");
     }
 
     if let Err(err) = app.set_activation_policy(desired_policy) {
-        log::warn!("设置激活策略失败: {}", err);
+        log::warn!("设置激活策略失败: {err}");
     }
 }
 
 /// 处理托盘菜单事件
 fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
-    log::info!("处理托盘菜单事件: {}", event_id);
+    log::info!("处理托盘菜单事件: {event_id}");
 
     match event_id {
         "show_main" => {
@@ -244,10 +245,10 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
         }
         id if id.starts_with("claude_") => {
             let Some(provider_id) = id.strip_prefix("claude_") else {
-                log::error!("无效的 Claude 菜单项 ID: {}", id);
+                log::error!("无效的 Claude 菜单项 ID: {id}");
                 return;
             };
-            log::info!("切换到Claude供应商: {}", provider_id);
+            log::info!("切换到Claude供应商: {provider_id}");
 
             // 执行切换
             let app_handle = app.clone();
@@ -258,16 +259,16 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
                     crate::app_config::AppType::Claude,
                     provider_id,
                 ) {
-                    log::error!("切换Claude供应商失败: {}", e);
+                    log::error!("切换Claude供应商失败: {e}");
                 }
             });
         }
         id if id.starts_with("codex_") => {
             let Some(provider_id) = id.strip_prefix("codex_") else {
-                log::error!("无效的 Codex 菜单项 ID: {}", id);
+                log::error!("无效的 Codex 菜单项 ID: {id}");
                 return;
             };
-            log::info!("切换到Codex供应商: {}", provider_id);
+            log::info!("切换到Codex供应商: {provider_id}");
 
             // 执行切换
             let app_handle = app.clone();
@@ -278,12 +279,12 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
                     crate::app_config::AppType::Codex,
                     provider_id,
                 ) {
-                    log::error!("切换Codex供应商失败: {}", e);
+                    log::error!("切换Codex供应商失败: {e}");
                 }
             });
         }
         _ => {
-            log::warn!("未处理的菜单事件: {}", event_id);
+            log::warn!("未处理的菜单事件: {event_id}");
         }
     }
 }
@@ -308,7 +309,7 @@ fn switch_provider_internal(
         if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
             if let Some(tray) = app.tray_by_id("main") {
                 if let Err(e) = tray.set_menu(Some(new_menu)) {
-                    log::error!("更新托盘菜单失败: {}", e);
+                    log::error!("更新托盘菜单失败: {e}");
                 }
             }
         }
@@ -319,7 +320,7 @@ fn switch_provider_internal(
             "providerId": provider_id_clone
         });
         if let Err(e) = app.emit("provider-switched", event_data) {
-            log::error!("发射供应商切换事件失败: {}", e);
+            log::error!("发射供应商切换事件失败: {e}");
         }
     }
     Ok(())
@@ -335,13 +336,13 @@ async fn update_tray_menu(
         Ok(new_menu) => {
             if let Some(tray) = app.tray_by_id("main") {
                 tray.set_menu(Some(new_menu))
-                    .map_err(|e| format!("更新托盘菜单失败: {}", e))?;
+                    .map_err(|e| format!("更新托盘菜单失败: {e}"))?;
                 return Ok(true);
             }
             Ok(false)
         }
         Err(err) => {
-            log::error!("创建托盘菜单失败: {}", err);
+            log::error!("创建托盘菜单失败: {err}");
             Ok(false)
         }
     }
@@ -397,7 +398,7 @@ pub fn run() {
                     .plugin(tauri_plugin_updater::Builder::new().build())
                 {
                     // 若配置不完整（如缺少 pubkey），跳过 Updater 而不中断应用
-                    log::warn!("初始化 Updater 插件失败，已跳过：{}", e);
+                    log::warn!("初始化 Updater 插件失败，已跳过：{e}");
                 }
             }
             #[cfg(target_os = "macos")]
@@ -454,7 +455,7 @@ pub fn run() {
                     });
                     // 事件通知（可能早于前端订阅，不保证送达）
                     if let Err(e) = app.emit("configLoadError", payload_json) {
-                        log::error!("发射配置加载错误事件失败: {}", e);
+                        log::error!("发射配置加载错误事件失败: {e}");
                     }
                     // 同时缓存错误，供前端启动阶段主动拉取
                     crate::init_status::set_init_error(crate::init_status::InitErrorPayload {
@@ -468,7 +469,7 @@ pub fn run() {
 
             // 迁移旧的 app_config_dir 配置到 Store
             if let Err(e) = app_store::migrate_app_config_dir_from_settings(app.handle()) {
-                log::warn!("迁移 app_config_dir 失败: {}", e);
+                log::warn!("迁移 app_config_dir 失败: {e}");
             }
 
             // 确保配置结构就绪（已移除旧版本的副本迁移逻辑）

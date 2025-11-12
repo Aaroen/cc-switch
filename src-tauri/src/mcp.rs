@@ -55,8 +55,7 @@ fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
         if let Some(val) = obj.get(key) {
             if !val.is_string() {
                 return Err(AppError::McpValidation(format!(
-                    "MCP 服务器 {} 必须为字符串",
-                    key
+                    "MCP 服务器 {key} 必须为字符串"
                 )));
             }
         }
@@ -138,9 +137,7 @@ fn normalize_server_keys(map: &mut HashMap<String, Value>) -> usize {
         }
         if map.contains_key(&new_key) {
             log::warn!(
-                "MCP 条目 '{}' 的内部 id '{}' 与现有键冲突，回退为原键",
-                old_key,
-                new_key
+                "MCP 条目 '{old_key}' 的内部 id '{new_key}' 与现有键冲突，回退为原键"
             );
             if let Some(value) = map.get_mut(&old_key) {
                 if let Some(obj) = value.as_object_mut() {
@@ -161,7 +158,7 @@ fn normalize_server_keys(map: &mut HashMap<String, Value>) -> usize {
             if let Some(obj) = value.as_object_mut() {
                 obj.insert("id".into(), json!(new_key.clone()));
             }
-            log::info!("MCP 条目键名已自动修复: '{}' -> '{}'", old_key, new_key);
+            log::info!("MCP 条目键名已自动修复: '{old_key}' -> '{new_key}'");
             map.insert(new_key, value);
             change_count += 1;
         }
@@ -208,7 +205,7 @@ fn collect_enabled_servers(cfg: &McpConfig) -> HashMap<String, Value> {
                 out.insert(id.clone(), spec);
             }
             Err(err) => {
-                log::warn!("跳过无效的 MCP 条目 '{}': {}", id, err);
+                log::warn!("跳过无效的 MCP 条目 '{id}': {err}");
             }
         }
     }
@@ -223,7 +220,7 @@ pub fn get_servers_snapshot_for(
     let mut snapshot = config.mcp_for(app).servers.clone();
     snapshot.retain(|id, value| {
         let Some(obj) = value.as_object_mut() else {
-            log::warn!("跳过无效的 MCP 条目 '{}': 必须为 JSON 对象", id);
+            log::warn!("跳过无效的 MCP 条目 '{id}': 必须为 JSON 对象");
             return false;
         };
 
@@ -232,7 +229,7 @@ pub fn get_servers_snapshot_for(
         match validate_mcp_entry(value) {
             Ok(()) => true,
             Err(err) => {
-                log::error!("config.json 中存在无效的 MCP 条目 '{}': {}", id, err);
+                log::error!("config.json 中存在无效的 MCP 条目 '{id}': {err}");
                 false
             }
         }
@@ -262,8 +259,7 @@ pub fn upsert_in_config_for(
         };
         if existing_id_str != id {
             return Err(AppError::McpValidation(format!(
-                "MCP 服务器条目中的 id '{}' 与参数 id '{}' 不一致",
-                existing_id_str, id
+                "MCP 服务器条目中的 id '{existing_id_str}' 与参数 id '{id}' 不一致"
             )));
         }
     } else {
@@ -332,7 +328,7 @@ pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError
     let Some(text) = text_opt else { return Ok(0) };
     let mut changed = normalize_servers_for(config, &AppType::Claude);
     let v: Value = serde_json::from_str(&text)
-        .map_err(|e| AppError::McpValidation(format!("解析 ~/.claude.json 失败: {}", e)))?;
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.claude.json 失败: {e}")))?;
     let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
         return Ok(changed);
     };
@@ -359,7 +355,7 @@ pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError
             Entry::Occupied(mut occ) => {
                 let value = occ.get_mut();
                 let Some(existing) = value.as_object_mut() else {
-                    log::warn!("MCP 条目 '{}' 不是 JSON 对象，覆盖为导入数据", id);
+                    log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
                     let mut obj = serde_json::Map::new();
                     obj.insert(String::from("id"), json!(id));
                     obj.insert(String::from("name"), json!(id));
@@ -380,12 +376,12 @@ pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError
                     modified = true;
                 }
                 if existing.get("server").is_none() {
-                    log::warn!("MCP 条目 '{}' 缺少 server 字段，覆盖为导入数据", id);
+                    log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
                     existing.insert(String::from("server"), spec.clone());
                     modified = true;
                 }
                 if existing.get("id").is_none() {
-                    log::warn!("MCP 条目 '{}' 缺少 id 字段，自动填充", id);
+                    log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
                     existing.insert(String::from("id"), json!(id));
                     modified = true;
                 }
@@ -409,7 +405,7 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
     let mut changed_total = normalize_servers_for(config, &AppType::Codex);
 
     let root: toml::Table = toml::from_str(&text)
-        .map_err(|e| AppError::McpValidation(format!("解析 ~/.codex/config.toml 失败: {}", e)))?;
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.codex/config.toml 失败: {e}")))?;
 
     // helper：处理一组 servers 表
     let mut import_servers_tbl = |servers_tbl: &toml::value::Table| {
@@ -484,7 +480,7 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
 
             // 校验
             if let Err(e) = validate_server_spec(&spec_v) {
-                log::warn!("跳过无效 Codex MCP 项 '{}': {}", id, e);
+                log::warn!("跳过无效 Codex MCP 项 '{id}': {e}");
                 continue;
             }
 
@@ -507,7 +503,7 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                 Entry::Occupied(mut occ) => {
                     let value = occ.get_mut();
                     let Some(existing) = value.as_object_mut() else {
-                        log::warn!("MCP 条目 '{}' 不是 JSON 对象，覆盖为导入数据", id);
+                        log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
                         let mut obj = serde_json::Map::new();
                         obj.insert(String::from("id"), json!(id));
                         obj.insert(String::from("name"), json!(id));
@@ -528,12 +524,12 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                         modified = true;
                     }
                     if existing.get("server").is_none() {
-                        log::warn!("MCP 条目 '{}' 缺少 server 字段，覆盖为导入数据", id);
+                        log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
                         existing.insert(String::from("server"), spec_v.clone());
                         modified = true;
                     }
                     if existing.get("id").is_none() {
-                        log::warn!("MCP 条目 '{}' 缺少 id 字段，自动填充", id);
+                        log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
                         existing.insert(String::from("id"), json!(id));
                         modified = true;
                     }
@@ -587,7 +583,7 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
     } else {
         base_text
             .parse::<DocumentMut>()
-            .map_err(|e| AppError::McpValidation(format!("解析 config.toml 失败: {}", e)))?
+            .map_err(|e| AppError::McpValidation(format!("解析 config.toml 失败: {e}")))?
     };
 
     enum Target {

@@ -39,7 +39,8 @@ export function useSpeedTestEndpoints({
   initialData,
 }: UseSpeedTestEndpointsProps) {
   const claudeEndpoints = useMemo<EndpointCandidate[]>(() => {
-    if (appId !== "claude") return [];
+    // Reuse this branch for Claude and Gemini (non-Codex)
+    if (appId !== "claude" && appId !== "gemini") return [];
 
     const map = new Map<string, EndpointCandidate>();
     // 所有端点都标记为 isCustom: true，给用户完全的管理自由
@@ -66,26 +67,37 @@ export function useSpeedTestEndpoints({
     // 3. 编辑模式：初始数据中的 URL
     if (initialData && typeof initialData.settingsConfig === "object") {
       const configEnv = initialData.settingsConfig as {
-        env?: { ANTHROPIC_BASE_URL?: string };
+        env?: { ANTHROPIC_BASE_URL?: string; GOOGLE_GEMINI_BASE_URL?: string };
       };
-      const envUrl = configEnv.env?.ANTHROPIC_BASE_URL;
-      if (typeof envUrl === "string") {
-        add(envUrl);
-      }
+      const envUrls = [
+        configEnv.env?.ANTHROPIC_BASE_URL,
+        configEnv.env?.GOOGLE_GEMINI_BASE_URL,
+      ];
+      envUrls.forEach((u) => {
+        if (typeof u === "string") add(u);
+      });
     }
 
     // 4. 预设中的 endpointCandidates（也允许用户删除）
     if (selectedPresetId && selectedPresetId !== "custom") {
       const entry = presetEntries.find((item) => item.id === selectedPresetId);
       if (entry) {
-        const preset = entry.preset as ProviderPreset;
-        // 添加预设自己的 baseUrl
-        const presetEnv = preset.settingsConfig as {
-          env?: { ANTHROPIC_BASE_URL?: string };
+        const preset = entry.preset as ProviderPreset & {
+          settingsConfig?: { env?: { GOOGLE_GEMINI_BASE_URL?: string } };
+          endpointCandidates?: string[];
         };
-        if (presetEnv.env?.ANTHROPIC_BASE_URL) {
-          add(presetEnv.env.ANTHROPIC_BASE_URL);
-        }
+        // 添加预设自己的 baseUrl（兼容 Claude/Gemini）
+        const presetEnv = preset.settingsConfig as {
+          env?: {
+            ANTHROPIC_BASE_URL?: string;
+            GOOGLE_GEMINI_BASE_URL?: string;
+          };
+        };
+        const presetUrls = [
+          presetEnv?.env?.ANTHROPIC_BASE_URL,
+          presetEnv?.env?.GOOGLE_GEMINI_BASE_URL,
+        ];
+        presetUrls.forEach((u) => add(u));
         // 添加预设的候选端点
         if (preset.endpointCandidates) {
           preset.endpointCandidates.forEach((url) => add(url));

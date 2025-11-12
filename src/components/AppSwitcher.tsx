@@ -1,5 +1,5 @@
 import type { AppId } from "@/lib/api";
-import { ClaudeIcon, CodexIcon } from "./BrandIcons";
+import { ClaudeIcon, CodexIcon, GeminiIcon } from "./BrandIcons";
 
 interface AppSwitcherProps {
   activeApp: AppId;
@@ -45,6 +45,26 @@ export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
       >
         <CodexIcon size={16} />
         <span>Codex</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => handleSwitch("gemini")}
+        className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+          activeApp === "gemini"
+            ? "bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100 dark:shadow-none"
+            : "text-gray-500 hover:text-gray-900 hover:bg-white/50 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800/60"
+        }`}
+      >
+        <GeminiIcon
+          size={16}
+          className={
+            activeApp === "gemini"
+              ? "text-[#4285F4] dark:text-[#4285F4] transition-colors duration-200"
+              : "text-gray-500 dark:text-gray-400 group-hover:text-[#4285F4] dark:group-hover:text-[#4285F4] transition-colors duration-200"
+          }
+        />
+        <span>Gemini</span>
       </button>
     </div>
   );

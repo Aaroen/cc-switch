@@ -1,3 +1,4 @@
+use super::provider::ProviderService;
 use crate::app_config::{AppType, MultiAppConfig};
 use crate::error::AppError;
 use crate::provider::Provider;
@@ -20,7 +21,7 @@ impl ConfigService {
         }
 
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-        let backup_id = format!("backup_{}", timestamp);
+        let backup_id = format!("backup_{timestamp}");
 
         let backup_dir = config_path
             .parent()
@@ -29,7 +30,7 @@ impl ConfigService {
 
         fs::create_dir_all(&backup_dir).map_err(|e| AppError::io(&backup_dir, e))?;
 
-        let backup_path = backup_dir.join(format!("{}.json", backup_id));
+        let backup_path = backup_dir.join(format!("{backup_id}.json"));
         let contents = fs::read(config_path).map_err(|e| AppError::io(config_path, e))?;
         fs::write(&backup_path, contents).map_err(|e| AppError::io(&backup_path, e))?;
 
@@ -123,6 +124,7 @@ impl ConfigService {
     pub fn sync_current_providers_to_live(config: &mut MultiAppConfig) -> Result<(), AppError> {
         Self::sync_current_provider_for_app(config, &AppType::Claude)?;
         Self::sync_current_provider_for_app(config, &AppType::Codex)?;
+        Self::sync_current_provider_for_app(config, &AppType::Gemini)?;
         Ok(())
     }
 
@@ -145,9 +147,7 @@ impl ConfigService {
                 Some(provider) => provider.clone(),
                 None => {
                     log::warn!(
-                        "当前应用 {:?} 的供应商 {} 不存在，跳过 live 同步",
-                        app_type,
-                        current_id
+                        "当前应用 {app_type:?} 的供应商 {current_id} 不存在，跳过 live 同步"
                     );
                     return Ok(());
                 }
@@ -158,6 +158,7 @@ impl ConfigService {
         match app_type {
             AppType::Codex => Self::sync_codex_live(config, &current_id, &provider)?,
             AppType::Claude => Self::sync_claude_live(config, &current_id, &provider)?,
+            AppType::Gemini => Self::sync_gemini_live(config, &current_id, &provider)?,
         }
 
         Ok(())
@@ -169,18 +170,16 @@ impl ConfigService {
         provider: &Provider,
     ) -> Result<(), AppError> {
         let settings = provider.settings_config.as_object().ok_or_else(|| {
-            AppError::Config(format!("供应商 {} 的 Codex 配置必须是对象", provider_id))
+            AppError::Config(format!("供应商 {provider_id} 的 Codex 配置必须是对象"))
         })?;
         let auth = settings.get("auth").ok_or_else(|| {
             AppError::Config(format!(
-                "供应商 {} 的 Codex 配置缺少 auth 字段",
-                provider_id
+                "供应商 {provider_id} 的 Codex 配置缺少 auth 字段"
             ))
         })?;
         if !auth.is_object() {
             return Err(AppError::Config(format!(
-                "供应商 {} 的 Codex auth 配置必须是 JSON 对象",
-                provider_id
+                "供应商 {provider_id} 的 Codex auth 配置必须是 JSON 对象"
             )));
         }
         let cfg_text = settings.get("config").and_then(Value::as_str);
@@ -219,6 +218,55 @@ impl ConfigService {
 
         let live_after = read_json_file::<serde_json::Value>(&settings_path)?;
         if let Some(manager) = config.get_manager_mut(&AppType::Claude) {
+            if let Some(target) = manager.providers.get_mut(provider_id) {
+                target.settings_config = live_after;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn sync_gemini_live(
+        config: &mut MultiAppConfig,
+        provider_id: &str,
+        provider: &Provider,
+    ) -> Result<(), AppError> {
+        use crate::gemini_config::{json_to_env, write_gemini_env_atomic, read_gemini_env, env_to_json};
+
+        let env_path = crate::gemini_config::get_gemini_env_path();
+        if let Some(parent) = env_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
+        }
+
+        // 转换 JSON 配置为 .env 格式
+        let env_map = json_to_env(&provider.settings_config)?;
+
+        // Google 官方（OAuth）: env 为空，写入空文件并设置安全标志后返回
+        if env_map.is_empty() {
+            write_gemini_env_atomic(&env_map)?;
+            ProviderService::ensure_google_oauth_security_flag(provider)?;
+
+            let live_after_env = read_gemini_env()?;
+            let live_after = env_to_json(&live_after_env);
+
+            if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
+                if let Some(target) = manager.providers.get_mut(provider_id) {
+                    target.settings_config = live_after;
+                }
+            }
+
+            return Ok(());
+        }
+
+        // 非 OAuth：按常规写入，并在必要时设置 Packycode 安全标志
+        write_gemini_env_atomic(&env_map)?;
+        ProviderService::ensure_packycode_security_flag(provider)?;
+
+        // 读回实际写入的内容并更新到配置中
+        let live_after_env = read_gemini_env()?;
+        let live_after = env_to_json(&live_after_env);
+        
+        if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
             if let Some(target) = manager.providers.get_mut(provider_id) {
                 target.settings_config = live_after;
             }

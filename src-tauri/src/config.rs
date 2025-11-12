@@ -33,7 +33,7 @@ fn derive_mcp_path_from_override(dir: &Path) -> Option<PathBuf> {
         return None;
     }
     let parent = dir.parent().unwrap_or_else(|| Path::new(""));
-    Some(parent.join(format!("{}.json", file_name)))
+    Some(parent.join(format!("{file_name}.json")))
 }
 
 /// 获取 Claude MCP 配置文件路径，若设置了目录覆盖则与覆盖目录同级
@@ -95,7 +95,7 @@ pub fn get_provider_config_path(provider_id: &str, provider_name: Option<&str>) 
         .map(sanitize_provider_name)
         .unwrap_or_else(|| sanitize_provider_name(provider_id));
 
-    get_claude_config_dir().join(format!("settings-{}.json", base_name))
+    get_claude_config_dir().join(format!("settings-{base_name}.json"))
 }
 
 /// 读取 JSON 配置文件
@@ -149,7 +149,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), AppError> {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    tmp.push(format!("{}.tmp.{}", file_name, ts));
+    tmp.push(format!("{file_name}.tmp.{ts}"));
 
     {
         let mut f = fs::File::create(&tmp).map_err(|e| AppError::io(&tmp, e))?;

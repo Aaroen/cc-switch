@@ -33,15 +33,15 @@ pub async fn execute_usage_script(
         let runtime = Runtime::new().map_err(|e| {
             AppError::localized(
                 "usage_script.runtime_create_failed",
-                format!("创建 JS 运行时失败: {}", e),
-                format!("Failed to create JS runtime: {}", e),
+                format!("创建 JS 运行时失败: {e}"),
+                format!("Failed to create JS runtime: {e}"),
             )
         })?;
         let context = Context::full(&runtime).map_err(|e| {
             AppError::localized(
                 "usage_script.context_create_failed",
-                format!("创建 JS 上下文失败: {}", e),
-                format!("Failed to create JS context: {}", e),
+                format!("创建 JS 上下文失败: {e}"),
+                format!("Failed to create JS context: {e}"),
             )
         })?;
 
@@ -50,8 +50,8 @@ pub async fn execute_usage_script(
             let config: rquickjs::Object = ctx.eval(replaced.clone()).map_err(|e| {
                 AppError::localized(
                     "usage_script.config_parse_failed",
-                    format!("解析配置失败: {}", e),
-                    format!("Failed to parse config: {}", e),
+                    format!("解析配置失败: {e}"),
+                    format!("Failed to parse config: {e}"),
                 )
             })?;
 
@@ -59,8 +59,8 @@ pub async fn execute_usage_script(
             let request: rquickjs::Object = config.get("request").map_err(|e| {
                 AppError::localized(
                     "usage_script.request_missing",
-                    format!("缺少 request 配置: {}", e),
-                    format!("Missing request config: {}", e),
+                    format!("缺少 request 配置: {e}"),
+                    format!("Missing request config: {e}"),
                 )
             })?;
 
@@ -70,8 +70,8 @@ pub async fn execute_usage_script(
                 .map_err(|e| {
                     AppError::localized(
                         "usage_script.request_serialize_failed",
-                        format!("序列化 request 失败: {}", e),
-                        format!("Failed to serialize request: {}", e),
+                        format!("序列化 request 失败: {e}"),
+                        format!("Failed to serialize request: {e}"),
                     )
                 })?
                 .ok_or_else(|| {
@@ -85,8 +85,8 @@ pub async fn execute_usage_script(
                 .map_err(|e| {
                     AppError::localized(
                         "usage_script.get_string_failed",
-                        format!("获取字符串失败: {}", e),
-                        format!("Failed to get string: {}", e),
+                        format!("获取字符串失败: {e}"),
+                        format!("Failed to get string: {e}"),
                     )
                 })?;
 
@@ -98,8 +98,8 @@ pub async fn execute_usage_script(
     let request: RequestConfig = serde_json::from_str(&request_config).map_err(|e| {
         AppError::localized(
             "usage_script.request_format_invalid",
-            format!("request 配置格式错误: {}", e),
-            format!("Invalid request config format: {}", e),
+            format!("request 配置格式错误: {e}"),
+            format!("Invalid request config format: {e}"),
         )
     })?;
 
@@ -111,15 +111,15 @@ pub async fn execute_usage_script(
         let runtime = Runtime::new().map_err(|e| {
             AppError::localized(
                 "usage_script.runtime_create_failed",
-                format!("创建 JS 运行时失败: {}", e),
-                format!("Failed to create JS runtime: {}", e),
+                format!("创建 JS 运行时失败: {e}"),
+                format!("Failed to create JS runtime: {e}"),
             )
         })?;
         let context = Context::full(&runtime).map_err(|e| {
             AppError::localized(
                 "usage_script.context_create_failed",
-                format!("创建 JS 上下文失败: {}", e),
-                format!("Failed to create JS context: {}", e),
+                format!("创建 JS 上下文失败: {e}"),
+                format!("Failed to create JS context: {e}"),
             )
         })?;
 
@@ -128,8 +128,8 @@ pub async fn execute_usage_script(
             let config: rquickjs::Object = ctx.eval(replaced.clone()).map_err(|e| {
                 AppError::localized(
                     "usage_script.config_reparse_failed",
-                    format!("重新解析配置失败: {}", e),
-                    format!("Failed to re-parse config: {}", e),
+                    format!("重新解析配置失败: {e}"),
+                    format!("Failed to re-parse config: {e}"),
                 )
             })?;
 
@@ -137,8 +137,8 @@ pub async fn execute_usage_script(
             let extractor: Function = config.get("extractor").map_err(|e| {
                 AppError::localized(
                     "usage_script.extractor_missing",
-                    format!("缺少 extractor 函数: {}", e),
-                    format!("Missing extractor function: {}", e),
+                    format!("缺少 extractor 函数: {e}"),
+                    format!("Missing extractor function: {e}"),
                 )
             })?;
 
@@ -147,8 +147,8 @@ pub async fn execute_usage_script(
                 ctx.json_parse(response_data.as_str()).map_err(|e| {
                     AppError::localized(
                         "usage_script.response_parse_failed",
-                        format!("解析响应 JSON 失败: {}", e),
-                        format!("Failed to parse response JSON: {}", e),
+                        format!("解析响应 JSON 失败: {e}"),
+                        format!("Failed to parse response JSON: {e}"),
                     )
                 })?;
 
@@ -156,8 +156,8 @@ pub async fn execute_usage_script(
             let result_js: rquickjs::Value = extractor.call((response_js,)).map_err(|e| {
                 AppError::localized(
                     "usage_script.extractor_exec_failed",
-                    format!("执行 extractor 失败: {}", e),
-                    format!("Failed to execute extractor: {}", e),
+                    format!("执行 extractor 失败: {e}"),
+                    format!("Failed to execute extractor: {e}"),
                 )
             })?;
 
@@ -167,8 +167,8 @@ pub async fn execute_usage_script(
                 .map_err(|e| {
                     AppError::localized(
                         "usage_script.result_serialize_failed",
-                        format!("序列化结果失败: {}", e),
-                        format!("Failed to serialize result: {}", e),
+                        format!("序列化结果失败: {e}"),
+                        format!("Failed to serialize result: {e}"),
                     )
                 })?
                 .ok_or_else(|| {
@@ -182,8 +182,8 @@ pub async fn execute_usage_script(
                 .map_err(|e| {
                     AppError::localized(
                         "usage_script.get_string_failed",
-                        format!("获取字符串失败: {}", e),
-                        format!("Failed to get string: {}", e),
+                        format!("获取字符串失败: {e}"),
+                        format!("Failed to get string: {e}"),
                     )
                 })?;
 
@@ -191,8 +191,8 @@ pub async fn execute_usage_script(
             serde_json::from_str(&result_json).map_err(|e| {
                 AppError::localized(
                     "usage_script.json_parse_failed",
-                    format!("JSON 解析失败: {}", e),
-                    format!("JSON parse failed: {}", e),
+                    format!("JSON 解析失败: {e}"),
+                    format!("JSON parse failed: {e}"),
                 )
             })
         })?
@@ -225,8 +225,8 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
         .map_err(|e| {
             AppError::localized(
                 "usage_script.client_create_failed",
-                format!("创建客户端失败: {}", e),
-                format!("Failed to create client: {}", e),
+                format!("创建客户端失败: {e}"),
+                format!("Failed to create client: {e}"),
             )
         })?;
 
@@ -255,8 +255,8 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
     let resp = req.send().await.map_err(|e| {
         AppError::localized(
             "usage_script.request_failed",
-            format!("请求失败: {}", e),
-            format!("Request failed: {}", e),
+            format!("请求失败: {e}"),
+            format!("Request failed: {e}"),
         )
     })?;
 
@@ -264,8 +264,8 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
     let text = resp.text().await.map_err(|e| {
         AppError::localized(
             "usage_script.read_response_failed",
-            format!("读取响应失败: {}", e),
-            format!("Failed to read response: {}", e),
+            format!("读取响应失败: {e}"),
+            format!("Failed to read response: {e}"),
         )
     })?;
 
@@ -277,8 +277,8 @@ async fn send_http_request(config: &RequestConfig, timeout_secs: u64) -> Result<
         };
         return Err(AppError::localized(
             "usage_script.http_error",
-            format!("HTTP {} : {}", status, preview),
-            format!("HTTP {} : {}", status, preview),
+            format!("HTTP {status} : {preview}"),
+            format!("HTTP {status} : {preview}"),
         ));
     }
 
@@ -300,8 +300,8 @@ fn validate_result(result: &Value) -> Result<(), AppError> {
             validate_single_usage(item).map_err(|e| {
                 AppError::localized(
                     "usage_script.array_validation_failed",
-                    format!("数组索引[{}]验证失败: {}", idx, e),
-                    format!("Validation failed at index [{}]: {}", idx, e),
+                    format!("数组索引[{idx}]验证失败: {e}"),
+                    format!("Validation failed at index [{idx}]: {e}"),
                 )
             })?;
         }

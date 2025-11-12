@@ -4,7 +4,7 @@ use tauri::async_runtime;
 
 use cc_switch_lib::{
     get_claude_settings_path, read_json_file, AppError, AppState, AppType, ConfigService,
-    MultiAppConfig, Provider,
+    MultiAppConfig, Provider, ProviderMeta,
 };
 
 #[path = "support.rs"]
@@ -63,9 +63,7 @@ fn sync_claude_provider_writes_live_settings() {
     // 额外确认写入位置位于测试 HOME 下
     assert!(
         settings_path.starts_with(home),
-        "settings path {:?} should reside under test HOME {:?}",
-        settings_path,
-        home
+        "settings path {settings_path:?} should reside under test HOME {home:?}"
     );
 }
 
@@ -907,6 +905,121 @@ fn import_config_from_path_missing_file_produces_io_error() {
         AppError::Io { .. } => {}
         other => panic!("expected io error, got {other:?}"),
     }
+}
+
+#[test]
+fn sync_gemini_packycode_sets_security_selected_type() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let mut config = MultiAppConfig::default();
+    {
+        let manager = config
+            .get_manager_mut(&AppType::Gemini)
+            .expect("gemini manager");
+        manager.current = "packy-1".to_string();
+        manager.providers.insert(
+            "packy-1".to_string(),
+            Provider::with_id(
+                "packy-1".to_string(),
+                "PackyCode".to_string(),
+                json!({
+                    "env": {
+                        "GEMINI_API_KEY": "pk-key",
+                        "GOOGLE_GEMINI_BASE_URL": "https://api-slb.packyapi.com"
+                    }
+                }),
+                Some("https://www.packyapi.com".to_string()),
+            ),
+        );
+    }
+
+    ConfigService::sync_current_providers_to_live(&mut config)
+        .expect("syncing gemini live should succeed");
+
+    let settings_path = home.join(".cc-switch").join("settings.json");
+    assert!(
+        settings_path.exists(),
+        "settings.json should exist at {}",
+        settings_path.display()
+    );
+
+    let raw = std::fs::read_to_string(&settings_path).expect("read settings.json");
+    let value: serde_json::Value = serde_json::from_str(&raw).expect("parse settings.json");
+    assert_eq!(
+        value
+            .pointer("/security/auth/selectedType")
+            .and_then(|v| v.as_str()),
+        Some("gemini-api-key"),
+        "syncing PackyCode Gemini should enforce security.auth.selectedType"
+    );
+}
+
+#[test]
+fn sync_gemini_google_official_sets_oauth_security() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    let mut config = MultiAppConfig::default();
+    {
+        let manager = config
+            .get_manager_mut(&AppType::Gemini)
+            .expect("gemini manager");
+        manager.current = "google-official".to_string();
+        let mut provider = Provider::with_id(
+            "google-official".to_string(),
+            "Google".to_string(),
+            json!({
+                "env": {}
+            }),
+            Some("https://ai.google.dev".to_string()),
+        );
+        provider.meta = Some(ProviderMeta {
+            partner_promotion_key: Some("google-official".to_string()),
+            ..ProviderMeta::default()
+        });
+        manager
+            .providers
+            .insert("google-official".to_string(), provider);
+    }
+
+    ConfigService::sync_current_providers_to_live(&mut config)
+        .expect("syncing google official gemini should succeed");
+
+    let cc_settings = home.join(".cc-switch").join("settings.json");
+    assert!(
+        cc_settings.exists(),
+        "app settings should exist at {}",
+        cc_settings.display()
+    );
+    let cc_raw = std::fs::read_to_string(&cc_settings).expect("read .cc-switch settings");
+    let cc_value: serde_json::Value = serde_json::from_str(&cc_raw).expect("parse app settings");
+    assert_eq!(
+        cc_value
+            .pointer("/security/auth/selectedType")
+            .and_then(|v| v.as_str()),
+        Some("oauth-personal"),
+        "syncing Google official should set oauth-personal in app settings"
+    );
+
+    let gemini_settings = home.join(".gemini").join("settings.json");
+    assert!(
+        gemini_settings.exists(),
+        "Gemini settings should exist at {}",
+        gemini_settings.display()
+    );
+    let gemini_raw = std::fs::read_to_string(&gemini_settings).expect("read gemini settings");
+    let gemini_value: serde_json::Value =
+        serde_json::from_str(&gemini_raw).expect("parse gemini settings json");
+    assert_eq!(
+        gemini_value
+            .pointer("/security/auth/selectedType")
+            .and_then(|v| v.as_str()),
+        Some("oauth-personal"),
+        "Gemini settings should also record oauth-personal"
+    );
 }
 
 #[test]

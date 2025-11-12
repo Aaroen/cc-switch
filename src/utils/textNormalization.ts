@@ -6,15 +6,17 @@
  */
 export const normalizeQuotes = (text: string): string => {
   if (!text) return text;
-  return text
-    // 双引号族 → "
-    .replace(/[“”„‟＂]/g, '"')
-    // 单引号族 → '
-    .replace(/[‘’＇]/g, "'");
+  return (
+    text
+      // 双引号族 → "
+      .replace(/[“”„‟＂]/g, '"')
+      // 单引号族 → '
+      .replace(/[‘’＇]/g, "'")
+  );
 };
 
 /**
  * 专用于 TOML 文本的归一化；目前等同于 normalizeQuotes，后续可扩展（如空白、行尾等）。
  */
-export const normalizeTomlText = (text: string): string => normalizeQuotes(text);
-
+export const normalizeTomlText = (text: string): string =>
+  normalizeQuotes(text);

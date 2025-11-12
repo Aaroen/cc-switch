@@ -15,14 +15,20 @@ import {
   codexProviderPresets,
   type CodexProviderPreset,
 } from "@/config/codexProviderPresets";
+import {
+  geminiProviderPresets,
+  type GeminiProviderPreset,
+} from "@/config/geminiProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import { mergeProviderMeta } from "@/utils/providerMetaUtils";
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
+import { GeminiConfigEditor } from "./GeminiConfigEditor";
 import { ProviderPresetSelector } from "./ProviderPresetSelector";
 import { BasicFormFields } from "./BasicFormFields";
 import { ClaudeFormFields } from "./ClaudeFormFields";
 import { CodexFormFields } from "./CodexFormFields";
+import { GeminiFormFields } from "./GeminiFormFields";
 import {
   useProviderCategory,
   useApiKeyState,
@@ -39,10 +45,21 @@ import {
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {} }, null, 2);
 const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
+const GEMINI_DEFAULT_CONFIG = JSON.stringify(
+  {
+    env: {
+      GOOGLE_GEMINI_BASE_URL: "",
+      GEMINI_API_KEY: "",
+      GEMINI_MODEL: "gemini-2.5-pro",
+    },
+  },
+  null,
+  2,
+);
 
 type PresetEntry = {
   id: string;
-  preset: ProviderPreset | CodexProviderPreset;
+  preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset;
 };
 
 interface ProviderFormProps {
@@ -80,6 +97,7 @@ export function ProviderForm({
     id: string;
     category?: ProviderCategory;
     isPartner?: boolean;
+    partnerPromotionKey?: string;
   } | null>(null);
   const [isEndpointModalOpen, setIsEndpointModalOpen] = useState(false);
 
@@ -123,7 +141,9 @@ export function ProviderForm({
         ? JSON.stringify(initialData.settingsConfig, null, 2)
         : appId === "codex"
           ? CODEX_DEFAULT_CONFIG
-          : CLAUDE_DEFAULT_CONFIG,
+          : appId === "gemini"
+            ? GEMINI_DEFAULT_CONFIG
+            : CLAUDE_DEFAULT_CONFIG,
     }),
     [initialData, appId],
   );
@@ -144,19 +164,22 @@ export function ProviderForm({
     onConfigChange: (config) => form.setValue("settingsConfig", config),
     selectedPresetId,
     category,
+    appType: appId,
   });
 
-  // 使用 Base URL hook (仅 Claude 模式)
-  const { baseUrl, handleClaudeBaseUrlChange } = useBaseUrlState({
-    appType: appId,
-    category,
-    settingsConfig: form.watch("settingsConfig"),
-    codexConfig: "",
-    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
-    onCodexConfigChange: () => {
-      // Codex 使用 useCodexConfigState 管理 Base URL
-    },
-  });
+  // 使用 Base URL hook (Claude, Codex, Gemini)
+  const { baseUrl, handleClaudeBaseUrlChange, handleGeminiBaseUrlChange } =
+    useBaseUrlState({
+      appType: appId,
+      category,
+      settingsConfig: form.watch("settingsConfig"),
+      codexConfig: "",
+      onSettingsConfigChange: (config) =>
+        form.setValue("settingsConfig", config),
+      onCodexConfigChange: () => {
+        /* noop */
+      },
+    });
 
   // 使用 Model hook（新：主模型 + Haiku/Sonnet/Opus 默认模型）
   const {
@@ -228,6 +251,11 @@ export function ProviderForm({
     if (appId === "codex") {
       return codexProviderPresets.map<PresetEntry>((preset, index) => ({
         id: `codex-${index}`,
+        preset,
+      }));
+    } else if (appId === "gemini") {
+      return geminiProviderPresets.map<PresetEntry>((preset, index) => ({
+        id: `gemini-${index}`,
         preset,
       }));
     }
@@ -366,11 +394,26 @@ export function ProviderForm({
       hadEndpoints && draftCustomEndpoints.length === 0;
 
     // 如果用户明确清空了端点，传递空对象（而不是 null）让后端知道要删除
-    const mergedMeta = needsClearEndpoints
+    let mergedMeta = needsClearEndpoints
       ? mergeProviderMeta(initialData?.meta, {})
       : mergeProviderMeta(initialData?.meta, customEndpointsToSave);
 
-    if (mergedMeta) {
+    // 添加合作伙伴标识与促销 key
+    if (activePreset?.isPartner) {
+      mergedMeta = {
+        ...(mergedMeta ?? {}),
+        isPartner: true,
+      };
+    }
+
+    if (activePreset?.partnerPromotionKey) {
+      mergedMeta = {
+        ...(mergedMeta ?? {}),
+        partnerPromotionKey: activePreset.partnerPromotionKey,
+      };
+    }
+
+    if (mergedMeta !== undefined) {
       payload.meta = mergedMeta;
     }
 
@@ -425,6 +468,20 @@ export function ProviderForm({
     formWebsiteUrl: form.watch("websiteUrl") || "",
   });
 
+  // 使用 API Key 链接 hook (Gemini)
+  const {
+    shouldShowApiKeyLink: shouldShowGeminiApiKeyLink,
+    websiteUrl: geminiWebsiteUrl,
+    isPartner: isGeminiPartner,
+    partnerPromotionKey: geminiPartnerPromotionKey,
+  } = useApiKeyLink({
+    appId: "gemini",
+    category,
+    selectedPresetId,
+    presetEntries,
+    formWebsiteUrl: form.watch("websiteUrl") || "",
+  });
+
   // 使用端点测速候选 hook
   const speedTestEndpoints = useSpeedTestEndpoints({
     appId,
@@ -457,6 +514,7 @@ export function ProviderForm({
       id: value,
       category: entry.preset.category,
       isPartner: entry.preset.isPartner,
+      partnerPromotionKey: entry.preset.partnerPromotionKey,
     });
 
     if (appId === "codex") {
@@ -472,6 +530,16 @@ export function ProviderForm({
         name: preset.name,
         websiteUrl: preset.websiteUrl ?? "",
         settingsConfig: JSON.stringify({ auth, config }, null, 2),
+      });
+      return;
+    }
+
+    if (appId === "gemini") {
+      const preset = entry.preset as GeminiProviderPreset;
+      form.reset({
+        name: preset.name,
+        websiteUrl: preset.websiteUrl ?? "",
+        settingsConfig: JSON.stringify(preset.settingsConfig, null, 2),
       });
       return;
     }
@@ -573,7 +641,45 @@ export function ProviderForm({
           />
         )}
 
-        {/* 配置编辑器：Claude 使用通用配置编辑器，Codex 使用专用编辑器 */}
+        {/* Gemini 专属字段 */}
+        {appId === "gemini" && (
+          <GeminiFormFields
+            providerId={providerId}
+            shouldShowApiKey={shouldShowApiKey(
+              form.watch("settingsConfig"),
+              isEditMode,
+            )}
+            apiKey={apiKey}
+            onApiKeyChange={handleApiKeyChange}
+            category={category}
+            shouldShowApiKeyLink={shouldShowGeminiApiKeyLink}
+            websiteUrl={geminiWebsiteUrl}
+            isPartner={isGeminiPartner}
+            partnerPromotionKey={geminiPartnerPromotionKey}
+            shouldShowSpeedTest={shouldShowSpeedTest}
+            baseUrl={baseUrl}
+            onBaseUrlChange={handleGeminiBaseUrlChange}
+            isEndpointModalOpen={isEndpointModalOpen}
+            onEndpointModalToggle={setIsEndpointModalOpen}
+            onCustomEndpointsChange={setDraftCustomEndpoints}
+            shouldShowModelField={true}
+            model={
+              form.watch("settingsConfig")
+                ? JSON.parse(form.watch("settingsConfig") || "{}")?.env
+                    ?.GEMINI_MODEL || ""
+                : ""
+            }
+            onModelChange={(model) => {
+              const config = JSON.parse(form.watch("settingsConfig") || "{}");
+              if (!config.env) config.env = {};
+              config.env.GEMINI_MODEL = model;
+              form.setValue("settingsConfig", JSON.stringify(config, null, 2));
+            }}
+            speedTestEndpoints={speedTestEndpoints}
+          />
+        )}
+
+        {/* 配置编辑器：Codex、Claude、Gemini 分别使用不同的编辑器 */}
         {appId === "codex" ? (
           <>
             <CodexConfigEditor
@@ -592,6 +698,23 @@ export function ProviderForm({
               onNameChange={(name) => form.setValue("name", name)}
               isTemplateModalOpen={isCodexTemplateModalOpen}
               setIsTemplateModalOpen={setIsCodexTemplateModalOpen}
+            />
+            {/* 配置验证错误显示 */}
+            <FormField
+              control={form.control}
+              name="settingsConfig"
+              render={() => (
+                <FormItem className="space-y-0">
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        ) : appId === "gemini" ? (
+          <>
+            <GeminiConfigEditor
+              value={form.watch("settingsConfig")}
+              onChange={(value) => form.setValue("settingsConfig", value)}
             />
             {/* 配置验证错误显示 */}
             <FormField

@@ -30,7 +30,7 @@ fn read_override_from_store(app: &tauri::AppHandle) -> Option<PathBuf> {
     let store = match app.store_builder("app_paths.json").build() {
         Ok(store) => store,
         Err(e) => {
-            log::warn!("无法创建 Store: {}", e);
+            log::warn!("无法创建 Store: {e}");
             return None;
         }
     };
@@ -46,20 +46,18 @@ fn read_override_from_store(app: &tauri::AppHandle) -> Option<PathBuf> {
 
             if !path.exists() {
                 log::warn!(
-                    "Store 中配置的 app_config_dir 不存在: {:?}\n\
-                     将使用默认路径。",
-                    path
+                    "Store 中配置的 app_config_dir 不存在: {path:?}\n\
+                     将使用默认路径。"
                 );
                 return None;
             }
 
-            log::info!("使用 Store 中的 app_config_dir: {:?}", path);
+            log::info!("使用 Store 中的 app_config_dir: {path:?}");
             Some(path)
         }
         Some(_) => {
             log::warn!(
-                "Store 中的 {} 类型不正确，应为字符串",
-                STORE_KEY_APP_CONFIG_DIR
+                "Store 中的 {STORE_KEY_APP_CONFIG_DIR} 类型不正确，应为字符串"
             );
             None
         }
@@ -82,14 +80,14 @@ pub fn set_app_config_dir_to_store(
     let store = app
         .store_builder("app_paths.json")
         .build()
-        .map_err(|e| AppError::Message(format!("创建 Store 失败: {}", e)))?;
+        .map_err(|e| AppError::Message(format!("创建 Store 失败: {e}")))?;
 
     match path {
         Some(p) => {
             let trimmed = p.trim();
             if !trimmed.is_empty() {
                 store.set(STORE_KEY_APP_CONFIG_DIR, Value::String(trimmed.to_string()));
-                log::info!("已将 app_config_dir 写入 Store: {}", trimmed);
+                log::info!("已将 app_config_dir 写入 Store: {trimmed}");
             } else {
                 store.delete(STORE_KEY_APP_CONFIG_DIR);
                 log::info!("已从 Store 中删除 app_config_dir 配置");
@@ -103,7 +101,7 @@ pub fn set_app_config_dir_to_store(
 
     store
         .save()
-        .map_err(|e| AppError::Message(format!("保存 Store 失败: {}", e)))?;
+        .map_err(|e| AppError::Message(format!("保存 Store 失败: {e}")))?;
 
     refresh_app_config_dir_override(app);
     Ok(())

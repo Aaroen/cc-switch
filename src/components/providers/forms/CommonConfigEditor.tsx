@@ -146,11 +146,6 @@ export function CommonConfigEditor({
             <Wand2 className="w-3.5 h-3.5" />
             {t("common.format", { defaultValue: "格式化" })}
           </button>
-          <p className="text-xs text-muted-foreground">
-            {t("claudeConfig.fullSettingsHint", {
-              defaultValue: "请填写完整的 Claude Code 配置",
-            })}
-          </p>
         </div>
       </div>
 

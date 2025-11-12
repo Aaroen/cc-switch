@@ -24,7 +24,7 @@ pub async fn export_config_to_file(
         }))
     })
     .await
-    .map_err(|e| format!("导出配置失败: {}", e))?
+    .map_err(|e| format!("导出配置失败: {e}"))?
     .map_err(|e: AppError| e.to_string())
 }
 
@@ -39,7 +39,7 @@ pub async fn import_config_from_file(
         ConfigService::load_config_for_import(&path_buf)
     })
     .await
-    .map_err(|e| format!("导入配置失败: {}", e))?
+    .map_err(|e| format!("导入配置失败: {e}"))?
     .map_err(|e: AppError| e.to_string())?;
 
     {

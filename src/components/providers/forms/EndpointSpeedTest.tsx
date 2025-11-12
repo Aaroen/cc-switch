@@ -18,6 +18,7 @@ import type { CustomEndpoint, EndpointCandidate } from "@/types";
 const ENDPOINT_TIMEOUT_SECS = {
   codex: 12,
   claude: 8,
+  gemini: 8, // 新增 gemini
 } as const;
 
 interface TestResult {

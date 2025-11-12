@@ -42,11 +42,27 @@ const createDefaultProviders = (): ProvidersByApp => ({
       createdAt: Date.now() + 1,
     },
   },
+  gemini: {
+    "gemini-1": {
+      id: "gemini-1",
+      name: "Gemini Default",
+      settingsConfig: {
+        env: {
+          GEMINI_API_KEY: "test-key",
+          GOOGLE_GEMINI_BASE_URL: "https://generativelanguage.googleapis.com",
+        },
+      },
+      category: "official",
+      sortIndex: 0,
+      createdAt: Date.now(),
+    },
+  },
 });
 
 const createDefaultCurrent = (): CurrentProviderState => ({
   claude: "claude-1",
   codex: "codex-1",
+  gemini: "gemini-1",
 });
 
 let providers = createDefaultProviders();
@@ -83,6 +99,7 @@ let mcpConfigs: McpConfigState = {
       },
     },
   },
+  gemini: {},
 };
 
 const cloneProviders = (value: ProvidersByApp) =>
@@ -123,6 +140,7 @@ export const resetProviderState = () => {
         },
       },
     },
+    gemini: {},
   };
 };
 

@@ -267,7 +267,8 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
   // 判断是否应该显示凭证配置区域
   const shouldShowCredentialsConfig =
-    selectedTemplate === TEMPLATE_KEYS.GENERAL || selectedTemplate === TEMPLATE_KEYS.NEW_API;
+    selectedTemplate === TEMPLATE_KEYS.GENERAL ||
+    selectedTemplate === TEMPLATE_KEYS.NEW_API;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -334,9 +335,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {selectedTemplate === TEMPLATE_KEYS.GENERAL && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="usage-api-key">
-                          API Key
-                        </Label>
+                        <Label htmlFor="usage-api-key">API Key</Label>
                         <div className="relative">
                           <Input
                             id="usage-api-key"
@@ -353,18 +352,24 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                               type="button"
                               onClick={() => setShowApiKey(!showApiKey)}
                               className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-                              aria-label={showApiKey ? t("apiKeyInput.hide") : t("apiKeyInput.show")}
+                              aria-label={
+                                showApiKey
+                                  ? t("apiKeyInput.hide")
+                                  : t("apiKeyInput.show")
+                              }
                             >
-                              {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                              {showApiKey ? (
+                                <EyeOff size={16} />
+                              ) : (
+                                <Eye size={16} />
+                              )}
                             </button>
                           )}
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="usage-base-url">
-                          Base URL
-                        </Label>
+                        <Label htmlFor="usage-base-url">Base URL</Label>
                         <Input
                           id="usage-base-url"
                           type="text"
@@ -383,9 +388,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {selectedTemplate === TEMPLATE_KEYS.NEW_API && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="usage-newapi-base-url">
-                          Base URL
-                        </Label>
+                        <Label htmlFor="usage-newapi-base-url">Base URL</Label>
                         <Input
                           id="usage-newapi-base-url"
                           type="text"
@@ -408,19 +411,34 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                             type={showAccessToken ? "text" : "password"}
                             value={script.accessToken || ""}
                             onChange={(e) =>
-                              setScript({ ...script, accessToken: e.target.value })
+                              setScript({
+                                ...script,
+                                accessToken: e.target.value,
+                              })
                             }
-                            placeholder={t("usageScript.accessTokenPlaceholder")}
+                            placeholder={t(
+                              "usageScript.accessTokenPlaceholder",
+                            )}
                             autoComplete="off"
                           />
                           {script.accessToken && (
                             <button
                               type="button"
-                              onClick={() => setShowAccessToken(!showAccessToken)}
+                              onClick={() =>
+                                setShowAccessToken(!showAccessToken)
+                              }
                               className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-                              aria-label={showAccessToken ? t("apiKeyInput.hide") : t("apiKeyInput.show")}
+                              aria-label={
+                                showAccessToken
+                                  ? t("apiKeyInput.hide")
+                                  : t("apiKeyInput.show")
+                              }
                             >
-                              {showAccessToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                              {showAccessToken ? (
+                                <EyeOff size={16} />
+                              ) : (
+                                <Eye size={16} />
+                              )}
                             </button>
                           )}
                         </div>
@@ -448,9 +466,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
               {/* 脚本编辑器 */}
               <div>
-                <Label className="mb-2">
-                  {t("usageScript.queryScript")}
-                </Label>
+                <Label className="mb-2">{t("usageScript.queryScript")}</Label>
                 <JsonEditor
                   value={script.code}
                   onChange={(code) => setScript({ ...script, code })}
