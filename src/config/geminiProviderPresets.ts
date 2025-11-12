@@ -1,5 +1,17 @@
 import type { ProviderCategory } from "@/types";
 
+/**
+ * Gemini 预设供应商的视觉主题配置
+ */
+export interface GeminiPresetTheme {
+  /** 图标类型：'gemini' | 'generic' */
+  icon?: "gemini" | "generic";
+  /** 背景色（选中状态），支持 hex 颜色 */
+  backgroundColor?: string;
+  /** 文字色（选中状态），支持 hex 颜色 */
+  textColor?: string;
+}
+
 export interface GeminiProviderPreset {
   name: string;
   websiteUrl: string;
@@ -12,11 +24,12 @@ export interface GeminiProviderPreset {
   isPartner?: boolean;
   partnerPromotionKey?: string;
   endpointCandidates?: string[];
+  theme?: GeminiPresetTheme;
 }
 
 export const geminiProviderPresets: GeminiProviderPreset[] = [
   {
-    name: "Google",
+    name: "Google Official",
     websiteUrl: "https://ai.google.dev/",
     apiKeyUrl: "https://aistudio.google.com/apikey",
     settingsConfig: {
@@ -28,6 +41,11 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     category: "official",
     partnerPromotionKey: "google-official",
     model: "gemini-2.5-pro",
+    theme: {
+      icon: "gemini",
+      backgroundColor: "#4285F4",
+      textColor: "#FFFFFF",
+    },
   },
   {
     name: "PackyCode",

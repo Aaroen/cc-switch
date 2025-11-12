@@ -1,15 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { FormLabel } from "@/components/ui/form";
-import { ClaudeIcon, CodexIcon } from "@/components/BrandIcons";
+import { ClaudeIcon, CodexIcon, GeminiIcon } from "@/components/BrandIcons";
 import { Zap, Star } from "lucide-react";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
+import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
 import type { ProviderCategory } from "@/types";
 import type { AppId } from "@/lib/api";
 
 type PresetEntry = {
   id: string;
-  preset: ProviderPreset | CodexProviderPreset;
+  preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset;
 };
 
 interface ProviderPresetSelectorProps {
@@ -83,7 +84,9 @@ export function ProviderPresetSelector({
   };
 
   // 渲染预设按钮的图标
-  const renderPresetIcon = (preset: ProviderPreset | CodexProviderPreset) => {
+  const renderPresetIcon = (
+    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
+  ) => {
     const iconType = preset.theme?.icon;
     if (!iconType) return null;
 
@@ -92,6 +95,8 @@ export function ProviderPresetSelector({
         return <ClaudeIcon size={14} />;
       case "codex":
         return <CodexIcon size={14} />;
+      case "gemini":
+        return <GeminiIcon size={14} />;
       case "generic":
         return <Zap size={14} />;
       default:
@@ -102,7 +107,7 @@ export function ProviderPresetSelector({
   // 获取预设按钮的样式类名
   const getPresetButtonClass = (
     isSelected: boolean,
-    preset: ProviderPreset | CodexProviderPreset,
+    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
   ) => {
     const baseClass =
       "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors";
@@ -122,7 +127,7 @@ export function ProviderPresetSelector({
   // 获取预设按钮的内联样式（用于自定义背景色）
   const getPresetButtonStyle = (
     isSelected: boolean,
-    preset: ProviderPreset | CodexProviderPreset,
+    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
   ) => {
     if (!isSelected || !preset.theme?.backgroundColor) {
       return undefined;
