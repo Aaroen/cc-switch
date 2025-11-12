@@ -6,6 +6,9 @@
 [![Trending](https://img.shields.io/badge/🔥_TypeScript_Trending-Daily%20%7C%20Weekly%20%7C%20Monthly-ff6b6b.svg)](https://github.com/trending/typescript)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
+[![Downloads](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/downloads/farion1231/cc-switch/total)](https://github.com/farion1231/cc-switch/releases/latest)
+
+<a href="https://trendshift.io/repositories/15372" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15372" alt="farion1231%2Fcc-switch | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 [English](README.md) | 中文 | [更新日志](CHANGELOG.md)
 
@@ -40,7 +43,7 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 
 ## 功能特性
 
-### 当前版本：v3.6.1 | [完整更新日志](CHANGELOG.md)
+### 当前版本：v3.6.2 | [完整更新日志](CHANGELOG.md)
 
 **核心功能**
 
