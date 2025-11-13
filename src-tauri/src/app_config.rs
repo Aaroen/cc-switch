@@ -222,24 +222,21 @@ impl MultiAppConfig {
     /// 创建默认配置并自动导入已存在的提示词文件
     fn default_with_auto_import() -> Result<Self, AppError> {
         log::info!("首次启动，创建默认配置并检测提示词文件");
-        
+
         let mut config = Self::default();
-        
+
         // 为每个应用尝试自动导入提示词
         Self::auto_import_prompt_if_exists(&mut config, AppType::Claude)?;
         Self::auto_import_prompt_if_exists(&mut config, AppType::Codex)?;
         Self::auto_import_prompt_if_exists(&mut config, AppType::Gemini)?;
-        
+
         Ok(config)
     }
 
     /// 检查并自动导入单个应用的提示词文件
-    fn auto_import_prompt_if_exists(
-        config: &mut Self,
-        app: AppType,
-    ) -> Result<(), AppError> {
+    fn auto_import_prompt_if_exists(config: &mut Self, app: AppType) -> Result<(), AppError> {
         let file_path = prompt_file_path(&app)?;
-        
+
         // 检查文件是否存在
         if !file_path.exists() {
             log::debug!("提示词文件不存在，跳过自动导入: {file_path:?}");
@@ -273,25 +270,25 @@ impl MultiAppConfig {
         let prompt = crate::prompt::Prompt {
             id: id.clone(),
             name: format!(
-                "初始提示词 {}",
+                "Auto-imported Prompt {}",
                 chrono::Local::now().format("%Y-%m-%d %H:%M")
             ),
             content,
-            description: Some("首次启动时自动导入".to_string()),
+            description: Some("Automatically imported on first launch".to_string()),
             enabled: true, // 自动启用
             created_at: Some(timestamp),
             updated_at: Some(timestamp),
         };
-        
+
         // 插入到对应的应用配置中
         let prompts = match app {
             AppType::Claude => &mut config.prompts.claude.prompts,
             AppType::Codex => &mut config.prompts.codex.prompts,
             AppType::Gemini => &mut config.prompts.gemini.prompts,
         };
-        
+
         prompts.insert(id, prompt);
-        
+
         log::info!("自动导入完成: {}", app.as_str());
         Ok(())
     }
@@ -306,6 +303,7 @@ mod tests {
     use tempfile::TempDir;
 
     struct TempHome {
+        #[allow(dead_code)] // 字段通过 Drop trait 管理临时目录生命周期
         dir: TempDir,
         original_home: Option<String>,
         original_userprofile: Option<String>,
@@ -444,7 +442,10 @@ mod tests {
             .expect("gemini prompt exists");
         assert!(prompt.enabled, "gemini prompt should be enabled");
         assert_eq!(prompt.content, "# Gemini Prompt\n\nTest content");
-        assert_eq!(prompt.description, Some("首次启动时自动导入".to_string()));
+        assert_eq!(
+            prompt.description,
+            Some("Automatically imported on first launch".to_string())
+        );
     }
 
     #[test]
@@ -463,8 +464,35 @@ mod tests {
         assert_eq!(config.prompts.gemini.prompts.len(), 1);
 
         // 验证所有提示词都被启用
-        assert!(config.prompts.claude.prompts.values().next().unwrap().enabled);
-        assert!(config.prompts.codex.prompts.values().next().unwrap().enabled);
-        assert!(config.prompts.gemini.prompts.values().next().unwrap().enabled);
+        assert!(
+            config
+                .prompts
+                .claude
+                .prompts
+                .values()
+                .next()
+                .unwrap()
+                .enabled
+        );
+        assert!(
+            config
+                .prompts
+                .codex
+                .prompts
+                .values()
+                .next()
+                .unwrap()
+                .enabled
+        );
+        assert!(
+            config
+                .prompts
+                .gemini
+                .prompts
+                .values()
+                .next()
+                .unwrap()
+                .enabled
+        );
     }
 }

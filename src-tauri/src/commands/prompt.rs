@@ -58,9 +58,7 @@ pub async fn import_prompt_from_file(
 }
 
 #[tauri::command]
-pub async fn get_current_prompt_file_content(
-    app: String,
-) -> Result<Option<String>, String> {
+pub async fn get_current_prompt_file_content(app: String) -> Result<Option<String>, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     PromptService::get_current_file_content(app_type).map_err(|e| e.to_string())
 }

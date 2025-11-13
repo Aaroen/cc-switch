@@ -61,9 +61,7 @@ impl PromptService {
 
         if let Some(prompt) = prompts.get(id) {
             if prompt.enabled {
-                return Err(AppError::InvalidInput(
-                    "无法删除已启用的提示词".to_string(),
-                ));
+                return Err(AppError::InvalidInput("无法删除已启用的提示词".to_string()));
             }
         }
 
@@ -92,8 +90,9 @@ impl PromptService {
                 if let Ok(content) = std::fs::read_to_string(&target_path) {
                     if !content.trim().is_empty() {
                         // 检查是否已存在相同内容的提示词，避免重复备份
-                        let content_exists = prompts.values().any(|p| p.content.trim() == content.trim());
-                        
+                        let content_exists =
+                            prompts.values().any(|p| p.content.trim() == content.trim());
+
                         if !content_exists {
                             let timestamp = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
@@ -102,7 +101,10 @@ impl PromptService {
                             let backup_id = format!("backup-{timestamp}");
                             let backup_prompt = Prompt {
                                 id: backup_id.clone(),
-                                name: format!("原始提示词 {}", chrono::Local::now().format("%Y-%m-%d %H:%M")),
+                                name: format!(
+                                    "原始提示词 {}",
+                                    chrono::Local::now().format("%Y-%m-%d %H:%M")
+                                ),
                                 content,
                                 description: Some("自动备份的原始提示词".to_string()),
                                 enabled: false,
@@ -148,7 +150,8 @@ impl PromptService {
             return Err(AppError::Message("提示词文件不存在".to_string()));
         }
 
-        let content = std::fs::read_to_string(&file_path).map_err(|e| AppError::io(&file_path, e))?;
+        let content =
+            std::fs::read_to_string(&file_path).map_err(|e| AppError::io(&file_path, e))?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -177,7 +180,8 @@ impl PromptService {
         if !file_path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&file_path).map_err(|e| AppError::io(&file_path, e))?;
+        let content =
+            std::fs::read_to_string(&file_path).map_err(|e| AppError::io(&file_path, e))?;
         Ok(Some(content))
     }
 }
