@@ -95,6 +95,9 @@ pub struct MultiAppConfig {
     /// Prompt 配置（按客户端分治）
     #[serde(default)]
     pub prompts: PromptRoot,
+    /// Claude 通用配置片段（JSON 字符串，用于跨供应商共享配置）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claude_common_config_snippet: Option<String>,
 }
 
 fn default_version() -> u32 {
@@ -113,6 +116,7 @@ impl Default for MultiAppConfig {
             apps,
             mcp: McpRoot::default(),
             prompts: PromptRoot::default(),
+            claude_common_config_snippet: None,
         }
     }
 }

@@ -5,5 +5,6 @@ export { mcpApi } from "./mcp";
 export { promptsApi } from "./prompts";
 export { usageApi } from "./usage";
 export { vscodeApi } from "./vscode";
+export * as configApi from "./config";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
