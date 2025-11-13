@@ -131,6 +131,86 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
   const [testing, setTesting] = useState(false);
 
+  // 🔧 输入时的格式化（宽松）- 只清理格式，不约束范围
+  const sanitizeNumberInput = (value: string): string => {
+    // 移除所有非数字字符
+    let cleaned = value.replace(/[^\d]/g, "");
+
+    // 移除前导零（除非输入的就是 "0"）
+    if (cleaned.length > 1 && cleaned.startsWith("0")) {
+      cleaned = cleaned.replace(/^0+/, "");
+    }
+
+    return cleaned;
+  };
+
+  // 🔧 失焦时的验证（严格）- 仅确保有效整数
+  const validateTimeout = (value: string): number => {
+    // 转换为数字
+    const num = Number(value);
+
+    // 检查是否为有效数字
+    if (isNaN(num) || value.trim() === "") {
+      return 10; // 默认值
+    }
+
+    // 检查是否为整数
+    if (!Number.isInteger(num)) {
+      toast.warning(
+        t("usageScript.timeoutMustBeInteger") || "超时时间必须为整数",
+      );
+    }
+
+    // 检查负数
+    if (num < 0) {
+      toast.error(
+        t("usageScript.timeoutCannotBeNegative") || "超时时间不能为负数",
+      );
+      return 10;
+    }
+
+    return Math.floor(num);
+  };
+
+  // 🔧 失焦时的验证（严格）- 自动查询间隔
+  const validateAndClampInterval = (value: string): number => {
+    // 转换为数字
+    const num = Number(value);
+
+    // 检查是否为有效数字
+    if (isNaN(num) || value.trim() === "") {
+      return 0; // 禁用自动查询
+    }
+
+    // 检查是否为整数
+    if (!Number.isInteger(num)) {
+      toast.warning(
+        t("usageScript.intervalMustBeInteger") || "自动查询间隔必须为整数",
+      );
+    }
+
+    // 检查负数
+    if (num < 0) {
+      toast.error(
+        t("usageScript.intervalCannotBeNegative") || "自动查询间隔不能为负数",
+      );
+      return 0;
+    }
+
+    // 约束到 [0, 1440] 范围（最大24小时）
+    const clamped = Math.max(0, Math.min(1440, Math.floor(num)));
+
+    // 如果值被调整，显示提示
+    if (clamped !== num && num > 0) {
+      toast.info(
+        t("usageScript.intervalAdjusted", { value: clamped }) ||
+          `自动查询间隔已调整为 ${clamped} 分钟`,
+      );
+    }
+
+    return clamped;
+  };
+
   // 跟踪当前选择的模板类型（用于控制高级配置的显示）
   // 初始化：如果已有 accessToken 或 userId，说明是 NewAPI 模板
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
@@ -490,16 +570,25 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   <Input
                     id="usage-timeout"
                     type="number"
-                    min={2}
-                    max={30}
-                    value={script.timeout || 10}
-                    onChange={(e) =>
-                      setScript({
-                        ...script,
-                        timeout: parseInt(e.target.value),
-                      })
-                    }
+                    value={script.timeout ?? ""}
+                    onChange={(e) => {
+                      // 输入时：只清理格式，允许临时为空，避免强制回填默认值
+                      const cleaned = sanitizeNumberInput(e.target.value);
+                      setScript((prev) => ({
+                        ...prev,
+                        timeout:
+                          cleaned === "" ? undefined : parseInt(cleaned, 10),
+                      }));
+                    }}
+                    onBlur={(e) => {
+                      // 失焦时：严格验证并约束范围
+                      const validated = validateTimeout(e.target.value);
+                      setScript({ ...script, timeout: validated });
+                    }}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {t("usageScript.timeoutHint") || "范围: 2-30 秒"}
+                  </p>
                 </div>
 
                 {/* 🆕 自动查询间隔 */}
@@ -513,13 +602,23 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                     min={0}
                     max={1440}
                     step={1}
-                    value={script.autoQueryInterval || 0}
-                    onChange={(e) =>
-                      setScript({
-                        ...script,
-                        autoQueryInterval: parseInt(e.target.value) || 0,
-                      })
-                    }
+                    value={script.autoQueryInterval ?? ""}
+                    onChange={(e) => {
+                      // 输入时：只清理格式，允许临时为空
+                      const cleaned = sanitizeNumberInput(e.target.value);
+                      setScript((prev) => ({
+                        ...prev,
+                        autoQueryInterval:
+                          cleaned === "" ? undefined : parseInt(cleaned, 10),
+                      }));
+                    }}
+                    onBlur={(e) => {
+                      // 失焦时：严格验证并约束范围
+                      const validated = validateAndClampInterval(
+                        e.target.value,
+                      );
+                      setScript({ ...script, autoQueryInterval: validated });
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
                     {t("usageScript.autoQueryIntervalHint")}

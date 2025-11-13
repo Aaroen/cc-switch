@@ -1562,6 +1562,33 @@ impl ProviderService {
             }
         }
 
+        // 🔧 验证并清理 UsageScript 配置（所有应用类型通用）
+        if let Some(meta) = &provider.meta {
+            if let Some(usage_script) = &meta.usage_script {
+                Self::validate_usage_script(usage_script)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 验证 UsageScript 配置（边界检查）
+    fn validate_usage_script(script: &crate::provider::UsageScript) -> Result<(), AppError> {
+        // 验证自动查询间隔 (0-1440 分钟，即最大24小时)
+        if let Some(interval) = script.auto_query_interval {
+            if interval > 1440 {
+                return Err(AppError::localized(
+                    "usage_script.interval_too_large",
+                    format!(
+                        "自动查询间隔不能超过 1440 分钟（24小时），当前值: {interval}"
+                    ),
+                    format!(
+                        "Auto query interval cannot exceed 1440 minutes (24 hours), current: {interval}"
+                    ),
+                ));
+            }
+        }
+
         Ok(())
     }
 
