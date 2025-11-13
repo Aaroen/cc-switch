@@ -217,8 +217,33 @@ pub fn json_to_env(settings: &Value) -> Result<HashMap<String, String>, AppError
     Ok(env_map)
 }
 
-/// 验证 Gemini 配置的必需字段
+/// 验证 Gemini 配置的基本结构
+///
+/// 此函数只验证配置的基本格式，不强制要求 GEMINI_API_KEY。
+/// 这允许用户先创建供应商配置，稍后再填写 API Key。
+///
+/// API Key 的验证会在切换供应商时进行（通过 `validate_gemini_settings_strict`）。
 pub fn validate_gemini_settings(settings: &Value) -> Result<(), AppError> {
+    // 只验证基本结构，不强制要求 GEMINI_API_KEY
+    // 如果有 env 字段，验证它是一个对象
+    if let Some(env) = settings.get("env") {
+        if !env.is_object() {
+            return Err(AppError::localized(
+                "gemini.validation.invalid_env",
+                "Gemini 配置格式错误: env 必须是对象",
+                "Gemini config invalid: env must be an object",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// 严格验证 Gemini 配置（要求必需字段）
+///
+/// 此函数在切换供应商时使用，确保配置包含所有必需的字段。
+/// 对于需要 API Key 的供应商（如 PackyCode），会验证 GEMINI_API_KEY 字段。
+pub fn validate_gemini_settings_strict(settings: &Value) -> Result<(), AppError> {
     let env_map = json_to_env(settings)?;
 
     // 如果 env 为空，表示使用 OAuth（如 Google 官方），跳过验证
@@ -557,12 +582,14 @@ KEY_WITH-DASH=value";
 
     #[test]
     fn test_validate_empty_env_for_oauth() {
-        // 测试空 env（Google 官方 OAuth）可以通过验证
+        // 测试空 env（Google 官方 OAuth）可以通过基本验证
         let settings = serde_json::json!({
             "env": {}
         });
 
         assert!(validate_gemini_settings(&settings).is_ok());
+        // 严格验证也应该通过（空 env 表示 OAuth）
+        assert!(validate_gemini_settings_strict(&settings).is_ok());
     }
 
     #[test]
@@ -576,15 +603,29 @@ KEY_WITH-DASH=value";
         });
 
         assert!(validate_gemini_settings(&settings).is_ok());
+        assert!(validate_gemini_settings_strict(&settings).is_ok());
     }
 
     #[test]
-    fn test_validate_env_without_api_key_fails() {
-        // 测试缺少 API Key 的非空配置会失败
+    fn test_validate_env_without_api_key_relaxed() {
+        // 测试缺少 API Key 的非空配置在基本验证中可以通过（用户稍后填写）
         let settings = serde_json::json!({
             "env": {
                 "GEMINI_MODEL": "gemini-2.5-pro"
             }
+        });
+
+        // 基本验证应该通过（允许稍后填写 API Key）
+        assert!(validate_gemini_settings(&settings).is_ok());
+        // 严格验证应该失败（切换时要求完整配置）
+        assert!(validate_gemini_settings_strict(&settings).is_err());
+    }
+
+    #[test]
+    fn test_validate_invalid_env_type() {
+        // 测试 env 不是对象时会失败
+        let settings = serde_json::json!({
+            "env": "invalid_string"
         });
 
         assert!(validate_gemini_settings(&settings).is_err());

@@ -1465,7 +1465,7 @@ impl ProviderService {
 
     fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
         use crate::gemini_config::{
-            json_to_env, validate_gemini_settings, write_gemini_env_atomic,
+            json_to_env, validate_gemini_settings_strict, write_gemini_env_atomic,
         };
 
         // 一次性检测认证类型，避免重复检测
@@ -1479,15 +1479,15 @@ impl ProviderService {
                 Self::ensure_google_oauth_security_flag(provider)?;
             }
             GeminiAuthType::Packycode => {
-                // PackyCode 供应商，使用 API Key
-                validate_gemini_settings(&provider.settings_config)?;
+                // PackyCode 供应商，使用 API Key（切换时严格验证）
+                validate_gemini_settings_strict(&provider.settings_config)?;
                 let env_map = json_to_env(&provider.settings_config)?;
                 write_gemini_env_atomic(&env_map)?;
                 Self::ensure_packycode_security_flag(provider)?;
             }
             GeminiAuthType::Generic => {
-                // 通用供应商，使用 API Key
-                validate_gemini_settings(&provider.settings_config)?;
+                // 通用供应商，使用 API Key（切换时严格验证）
+                validate_gemini_settings_strict(&provider.settings_config)?;
                 let env_map = json_to_env(&provider.settings_config)?;
                 write_gemini_env_atomic(&env_map)?;
             }
