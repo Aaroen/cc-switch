@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use crate::app_config::AppType;
 use crate::config::write_text_file;
 use crate::error::AppError;
 use crate::prompt::Prompt;
+use crate::prompt_files::prompt_file_path;
 use crate::store::AppState;
 
 pub struct PromptService;
@@ -44,7 +44,7 @@ impl PromptService {
 
         // 如果是已启用的提示词，同步更新到对应的文件
         if is_enabled {
-            let target_path = Self::get_prompt_file_path(&app)?;
+            let target_path = prompt_file_path(&app)?;
             write_text_file(&target_path, &prompt.content)?;
         }
 
@@ -75,7 +75,7 @@ impl PromptService {
 
     pub fn enable_prompt(state: &AppState, app: AppType, id: &str) -> Result<(), AppError> {
         // 先保存当前文件内容（如果存在且没有对应的提示词）
-        let target_path = Self::get_prompt_file_path(&app)?;
+        let target_path = prompt_file_path(&app)?;
         if target_path.exists() {
             let mut cfg = state.config.write()?;
             let prompts = match app {
@@ -99,7 +99,7 @@ impl PromptService {
                                 .duration_since(std::time::UNIX_EPOCH)
                                 .unwrap()
                                 .as_secs() as i64;
-                            let backup_id = format!("backup-{}", timestamp);
+                            let backup_id = format!("backup-{timestamp}");
                             let backup_prompt = Prompt {
                                 id: backup_id.clone(),
                                 name: format!("原始提示词 {}", chrono::Local::now().format("%Y-%m-%d %H:%M")),
@@ -133,7 +133,7 @@ impl PromptService {
             prompt.enabled = true;
             write_text_file(&target_path, &prompt.content)?;
         } else {
-            return Err(AppError::InvalidInput(format!("提示词 {} 不存在", id)));
+            return Err(AppError::InvalidInput(format!("提示词 {id} 不存在")));
         }
 
         drop(cfg);
@@ -141,38 +141,8 @@ impl PromptService {
         Ok(())
     }
 
-    fn get_prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
-        let base_dir = match app {
-            AppType::Claude => crate::config::get_claude_settings_path()
-                .parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| {
-                    dirs::home_dir()
-                        .expect("无法获取用户目录")
-                        .join(".claude")
-                }),
-            AppType::Codex => crate::codex_config::get_codex_auth_path()
-                .parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| {
-                    dirs::home_dir()
-                        .expect("无法获取用户目录")
-                        .join(".codex")
-                }),
-            AppType::Gemini => crate::gemini_config::get_gemini_dir(),
-        };
-
-        let filename = match app {
-            AppType::Claude => "CLAUDE.md",
-            AppType::Codex => "AGENTS.md",
-            AppType::Gemini => "GEMINI.md",
-        };
-
-        Ok(base_dir.join(filename))
-    }
-
     pub fn import_from_file(state: &AppState, app: AppType) -> Result<String, AppError> {
-        let file_path = Self::get_prompt_file_path(&app)?;
+        let file_path = prompt_file_path(&app)?;
 
         if !file_path.exists() {
             return Err(AppError::Message("提示词文件不存在".to_string()));
@@ -184,7 +154,7 @@ impl PromptService {
             .unwrap()
             .as_secs() as i64;
 
-        let id = format!("imported-{}", timestamp);
+        let id = format!("imported-{timestamp}");
         let prompt = Prompt {
             id: id.clone(),
             name: format!(
@@ -203,7 +173,7 @@ impl PromptService {
     }
 
     pub fn get_current_file_content(app: AppType) -> Result<Option<String>, AppError> {
-        let file_path = Self::get_prompt_file_path(&app)?;
+        let file_path = prompt_file_path(&app)?;
         if !file_path.exists() {
             return Ok(None);
         }

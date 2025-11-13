@@ -57,3 +57,7 @@ lto = "thin"
 opt-level = "s"
 panic = "abort"
 strip = "symbols"
+
+[dev-dependencies]
+serial_test = "3"
+tempfile = "3"

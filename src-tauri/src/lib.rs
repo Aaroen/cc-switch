@@ -10,6 +10,7 @@ mod gemini_config; // 新增
 mod init_status;
 mod mcp;
 mod prompt;
+mod prompt_files;
 mod provider;
 mod services;
 mod settings;
