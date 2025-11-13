@@ -1,5 +1,6 @@
 import type { AppId } from "@/lib/api";
 import { ClaudeIcon, CodexIcon, GeminiIcon } from "./BrandIcons";
+import { useTranslation } from "react-i18next";
 
 interface AppSwitcherProps {
   activeApp: AppId;
@@ -7,6 +8,7 @@ interface AppSwitcherProps {
 }
 
 export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
+  const { t } = useTranslation();
   const handleSwitch = (app: AppId) => {
     if (app === activeApp) return;
     onSwitch(app);
@@ -31,7 +33,7 @@ export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
               : "text-gray-500 dark:text-gray-400 group-hover:text-[#D97757] dark:group-hover:text-[#D97757] transition-colors duration-200"
           }
         />
-        <span>Claude</span>
+        <span>{t("apps.claude")}</span>
       </button>
 
       <button
@@ -44,7 +46,7 @@ export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
         }`}
       >
         <CodexIcon size={16} />
-        <span>Codex</span>
+        <span>{t("apps.codex")}</span>
       </button>
 
       <button
@@ -64,7 +66,7 @@ export function AppSwitcher({ activeApp, onSwitch }: AppSwitcherProps) {
               : "text-gray-500 dark:text-gray-400 group-hover:text-[#4285F4] dark:group-hover:text-[#4285F4] transition-colors duration-200"
           }
         />
-        <span>Gemini</span>
+        <span>{t("apps.gemini")}</span>
       </button>
     </div>
   );
