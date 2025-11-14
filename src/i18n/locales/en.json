@@ -343,6 +343,16 @@
     "configPreview": "Configuration Preview",
     "applyConfig": "Apply Configuration"
   },
+  "geminiConfig": {
+    "envFile": "Environment Variables (.env)",
+    "envFileHint": "Configure Gemini environment variables in .env format",
+    "configJson": "Configuration File (config.json)",
+    "configJsonHint": "Configure Gemini extended parameters in JSON format (optional)",
+    "writeCommonConfig": "Write Common Config",
+    "editCommonConfig": "Edit Common Config",
+    "editCommonConfigTitle": "Edit Gemini Common Config Snippet",
+    "commonConfigHint": "Common config snippet will be merged into all Gemini providers with it enabled"
+  },
   "providerPreset": {
     "label": "Provider Preset",
     "custom": "Custom Configuration",

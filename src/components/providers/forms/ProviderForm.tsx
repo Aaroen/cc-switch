@@ -23,7 +23,7 @@ import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import { mergeProviderMeta } from "@/utils/providerMetaUtils";
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
-import { GeminiConfigEditor } from "./GeminiConfigEditor";
+import GeminiConfigEditor from "./GeminiConfigEditor";
 import { ProviderPresetSelector } from "./ProviderPresetSelector";
 import { BasicFormFields } from "./BasicFormFields";
 import { ClaudeFormFields } from "./ClaudeFormFields";
@@ -41,6 +41,8 @@ import {
   useCodexCommonConfig,
   useSpeedTestEndpoints,
   useCodexTomlValidation,
+  useGeminiConfigState,
+  useGeminiCommonConfig,
 } from "./hooks";
 
 const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {} }, null, 2);
@@ -227,16 +229,16 @@ export function ProviderForm({
 
   const presetCategoryLabels: Record<string, string> = useMemo(
     () => ({
-      official: t("providerPreset.categoryOfficial", {
+      official: t("providerForm.categoryOfficial", {
         defaultValue: "官方",
       }),
-      cn_official: t("providerPreset.categoryCnOfficial", {
+      cn_official: t("providerForm.categoryCnOfficial", {
         defaultValue: "国内官方",
       }),
-      aggregator: t("providerPreset.categoryAggregator", {
+      aggregator: t("providerForm.categoryAggregation", {
         defaultValue: "聚合服务",
       }),
-      third_party: t("providerPreset.categoryThirdParty", {
+      third_party: t("providerForm.categoryThirdParty", {
         defaultValue: "第三方",
       }),
     }),
@@ -301,6 +303,33 @@ export function ProviderForm({
     initialData: appId === "codex" ? initialData : undefined,
   });
 
+  // 使用 Gemini 配置 hook (仅 Gemini 模式)
+  const {
+    geminiEnv,
+    geminiConfig,
+    envError,
+    configError: geminiConfigError,
+    handleGeminiEnvChange,
+    handleGeminiConfigChange,
+    resetGeminiConfig,
+    envStringToObj,
+  } = useGeminiConfigState({
+    initialData: appId === "gemini" ? initialData : undefined,
+  });
+
+  // 使用 Gemini 通用配置 hook (仅 Gemini 模式)
+  const {
+    useCommonConfig: useGeminiCommonConfigFlag,
+    commonConfigSnippet: geminiCommonConfigSnippet,
+    commonConfigError: geminiCommonConfigError,
+    handleCommonConfigToggle: handleGeminiCommonConfigToggle,
+    handleCommonConfigSnippetChange: handleGeminiCommonConfigSnippetChange,
+  } = useGeminiCommonConfig({
+    configValue: geminiConfig,
+    onConfigChange: handleGeminiConfigChange,
+    initialData: appId === "gemini" ? initialData : undefined,
+  });
+
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
   const handleSubmit = (values: ProviderFormData) => {
@@ -312,7 +341,7 @@ export function ProviderForm({
           type: "manual",
           message: t("providerForm.fillParameter", {
             label: validation.missingField.label,
-            defaultValue: `���填写 ${validation.missingField.label}`,
+            defaultValue: `请填写 ${validation.missingField.label}`,
           }),
         });
         return;
@@ -330,6 +359,20 @@ export function ProviderForm({
           config: codexConfig ?? "",
         };
         settingsConfig = JSON.stringify(configObj);
+      } catch (err) {
+        // 如果解析失败，使用表单中的配置
+        settingsConfig = values.settingsConfig.trim();
+      }
+    } else if (appId === "gemini") {
+      // Gemini: 组合 env 和 config
+      try {
+        const envObj = envStringToObj(geminiEnv);
+        const configObj = geminiConfig.trim() ? JSON.parse(geminiConfig) : {};
+        const combined = {
+          env: envObj,
+          config: configObj,
+        };
+        settingsConfig = JSON.stringify(combined);
       } catch (err) {
         // 如果解析失败，使用表单中的配置
         settingsConfig = values.settingsConfig.trim();
@@ -489,6 +532,10 @@ export function ProviderForm({
       if (appId === "codex") {
         resetCodexConfig({}, "");
       }
+      // Gemini 自定义模式：重置为空配置
+      if (appId === "gemini") {
+        resetGeminiConfig({}, {});
+      }
       return;
     }
 
@@ -523,6 +570,13 @@ export function ProviderForm({
 
     if (appId === "gemini") {
       const preset = entry.preset as GeminiProviderPreset;
+      const env = (preset.settingsConfig as any)?.env ?? {};
+      const config = (preset.settingsConfig as any)?.config ?? {};
+
+      // 重置 Gemini 配置
+      resetGeminiConfig(env, config);
+
+      // 更新表单其他字段
       form.reset({
         name: preset.name,
         websiteUrl: preset.websiteUrl ?? "",
@@ -704,8 +758,19 @@ export function ProviderForm({
         ) : appId === "gemini" ? (
           <>
             <GeminiConfigEditor
-              value={form.watch("settingsConfig")}
-              onChange={(value) => form.setValue("settingsConfig", value)}
+              envValue={geminiEnv}
+              configValue={geminiConfig}
+              onEnvChange={handleGeminiEnvChange}
+              onConfigChange={handleGeminiConfigChange}
+              useCommonConfig={useGeminiCommonConfigFlag}
+              onCommonConfigToggle={handleGeminiCommonConfigToggle}
+              commonConfigSnippet={geminiCommonConfigSnippet}
+              onCommonConfigSnippetChange={
+                handleGeminiCommonConfigSnippetChange
+              }
+              commonConfigError={geminiCommonConfigError}
+              envError={envError}
+              configError={geminiConfigError}
             />
             {/* 配置验证错误显示 */}
             <FormField
