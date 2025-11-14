@@ -2,7 +2,75 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
-/// MCP 配置：单客户端维度（claude 或 codex 下的一组服务器）
+/// MCP 服务器应用状态（标记应用到哪些客户端）
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct McpApps {
+    #[serde(default)]
+    pub claude: bool,
+    #[serde(default)]
+    pub codex: bool,
+    #[serde(default)]
+    pub gemini: bool,
+}
+
+impl McpApps {
+    /// 检查指定应用是否启用
+    pub fn is_enabled_for(&self, app: &AppType) -> bool {
+        match app {
+            AppType::Claude => self.claude,
+            AppType::Codex => self.codex,
+            AppType::Gemini => self.gemini,
+        }
+    }
+
+    /// 设置指定应用的启用状态
+    pub fn set_enabled_for(&mut self, app: &AppType, enabled: bool) {
+        match app {
+            AppType::Claude => self.claude = enabled,
+            AppType::Codex => self.codex = enabled,
+            AppType::Gemini => self.gemini = enabled,
+        }
+    }
+
+    /// 获取所有启用的应用列表
+    pub fn enabled_apps(&self) -> Vec<AppType> {
+        let mut apps = Vec::new();
+        if self.claude {
+            apps.push(AppType::Claude);
+        }
+        if self.codex {
+            apps.push(AppType::Codex);
+        }
+        if self.gemini {
+            apps.push(AppType::Gemini);
+        }
+        apps
+    }
+
+    /// 检查是否所有应用都未启用
+    pub fn is_empty(&self) -> bool {
+        !self.claude && !self.codex && !self.gemini
+    }
+}
+
+/// MCP 服务器定义（v3.7.0 统一结构）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub server: serde_json::Value,
+    pub apps: McpApps,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+/// MCP 配置：单客户端维度（v3.6.x 及以前，保留用于向后兼容）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct McpConfig {
     /// 以 id 为键的服务器定义（宽松 JSON 对象，包含 enabled/source 等 UI 辅助字段）
@@ -10,15 +78,27 @@ pub struct McpConfig {
     pub servers: HashMap<String, serde_json::Value>,
 }
 
-/// MCP 根：按客户端分开维护（无历史兼容压力，直接以 v2 结构落地）
+impl McpConfig {
+    /// 检查配置是否为空
+    pub fn is_empty(&self) -> bool {
+        self.servers.is_empty()
+    }
+}
+
+/// MCP 根配置（v3.7.0 新旧结构并存）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct McpRoot {
-    #[serde(default)]
+    /// 统一的 MCP 服务器存储（v3.7.0+）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub servers: Option<HashMap<String, McpServer>>,
+
+    /// 旧的分应用存储（v3.6.x 及以前，保留用于迁移）
+    #[serde(default, skip_serializing_if = "McpConfig::is_empty")]
     pub claude: McpConfig,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "McpConfig::is_empty")]
     pub codex: McpConfig,
-    #[serde(default)]
-    pub gemini: McpConfig, // Gemini MCP 配置（预留）
+    #[serde(default, skip_serializing_if = "McpConfig::is_empty")]
+    pub gemini: McpConfig,
 }
 
 /// Prompt 配置：单客户端维度
@@ -169,6 +249,13 @@ impl MultiAppConfig {
                 .insert("gemini".to_string(), ProviderManager::default());
         }
 
+        // 执行 MCP 迁移（v3.6.x → v3.7.0）
+        let migrated = config.migrate_mcp_to_unified()?;
+        if migrated {
+            log::info!("MCP 配置已迁移到 v3.7.0 统一结构，保存配置...");
+            config.save()?;
+        }
+
         Ok(config)
     }
 
@@ -295,6 +382,137 @@ impl MultiAppConfig {
 
         log::info!("自动导入完成: {}", app.as_str());
         Ok(())
+    }
+
+    /// 将 v3.6.x 的分应用 MCP 结构迁移到 v3.7.0 的统一结构
+    ///
+    /// 迁移策略：
+    /// 1. 检查是否已经迁移（mcp.servers 是否存在）
+    /// 2. 收集所有应用的 MCP，按 ID 去重合并
+    /// 3. 生成统一的 McpServer 结构，标记应用到哪些客户端
+    /// 4. 清空旧的分应用配置
+    pub fn migrate_mcp_to_unified(&mut self) -> Result<bool, AppError> {
+        // 检查是否已经是新结构
+        if self.mcp.servers.is_some() {
+            log::debug!("MCP 配置已是统一结构，跳过迁移");
+            return Ok(false);
+        }
+
+        log::info!("检测到旧版 MCP 配置格式，开始迁移到 v3.7.0 统一结构...");
+
+        let mut unified_servers: HashMap<String, McpServer> = HashMap::new();
+        let mut conflicts = Vec::new();
+
+        // 收集所有应用的 MCP
+        for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+            let old_servers = match app {
+                AppType::Claude => &self.mcp.claude.servers,
+                AppType::Codex => &self.mcp.codex.servers,
+                AppType::Gemini => &self.mcp.gemini.servers,
+            };
+
+            for (id, entry) in old_servers {
+                let enabled = entry
+                    .get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+
+                if let Some(existing) = unified_servers.get_mut(id) {
+                    // 该 ID 已存在，合并 apps 字段
+                    existing.apps.set_enabled_for(&app, enabled);
+
+                    // 检测配置冲突（同 ID 但配置不同）
+                    if existing.server != *entry.get("server").unwrap_or(&serde_json::json!({})) {
+                        conflicts.push(format!(
+                            "MCP '{id}' 在 {} 和之前的应用中配置不同，将使用首次遇到的配置",
+                            app.as_str()
+                        ));
+                    }
+                } else {
+                    // 首次遇到该 MCP，创建新条目
+                    let name = entry
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(id)
+                        .to_string();
+
+                    let server = entry
+                        .get("server")
+                        .cloned()
+                        .unwrap_or(serde_json::json!({}));
+
+                    let description = entry
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let homepage = entry
+                        .get("homepage")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let docs = entry
+                        .get("docs")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let tags = entry
+                        .get("tags")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    let mut apps = McpApps::default();
+                    apps.set_enabled_for(&app, enabled);
+
+                    unified_servers.insert(
+                        id.clone(),
+                        McpServer {
+                            id: id.clone(),
+                            name,
+                            server,
+                            apps,
+                            description,
+                            homepage,
+                            docs,
+                            tags,
+                        },
+                    );
+                }
+            }
+        }
+
+        // 记录冲突警告
+        if !conflicts.is_empty() {
+            log::warn!("MCP 迁移过程中检测到配置冲突：");
+            for conflict in &conflicts {
+                log::warn!("  - {conflict}");
+            }
+        }
+
+        log::info!(
+            "MCP 迁移完成，共迁移 {} 个服务器{}",
+            unified_servers.len(),
+            if !conflicts.is_empty() {
+                format!("（存在 {} 个冲突）", conflicts.len())
+            } else {
+                String::new()
+            }
+        );
+
+        // 替换为新结构
+        self.mcp.servers = Some(unified_servers);
+
+        // 清空旧的分应用配置
+        self.mcp.claude = McpConfig::default();
+        self.mcp.codex = McpConfig::default();
+        self.mcp.gemini = McpConfig::default();
+
+        Ok(true)
     }
 }
 

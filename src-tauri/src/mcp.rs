@@ -791,3 +791,140 @@ pub fn import_from_gemini(config: &mut MultiAppConfig) -> Result<usize, AppError
     }
     Ok(changed)
 }
+
+// ============================================================================
+// v3.7.0 新增：单个服务器同步和删除函数
+// ============================================================================
+
+/// 将单个 MCP 服务器同步到 Claude live 配置
+pub fn sync_single_server_to_claude(
+    _config: &MultiAppConfig,
+    id: &str,
+    server_spec: &Value,
+) -> Result<(), AppError> {
+    // 读取现有的 MCP 配置
+    let current = crate::claude_mcp::read_mcp_servers_map()?;
+
+    // 创建新的 HashMap，包含现有的所有服务器 + 当前要同步的服务器
+    let mut updated = current;
+    updated.insert(id.to_string(), server_spec.clone());
+
+    // 写回
+    crate::claude_mcp::set_mcp_servers_map(&updated)
+}
+
+/// 从 Claude live 配置中移除单个 MCP 服务器
+pub fn remove_server_from_claude(id: &str) -> Result<(), AppError> {
+    // 读取现有的 MCP 配置
+    let mut current = crate::claude_mcp::read_mcp_servers_map()?;
+
+    // 移除指定服务器
+    current.remove(id);
+
+    // 写回
+    crate::claude_mcp::set_mcp_servers_map(&current)
+}
+
+/// 将单个 MCP 服务器同步到 Codex live 配置
+pub fn sync_single_server_to_codex(
+    _config: &MultiAppConfig,
+    id: &str,
+    server_spec: &Value,
+) -> Result<(), AppError> {
+    // 读取现有的 config.toml
+    let config_path = crate::codex_config::get_codex_config_path()?;
+
+    let mut doc = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path)
+            .map_err(|e| AppError::io(&config_path, e))?;
+        content
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|e| AppError::McpValidation(format!("解析 Codex config.toml 失败: {e}")))?
+    } else {
+        toml_edit::DocumentMut::new()
+    };
+
+    // 确保 [mcp] 表存在
+    if !doc.contains_key("mcp") {
+        doc["mcp"] = toml_edit::table();
+    }
+
+    // 确保 [mcp.servers] 子表存在
+    if !doc["mcp"]
+        .as_table()
+        .and_then(|t| t.get("servers"))
+        .is_some()
+    {
+        doc["mcp"]["servers"] = toml_edit::table();
+    }
+
+    // 将服务器转换为 TOML 格式并插入
+    let toml_value = serde_json::from_value::<toml_edit::Value>(server_spec.clone())
+        .map_err(|e| AppError::McpValidation(format!("无法将 MCP 服务器转换为 TOML: {e}")))?;
+
+    doc["mcp"]["servers"][id] = toml_edit::value(toml_value);
+
+    // 写回文件
+    std::fs::write(&config_path, doc.to_string())
+        .map_err(|e| AppError::io(&config_path, e))?;
+
+    Ok(())
+}
+
+/// 从 Codex live 配置中移除单个 MCP 服务器
+pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
+    let config_path = crate::codex_config::get_codex_config_path()?;
+
+    if !config_path.exists() {
+        return Ok(()); // 文件不存在，无需删除
+    }
+
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| AppError::io(&config_path, e))?;
+
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| AppError::McpValidation(format!("解析 Codex config.toml 失败: {e}")))?;
+
+    // 从 [mcp.servers] 中删除
+    if let Some(mcp_table) = doc.get_mut("mcp").and_then(|t| t.as_table_mut()) {
+        if let Some(servers) = mcp_table.get_mut("servers").and_then(|s| s.as_table_mut()) {
+            servers.remove(id);
+        }
+    }
+
+    // 写回文件
+    std::fs::write(&config_path, doc.to_string())
+        .map_err(|e| AppError::io(&config_path, e))?;
+
+    Ok(())
+}
+
+/// 将单个 MCP 服务器同步到 Gemini live 配置
+pub fn sync_single_server_to_gemini(
+    _config: &MultiAppConfig,
+    id: &str,
+    server_spec: &Value,
+) -> Result<(), AppError> {
+    // 读取现有的 MCP 配置
+    let current = crate::gemini_mcp::read_mcp_servers_map()?;
+
+    // 创建新的 HashMap，包含现有的所有服务器 + 当前要同步的服务器
+    let mut updated = current;
+    updated.insert(id.to_string(), server_spec.clone());
+
+    // 写回
+    crate::gemini_mcp::set_mcp_servers_map(&updated)
+}
+
+/// 从 Gemini live 配置中移除单个 MCP 服务器
+pub fn remove_server_from_gemini(id: &str) -> Result<(), AppError> {
+    // 读取现有的 MCP 配置
+    let mut current = crate::gemini_mcp::read_mcp_servers_map()?;
+
+    // 移除指定服务器
+    current.remove(id);
+
+    // 写回
+    crate::gemini_mcp::set_mcp_servers_map(&current)
+}

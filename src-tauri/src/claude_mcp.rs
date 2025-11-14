@@ -231,6 +231,27 @@ pub fn validate_command_in_path(cmd: &str) -> Result<bool, AppError> {
     Ok(false)
 }
 
+/// 读取 ~/.claude.json 中的 mcpServers 映射
+pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>, AppError> {
+    let path = user_config_path();
+    if !path.exists() {
+        return Ok(std::collections::HashMap::new());
+    }
+
+    let root = read_json_value(&path)?;
+    let servers = root
+        .get("mcpServers")
+        .and_then(|v| v.as_object())
+        .map(|obj| {
+            obj.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(servers)
+}
+
 /// 将给定的启用 MCP 服务器映射写入到用户级 ~/.claude.json 的 mcpServers 字段
 /// 仅覆盖 mcpServers，其他字段保持不变
 pub fn set_mcp_servers_map(

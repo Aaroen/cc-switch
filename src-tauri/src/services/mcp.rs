@@ -1,213 +1,189 @@
 use std::collections::HashMap;
 
-use serde_json::Value;
-
-use crate::app_config::{AppType, MultiAppConfig};
+use crate::app_config::{AppType, McpServer, MultiAppConfig};
 use crate::error::AppError;
 use crate::mcp;
 use crate::store::AppState;
 
-/// MCP 相关业务逻辑
+/// MCP 相关业务逻辑（v3.7.0 统一结构）
 pub struct McpService;
 
 impl McpService {
-    /// 获取指定应用的 MCP 服务器快照，并在必要时回写归一化后的配置。
-    pub fn get_servers(state: &AppState, app: AppType) -> Result<HashMap<String, Value>, AppError> {
-        let mut cfg = state.config.write()?;
-        let (snapshot, normalized) = mcp::get_servers_snapshot_for(&mut cfg, &app);
-        drop(cfg);
-        if normalized > 0 {
-            state.save()?;
+    /// 获取所有 MCP 服务器（统一结构）
+    pub fn get_all_servers(state: &AppState) -> Result<HashMap<String, McpServer>, AppError> {
+        let cfg = state.config.read()?;
+
+        // 如果是新结构，直接返回
+        if let Some(servers) = &cfg.mcp.servers {
+            return Ok(servers.clone());
         }
-        Ok(snapshot)
+
+        // 理论上不应该走到这里，因为 load 时会自动迁移
+        Err(AppError::localized(
+            "mcp.old_structure",
+            "检测到旧版 MCP 结构，请重启应用完成迁移",
+            "Old MCP structure detected, please restart app to complete migration",
+        ))
     }
 
-    /// 在 config.json 中新增或更新指定 MCP 服务器，并按需同步到对应客户端。
-    pub fn upsert_server(
-        state: &AppState,
-        app: AppType,
-        id: &str,
-        spec: Value,
-        sync_other_side: bool,
-    ) -> Result<bool, AppError> {
-        let (changed, snapshot, sync_claude, sync_codex, sync_gemini): (
-            bool,
-            Option<MultiAppConfig>,
-            bool,
-            bool,
-            bool,
-        ) = {
+    /// 添加或更新 MCP 服务器
+    pub fn upsert_server(state: &AppState, server: McpServer) -> Result<(), AppError> {
+        {
             let mut cfg = state.config.write()?;
-            let changed = mcp::upsert_in_config_for(&mut cfg, &app, id, spec)?;
 
-            // 修复：默认启用（unwrap_or(true)）
-            // 新增的 MCP 如果缺少 enabled 字段，应该默认为启用状态
-            let enabled = cfg
-                .mcp_for(&app)
-                .servers
-                .get(id)
-                .and_then(|entry| entry.get("enabled"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-
-            let mut sync_claude = matches!(app, AppType::Claude) && enabled;
-            let mut sync_codex = matches!(app, AppType::Codex) && enabled;
-            let mut sync_gemini = matches!(app, AppType::Gemini) && enabled;
-
-            // 修复：sync_other_side=true 时，先将 MCP 复制到另一侧，然后强制同步
-            // 这才是"同步到另一侧"的正确语义：将 MCP 跨应用复制
-            if sync_other_side && app != AppType::Gemini {
-                // Gemini 暂不支持跨应用复制，直接跳过
-                // 获取当前 MCP 条目的克隆（刚刚插入的，不可能失败）
-                let current_entry = cfg
-                    .mcp_for(&app)
-                    .servers
-                    .get(id)
-                    .cloned()
-                    .expect("刚刚插入的 MCP 条目必定存在");
-
-                // 将该 MCP 复制到另一侧的 servers
-                let other_app = match app {
-                    AppType::Claude => AppType::Codex,
-                    AppType::Codex => AppType::Claude,
-                    AppType::Gemini => unreachable!("Gemini 已在外层 if 中跳过"),
-                };
-
-                cfg.mcp_for_mut(&other_app)
-                    .servers
-                    .insert(id.to_string(), current_entry);
-
-                // 强制同步另一侧
-                match app {
-                    AppType::Claude => sync_codex = true,
-                    AppType::Codex => sync_claude = true,
-                    AppType::Gemini => unreachable!("Gemini 已在外层 if 中跳过"),
-                }
+            // 确保 servers 字段存在
+            if cfg.mcp.servers.is_none() {
+                cfg.mcp.servers = Some(HashMap::new());
             }
 
-            let snapshot = if sync_claude || sync_codex || sync_gemini {
-                Some(cfg.clone())
-            } else {
-                None
-            };
+            let servers = cfg.mcp.servers.as_mut().unwrap();
+            let id = server.id.clone();
 
-            (changed, snapshot, sync_claude, sync_codex, sync_gemini)
-        };
+            // 插入或更新
+            servers.insert(id, server.clone());
+        }
 
-        // 保持原有行为：始终尝试持久化，避免遗漏 normalize 带来的隐式变更
         state.save()?;
 
-        if let Some(snapshot) = snapshot {
-            if sync_claude {
-                mcp::sync_enabled_to_claude(&snapshot)?;
-            }
-            if sync_codex {
-                mcp::sync_enabled_to_codex(&snapshot)?;
-            }
-            if sync_gemini {
-                mcp::sync_enabled_to_gemini(&snapshot)?;
-            }
-        }
+        // 同步到各个启用的应用
+        Self::sync_server_to_apps(state, &server)?;
 
-        Ok(changed)
+        Ok(())
     }
 
-    /// 删除 config.json 中的 MCP 服务器条目，并同步客户端配置。
-    pub fn delete_server(state: &AppState, app: AppType, id: &str) -> Result<bool, AppError> {
-        let (existed, snapshot): (bool, Option<MultiAppConfig>) = {
+    /// 删除 MCP 服务器
+    pub fn delete_server(state: &AppState, id: &str) -> Result<bool, AppError> {
+        let server = {
             let mut cfg = state.config.write()?;
-            let existed = mcp::delete_in_config_for(&mut cfg, &app, id)?;
-            let snapshot = if existed { Some(cfg.clone()) } else { None };
-            (existed, snapshot)
-        };
-        if existed {
-            state.save()?;
-            if let Some(snapshot) = snapshot {
-                match app {
-                    AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
-                    AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
-                }
+
+            if let Some(servers) = &mut cfg.mcp.servers {
+                servers.remove(id)
+            } else {
+                None
             }
+        };
+
+        if let Some(server) = server {
+            state.save()?;
+
+            // 从所有应用的 live 配置中移除
+            Self::remove_server_from_all_apps(state, id, &server)?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(existed)
     }
 
-    /// 设置 MCP 启用状态，并同步到客户端配置。
-    pub fn set_enabled(
+    /// 切换指定应用的启用状态
+    pub fn toggle_app(
         state: &AppState,
+        server_id: &str,
         app: AppType,
-        id: &str,
         enabled: bool,
-    ) -> Result<bool, AppError> {
-        let (existed, snapshot): (bool, Option<MultiAppConfig>) = {
+    ) -> Result<(), AppError> {
+        let server = {
             let mut cfg = state.config.write()?;
-            let existed = mcp::set_enabled_flag_for(&mut cfg, &app, id, enabled)?;
-            let snapshot = if existed { Some(cfg.clone()) } else { None };
-            (existed, snapshot)
+
+            if let Some(servers) = &mut cfg.mcp.servers {
+                if let Some(server) = servers.get_mut(server_id) {
+                    server.apps.set_enabled_for(&app, enabled);
+                    Some(server.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         };
 
-        if existed {
+        if let Some(server) = server {
             state.save()?;
-            if let Some(snapshot) = snapshot {
-                match app {
-                    AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
-                    AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
-                }
+
+            // 同步到对应应用
+            if enabled {
+                Self::sync_server_to_app(state, &server, &app)?;
+            } else {
+                Self::remove_server_from_app(state, server_id, &app)?;
             }
         }
-        Ok(existed)
+
+        Ok(())
     }
 
-    /// 手动同步已启用的 MCP 服务器到客户端配置。
-    pub fn sync_enabled(state: &AppState, app: AppType) -> Result<(), AppError> {
-        let (snapshot, normalized): (MultiAppConfig, usize) = {
-            let mut cfg = state.config.write()?;
-            let normalized = mcp::normalize_servers_for(&mut cfg, &app);
-            (cfg.clone(), normalized)
-        };
-        if normalized > 0 {
-            state.save()?;
+    /// 将 MCP 服务器同步到所有启用的应用
+    fn sync_server_to_apps(state: &AppState, server: &McpServer) -> Result<(), AppError> {
+        let cfg = state.config.read()?;
+
+        for app in server.apps.enabled_apps() {
+            Self::sync_server_to_app_internal(&cfg, server, &app)?;
         }
+
+        Ok(())
+    }
+
+    /// 将 MCP 服务器同步到指定应用
+    fn sync_server_to_app(
+        state: &AppState,
+        server: &McpServer,
+        app: &AppType,
+    ) -> Result<(), AppError> {
+        let cfg = state.config.read()?;
+        Self::sync_server_to_app_internal(&cfg, server, app)
+    }
+
+    fn sync_server_to_app_internal(
+        cfg: &MultiAppConfig,
+        server: &McpServer,
+        app: &AppType,
+    ) -> Result<(), AppError> {
         match app {
-            AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
-            AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-            AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
+            AppType::Claude => {
+                mcp::sync_single_server_to_claude(cfg, &server.id, &server.server)?;
+            }
+            AppType::Codex => {
+                mcp::sync_single_server_to_codex(cfg, &server.id, &server.server)?;
+            }
+            AppType::Gemini => {
+                mcp::sync_single_server_to_gemini(cfg, &server.id, &server.server)?;
+            }
         }
         Ok(())
     }
 
-    /// 从 Claude 客户端配置导入 MCP 定义。
-    pub fn import_from_claude(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let changed = mcp::import_from_claude(&mut cfg)?;
-        drop(cfg);
-        if changed > 0 {
-            state.save()?;
+    /// 从所有曾启用过该服务器的应用中移除
+    fn remove_server_from_all_apps(
+        state: &AppState,
+        id: &str,
+        server: &McpServer,
+    ) -> Result<(), AppError> {
+        // 从所有曾启用的应用中移除
+        for app in server.apps.enabled_apps() {
+            Self::remove_server_from_app(state, id, &app)?;
         }
-        Ok(changed)
+        Ok(())
     }
 
-    /// 从 Codex 客户端配置导入 MCP 定义。
-    pub fn import_from_codex(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let changed = mcp::import_from_codex(&mut cfg)?;
-        drop(cfg);
-        if changed > 0 {
-            state.save()?;
+    fn remove_server_from_app(
+        _state: &AppState,
+        id: &str,
+        app: &AppType,
+    ) -> Result<(), AppError> {
+        match app {
+            AppType::Claude => mcp::remove_server_from_claude(id)?,
+            AppType::Codex => mcp::remove_server_from_codex(id)?,
+            AppType::Gemini => mcp::remove_server_from_gemini(id)?,
         }
-        Ok(changed)
+        Ok(())
     }
 
-    /// 从 Gemini 客户端配置导入 MCP 定义。
-    pub fn import_from_gemini(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let changed = mcp::import_from_gemini(&mut cfg)?;
-        drop(cfg);
-        if changed > 0 {
-            state.save()?;
+    /// 手动同步所有启用的 MCP 服务器到对应的应用
+    pub fn sync_all_enabled(state: &AppState) -> Result<(), AppError> {
+        let servers = Self::get_all_servers(state)?;
+
+        for server in servers.values() {
+            Self::sync_server_to_apps(state, server)?;
         }
-        Ok(changed)
+
+        Ok(())
     }
 }
