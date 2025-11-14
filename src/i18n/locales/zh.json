@@ -441,6 +441,22 @@
     "claudeTitle": "Claude Code MCP 管理",
     "codexTitle": "Codex MCP 管理",
     "geminiTitle": "Gemini MCP 管理",
+    "unifiedPanel": {
+      "title": "MCP 服务器管理",
+      "addServer": "添加服务器",
+      "editServer": "编辑服务器",
+      "deleteServer": "删除服务器",
+      "deleteConfirm": "确定要删除服务器 \"{{id}}\" 吗？此操作无法撤销。",
+      "syncAll": "同步全部",
+      "syncAllSuccess": "已同步所有启用的服务器到各应用配置",
+      "noServers": "暂无服务器",
+      "enabledApps": "启用的应用",
+      "apps": {
+        "claude": "Claude",
+        "codex": "Codex",
+        "gemini": "Gemini"
+      }
+    },
     "userLevelPath": "用户级 MCP 配置路径",
     "serverList": "服务器列表",
     "loading": "加载中...",

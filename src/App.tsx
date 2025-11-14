@@ -20,7 +20,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { UpdateBadge } from "@/components/UpdateBadge";
 import UsageScriptModal from "@/components/UsageScriptModal";
-import McpPanel from "@/components/mcp/McpPanel";
+import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
 import { Button } from "@/components/ui/button";
 
@@ -302,10 +302,9 @@ function App() {
         appId={activeApp}
       />
 
-      <McpPanel
+      <UnifiedMcpPanel
         open={isMcpOpen}
         onOpenChange={setIsMcpOpen}
-        appId={activeApp}
       />
     </div>
   );

@@ -36,6 +36,7 @@ const baseServers: Record<string, McpServer> = {
     id: "sample",
     name: "Sample Claude Server",
     enabled: true,
+    apps: { claude: true, codex: false, gemini: false },
     server: {
       type: "stdio",
       command: "claude-server",

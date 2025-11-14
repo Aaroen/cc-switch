@@ -34,6 +34,7 @@ import {
 } from "@/utils/tomlUtils";
 import { normalizeTomlText } from "@/utils/textNormalization";
 import { useMcpValidation } from "./useMcpValidation";
+import { useUpsertMcpServer } from "@/hooks/useMcp";
 
 interface McpFormModalProps {
   appId: AppId;
@@ -46,6 +47,7 @@ interface McpFormModalProps {
   ) => Promise<void>;
   onClose: () => void;
   existingIds?: string[];
+  unified?: boolean; // 统一模式：使用 useUpsertMcpServer 而非传统回调
 }
 
 /**
@@ -60,10 +62,14 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onSave,
   onClose,
   existingIds = [],
+  unified = false,
 }) => {
   const { t } = useTranslation();
   const { formatTomlError, validateTomlConfig, validateJsonConfig } =
     useMcpValidation();
+
+  // 统一模式下使用 mutation
+  const upsertMutation = useUpsertMcpServer();
 
   const [formId, setFormId] = useState(
     () => editingId || initialData?.id || "",
@@ -361,23 +367,31 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
     setSaving(true);
     try {
+      // 先处理 name 字段（必填）
+      const nameTrimmed = (formName || trimmedId).trim();
+      const finalName = nameTrimmed || trimmedId;
+
       const entry: McpServer = {
         ...(initialData ? { ...initialData } : {}),
         id: trimmedId,
+        name: finalName,
         server: serverSpec,
+        // 确保 apps 字段始终存在（v3.7.0 新架构必需）
+        apps: initialData?.apps || { claude: false, codex: false, gemini: false },
       };
 
-      // 修复：新增 MCP 时默认启用（enabled=true）
-      // 编辑模式下保留原有的 enabled 状态
-      if (initialData?.enabled !== undefined) {
-        entry.enabled = initialData.enabled;
-      } else {
-        // 新增模式：默认启用
-        entry.enabled = true;
+      // 统一模式下无需再初始化 apps（上面已经处理）
+      // 传统模式需要设置 enabled 字段
+      if (!unified) {
+        // 传统模式：新增 MCP 时默认启用（enabled=true）
+        // 编辑模式下保留原有的 enabled 状态
+        if (initialData?.enabled !== undefined) {
+          entry.enabled = initialData.enabled;
+        } else {
+          // 新增模式：默认启用
+          entry.enabled = true;
+        }
       }
-
-      const nameTrimmed = (formName || trimmedId).trim();
-      entry.name = nameTrimmed || trimmedId;
 
       const descriptionTrimmed = formDescription.trim();
       if (descriptionTrimmed) {
@@ -410,8 +424,16 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         delete entry.tags;
       }
 
-      // 显式等待父组件保存流程
-      await onSave(trimmedId, entry, { syncOtherSide });
+      // 显式等待保存流程
+      if (unified) {
+        // 统一模式：调用 useUpsertMcpServer mutation
+        await upsertMutation.mutateAsync(entry);
+        toast.success(t("common.success"));
+        onClose();
+      } else {
+        // 传统模式：调用父组件回调
+        await onSave(trimmedId, entry, { syncOtherSide });
+      }
     } catch (error: any) {
       const detail = extractErrorMessage(error);
       const mapped = translateMcpBackendError(detail, t);

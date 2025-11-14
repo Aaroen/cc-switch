@@ -36,6 +36,7 @@ const createServer = (overrides: Partial<McpServer> = {}): McpServer => ({
   name: "Test Server",
   description: "desc",
   enabled: false,
+  apps: { claude: false, codex: false, gemini: false },
   server: {
     type: "stdio",
     command: "run.sh",

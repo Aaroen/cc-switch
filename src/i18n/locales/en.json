@@ -441,6 +441,22 @@
     "claudeTitle": "Claude Code MCP Management",
     "codexTitle": "Codex MCP Management",
     "geminiTitle": "Gemini MCP Management",
+    "unifiedPanel": {
+      "title": "MCP Server Management",
+      "addServer": "Add Server",
+      "editServer": "Edit Server",
+      "deleteServer": "Delete Server",
+      "deleteConfirm": "Are you sure you want to delete server \"{{id}}\"? This action cannot be undone.",
+      "syncAll": "Sync All",
+      "syncAllSuccess": "All enabled servers have been synced to application configs",
+      "noServers": "No servers yet",
+      "enabledApps": "Enabled Apps",
+      "apps": {
+        "claude": "Claude",
+        "codex": "Codex",
+        "gemini": "Gemini"
+      }
+    },
     "userLevelPath": "User-level MCP path",
     "serverList": "Servers",
     "loading": "Loading...",
