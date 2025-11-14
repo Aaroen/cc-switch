@@ -66,6 +66,7 @@ pub async fn get_mcp_config(
 }
 
 /// 在 config.json 中新增或更新一个 MCP 服务器定义
+/// [已废弃] 该命令仍然使用旧的分应用API，会转换为统一结构
 #[tauri::command]
 pub async fn upsert_mcp_server_in_config(
     state: State<'_, AppState>,
@@ -74,8 +75,58 @@ pub async fn upsert_mcp_server_in_config(
     spec: serde_json::Value,
     sync_other_side: Option<bool>,
 ) -> Result<bool, String> {
+    use crate::app_config::McpServer;
+
     let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    McpService::upsert_server(&state, app_ty, &id, spec, sync_other_side.unwrap_or(false))
+
+    // 读取现有的服务器（如果存在）
+    let existing_server = {
+        let cfg = state.config.read().map_err(|e| e.to_string())?;
+        if let Some(servers) = &cfg.mcp.servers {
+            servers.get(&id).cloned()
+        } else {
+            None
+        }
+    };
+
+    // 构建新的统一服务器结构
+    let mut new_server = if let Some(mut existing) = existing_server {
+        // 更新现有服务器
+        existing.server = spec.clone();
+        existing.apps.set_enabled_for(&app_ty, true);
+        existing
+    } else {
+        // 创建新服务器
+        let mut apps = crate::app_config::McpApps::default();
+        apps.set_enabled_for(&app_ty, true);
+
+        // 尝试从 spec 中提取 name，否则使用 id
+        let name = spec.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&id)
+            .to_string();
+
+        McpServer {
+            id: id.clone(),
+            name,
+            server: spec,
+            apps,
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        }
+    };
+
+    // 如果 sync_other_side 为 true，也启用其他应用
+    if sync_other_side.unwrap_or(false) {
+        new_server.apps.claude = true;
+        new_server.apps.codex = true;
+        new_server.apps.gemini = true;
+    }
+
+    McpService::upsert_server(&state, new_server)
+        .map(|_| true)
         .map_err(|e| e.to_string())
 }
 
@@ -83,11 +134,10 @@ pub async fn upsert_mcp_server_in_config(
 #[tauri::command]
 pub async fn delete_mcp_server_in_config(
     state: State<'_, AppState>,
-    app: String,
+    _app: String, // 参数保留用于向后兼容，但在统一结构中不再需要
     id: String,
 ) -> Result<bool, String> {
-    let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    McpService::delete_server(&state, app_ty, &id).map_err(|e| e.to_string())
+    McpService::delete_server(&state, &id).map_err(|e| e.to_string())
 }
 
 /// 设置启用状态并同步到客户端配置

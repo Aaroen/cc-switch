@@ -825,14 +825,79 @@ pub fn remove_server_from_claude(id: &str) -> Result<(), AppError> {
     crate::claude_mcp::set_mcp_servers_map(&current)
 }
 
+/// Helper: 将 JSON MCP 服务器规范转换为 toml_edit::Table
+fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError> {
+    use toml_edit::{Array, Item, Table};
+
+    let mut t = Table::new();
+    let typ = spec.get("type").and_then(|v| v.as_str()).unwrap_or("stdio");
+    t["type"] = toml_edit::value(typ);
+
+    match typ {
+        "stdio" => {
+            let cmd = spec.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            t["command"] = toml_edit::value(cmd);
+
+            if let Some(args) = spec.get("args").and_then(|v| v.as_array()) {
+                let mut arr_v = Array::default();
+                for a in args.iter().filter_map(|x| x.as_str()) {
+                    arr_v.push(a);
+                }
+                if !arr_v.is_empty() {
+                    t["args"] = Item::Value(toml_edit::Value::Array(arr_v));
+                }
+            }
+
+            if let Some(cwd) = spec.get("cwd").and_then(|v| v.as_str()) {
+                if !cwd.trim().is_empty() {
+                    t["cwd"] = toml_edit::value(cwd);
+                }
+            }
+
+            if let Some(env) = spec.get("env").and_then(|v| v.as_object()) {
+                let mut env_tbl = Table::new();
+                for (k, v) in env.iter() {
+                    if let Some(s) = v.as_str() {
+                        env_tbl[&k[..]] = toml_edit::value(s);
+                    }
+                }
+                if !env_tbl.is_empty() {
+                    t["env"] = Item::Table(env_tbl);
+                }
+            }
+        }
+        "http" => {
+            let url = spec.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            t["url"] = toml_edit::value(url);
+
+            if let Some(headers) = spec.get("headers").and_then(|v| v.as_object()) {
+                let mut h_tbl = Table::new();
+                for (k, v) in headers.iter() {
+                    if let Some(s) = v.as_str() {
+                        h_tbl[&k[..]] = toml_edit::value(s);
+                    }
+                }
+                if !h_tbl.is_empty() {
+                    t["headers"] = Item::Table(h_tbl);
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Ok(t)
+}
+
 /// 将单个 MCP 服务器同步到 Codex live 配置
 pub fn sync_single_server_to_codex(
     _config: &MultiAppConfig,
     id: &str,
     server_spec: &Value,
 ) -> Result<(), AppError> {
+    use toml_edit::Item;
+
     // 读取现有的 config.toml
-    let config_path = crate::codex_config::get_codex_config_path()?;
+    let config_path = crate::codex_config::get_codex_config_path();
 
     let mut doc = if config_path.exists() {
         let content = std::fs::read_to_string(&config_path)
@@ -858,11 +923,10 @@ pub fn sync_single_server_to_codex(
         doc["mcp"]["servers"] = toml_edit::table();
     }
 
-    // 将服务器转换为 TOML 格式并插入
-    let toml_value = serde_json::from_value::<toml_edit::Value>(server_spec.clone())
-        .map_err(|e| AppError::McpValidation(format!("无法将 MCP 服务器转换为 TOML: {e}")))?;
+    // 将 JSON 服务器规范转换为 TOML 表
+    let toml_table = json_server_to_toml_table(server_spec)?;
 
-    doc["mcp"]["servers"][id] = toml_edit::value(toml_value);
+    doc["mcp"]["servers"][id] = Item::Table(toml_table);
 
     // 写回文件
     std::fs::write(&config_path, doc.to_string())
@@ -873,7 +937,7 @@ pub fn sync_single_server_to_codex(
 
 /// 从 Codex live 配置中移除单个 MCP 服务器
 pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
-    let config_path = crate::codex_config::get_codex_config_path()?;
+    let config_path = crate::codex_config::get_codex_config_path();
 
     if !config_path.exists() {
         return Ok(()); // 文件不存在，无需删除
