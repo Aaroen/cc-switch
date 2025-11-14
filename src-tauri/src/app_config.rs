@@ -86,7 +86,7 @@ impl McpConfig {
 }
 
 /// MCP 根配置（v3.7.0 新旧结构并存）
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpRoot {
     /// 统一的 MCP 服务器存储（v3.7.0+）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,6 +99,19 @@ pub struct McpRoot {
     pub codex: McpConfig,
     #[serde(default, skip_serializing_if = "McpConfig::is_empty")]
     pub gemini: McpConfig,
+}
+
+impl Default for McpRoot {
+    fn default() -> Self {
+        Self {
+            // v3.7.0+ 默认使用新的统一结构（空 HashMap）
+            servers: Some(HashMap::new()),
+            // 旧结构保持空，仅用于反序列化旧配置时的迁移
+            claude: McpConfig::default(),
+            codex: McpConfig::default(),
+            gemini: McpConfig::default(),
+        }
+    }
 }
 
 /// Prompt 配置：单客户端维度
