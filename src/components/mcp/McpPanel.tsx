@@ -117,7 +117,11 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appId }) => {
   );
 
   const panelTitle =
-    appId === "claude" ? t("mcp.claudeTitle") : t("mcp.codexTitle");
+    appId === "claude"
+      ? t("mcp.claudeTitle")
+      : appId === "codex"
+        ? t("mcp.codexTitle")
+        : t("mcp.geminiTitle");
 
   return (
     <>
