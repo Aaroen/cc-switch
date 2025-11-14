@@ -59,12 +59,3 @@ export function useDeleteMcpServer() {
     },
   });
 }
-
-/**
- * 同步所有启用的 MCP 服务器到各应用的 live 配置
- */
-export function useSyncAllMcpServers() {
-  return useMutation({
-    mutationFn: () => mcpApi.syncAllServers(),
-  });
-}

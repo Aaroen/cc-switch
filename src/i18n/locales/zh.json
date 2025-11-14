@@ -447,8 +447,6 @@
       "editServer": "编辑服务器",
       "deleteServer": "删除服务器",
       "deleteConfirm": "确定要删除服务器 \"{{id}}\" 吗？此操作无法撤销。",
-      "syncAll": "同步全部",
-      "syncAllSuccess": "已同步所有启用的服务器到各应用配置",
       "noServers": "暂无服务器",
       "enabledApps": "启用的应用",
       "apps": {

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Server, Check, RefreshCw } from "lucide-react";
+import { Plus, Server, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAllMcpServers, useToggleMcpApp, useSyncAllMcpServers } from "@/hooks/useMcp";
+import { useAllMcpServers, useToggleMcpApp } from "@/hooks/useMcp";
 import type { McpServer } from "@/types";
 import type { AppId } from "@/lib/api/types";
 import McpFormModal from "./McpFormModal";
@@ -48,7 +48,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
   const { data: serversMap, isLoading } = useAllMcpServers();
   const toggleAppMutation = useToggleMcpApp();
   const deleteServerMutation = useDeleteMcpServer();
-  const syncAllMutation = useSyncAllMcpServers();
 
   // Convert serversMap to array for easier rendering
   const serverEntries = useMemo((): Array<[string, McpServer]> => {
@@ -110,17 +109,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
     });
   };
 
-  const handleSyncAll = async () => {
-    try {
-      await syncAllMutation.mutateAsync();
-      toast.success(t("mcp.unifiedPanel.syncAllSuccess"));
-    } catch (error) {
-      toast.error(t("common.error"), {
-        description: String(error),
-      });
-    }
-  };
-
   const handleCloseForm = () => {
     setIsFormOpen(false);
     setEditingId(null);
@@ -133,25 +121,10 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <DialogTitle>{t("mcp.unifiedPanel.title")}</DialogTitle>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSyncAll}
-                  disabled={syncAllMutation.isPending}
-                >
-                  <RefreshCw
-                    size={16}
-                    className={syncAllMutation.isPending ? "animate-spin" : ""}
-                  />
-                  {t("mcp.unifiedPanel.syncAll")}
-                </Button>
-                <Button type="button" variant="mcp" onClick={handleAdd}>
-                  <Plus size={16} />
-                  {t("mcp.unifiedPanel.addServer")}
-                </Button>
-              </div>
+              <Button type="button" variant="mcp" onClick={handleAdd}>
+                <Plus size={16} />
+                {t("mcp.unifiedPanel.addServer")}
+              </Button>
             </div>
           </DialogHeader>
 
