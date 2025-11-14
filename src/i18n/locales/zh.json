@@ -455,6 +455,16 @@
         "claude": "Claude",
         "codex": "Codex",
         "gemini": "Gemini"
+      },
+      "import": {
+        "title": "导入 MCP 服务器",
+        "button": "导入",
+        "description": "从已有的应用配置文件中导入 MCP 服务器。导入的服务器将自动启用对应的应用。",
+        "fromClaudeDesc": "从 ~/.claude/claude.json 或 ~/.claude/settings.json 导入 MCP 服务器",
+        "fromCodexDesc": "从 ~/.codex/config.toml 导入 MCP 服务器",
+        "fromGeminiDesc": "从 Gemini 配置文件导入 MCP 服务器",
+        "success": "成功导入 {{count}} 个服务器",
+        "noServersFound": "未找到可导入的服务器"
       }
     },
     "userLevelPath": "用户级 MCP 配置路径",

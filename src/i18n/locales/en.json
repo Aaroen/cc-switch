@@ -455,6 +455,16 @@
         "claude": "Claude",
         "codex": "Codex",
         "gemini": "Gemini"
+      },
+      "import": {
+        "title": "Import MCP Servers",
+        "button": "Import",
+        "description": "Import MCP servers from existing application configuration files. Imported servers will automatically enable the corresponding application.",
+        "fromClaudeDesc": "Import MCP servers from ~/.claude/claude.json or ~/.claude/settings.json",
+        "fromCodexDesc": "Import MCP servers from ~/.codex/config.toml",
+        "fromGeminiDesc": "Import MCP servers from Gemini configuration file",
+        "success": "Successfully imported {{count}} server(s)",
+        "noServersFound": "No servers found to import"
       }
     },
     "userLevelPath": "User-level MCP path",
