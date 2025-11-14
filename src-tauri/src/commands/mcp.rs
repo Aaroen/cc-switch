@@ -129,3 +129,17 @@ pub async fn import_mcp_from_claude(state: State<'_, AppState>) -> Result<usize,
 pub async fn import_mcp_from_codex(state: State<'_, AppState>) -> Result<usize, String> {
     McpService::import_from_codex(&state).map_err(|e| e.to_string())
 }
+
+/// 手动同步：将启用的 MCP 投影到 ~/.gemini/settings.json
+#[tauri::command]
+pub async fn sync_enabled_mcp_to_gemini(state: State<'_, AppState>) -> Result<bool, String> {
+    McpService::sync_enabled(&state, AppType::Gemini)
+        .map(|_| true)
+        .map_err(|e| e.to_string())
+}
+
+/// 从 ~/.gemini/settings.json 导入 MCP 定义到 config.json
+#[tauri::command]
+pub async fn import_mcp_from_gemini(state: State<'_, AppState>) -> Result<usize, String> {
+    McpService::import_from_gemini(&state).map_err(|e| e.to_string())
+}

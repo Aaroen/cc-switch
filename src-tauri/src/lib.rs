@@ -6,6 +6,7 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
+mod gemini_mcp;
 mod gemini_config; // 新增
 mod init_status;
 mod mcp;
@@ -23,7 +24,8 @@ pub use commands::*;
 pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
 pub use error::AppError;
 pub use mcp::{
-    import_from_claude, import_from_codex, sync_enabled_to_claude, sync_enabled_to_codex,
+    import_from_claude, import_from_codex, import_from_gemini, sync_enabled_to_claude,
+    sync_enabled_to_codex, sync_enabled_to_gemini,
 };
 pub use provider::{Provider, ProviderMeta};
 pub use services::{
@@ -539,8 +541,10 @@ pub fn run() {
             commands::set_mcp_enabled,
             commands::sync_enabled_mcp_to_claude,
             commands::sync_enabled_mcp_to_codex,
+            commands::sync_enabled_mcp_to_gemini,
             commands::import_mcp_from_claude,
             commands::import_mcp_from_codex,
+            commands::import_mcp_from_gemini,
             // Prompt management
             commands::get_prompts,
             commands::upsert_prompt,

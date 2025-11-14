@@ -30,9 +30,10 @@ impl McpService {
         spec: Value,
         sync_other_side: bool,
     ) -> Result<bool, AppError> {
-        let (changed, snapshot, sync_claude, sync_codex): (
+        let (changed, snapshot, sync_claude, sync_codex, sync_gemini): (
             bool,
             Option<MultiAppConfig>,
+            bool,
             bool,
             bool,
         ) = {
@@ -51,6 +52,7 @@ impl McpService {
 
             let mut sync_claude = matches!(app, AppType::Claude) && enabled;
             let mut sync_codex = matches!(app, AppType::Codex) && enabled;
+            let mut sync_gemini = matches!(app, AppType::Gemini) && enabled;
 
             // 修复：sync_other_side=true 时，先将 MCP 复制到另一侧，然后强制同步
             // 这才是"同步到另一侧"的正确语义：将 MCP 跨应用复制
@@ -83,13 +85,13 @@ impl McpService {
                 }
             }
 
-            let snapshot = if sync_claude || sync_codex {
+            let snapshot = if sync_claude || sync_codex || sync_gemini {
                 Some(cfg.clone())
             } else {
                 None
             };
 
-            (changed, snapshot, sync_claude, sync_codex)
+            (changed, snapshot, sync_claude, sync_codex, sync_gemini)
         };
 
         // 保持原有行为：始终尝试持久化，避免遗漏 normalize 带来的隐式变更
@@ -101,6 +103,9 @@ impl McpService {
             }
             if sync_codex {
                 mcp::sync_enabled_to_codex(&snapshot)?;
+            }
+            if sync_gemini {
+                mcp::sync_enabled_to_gemini(&snapshot)?;
             }
         }
 
@@ -121,7 +126,7 @@ impl McpService {
                 match app {
                     AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
                     AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
+                    AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
                 }
             }
         }
@@ -148,7 +153,7 @@ impl McpService {
                 match app {
                     AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
                     AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-                    AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
+                    AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
                 }
             }
         }
@@ -168,7 +173,7 @@ impl McpService {
         match app {
             AppType::Claude => mcp::sync_enabled_to_claude(&snapshot)?,
             AppType::Codex => mcp::sync_enabled_to_codex(&snapshot)?,
-            AppType::Gemini => {} // Gemini 暂不支持 MCP 同步
+            AppType::Gemini => mcp::sync_enabled_to_gemini(&snapshot)?,
         }
         Ok(())
     }
@@ -188,6 +193,17 @@ impl McpService {
     pub fn import_from_codex(state: &AppState) -> Result<usize, AppError> {
         let mut cfg = state.config.write()?;
         let changed = mcp::import_from_codex(&mut cfg)?;
+        drop(cfg);
+        if changed > 0 {
+            state.save()?;
+        }
+        Ok(changed)
+    }
+
+    /// 从 Gemini 客户端配置导入 MCP 定义。
+    pub fn import_from_gemini(state: &AppState) -> Result<usize, AppError> {
+        let mut cfg = state.config.write()?;
+        let changed = mcp::import_from_gemini(&mut cfg)?;
         drop(cfg);
         if changed > 0 {
             state.save()?;

@@ -86,4 +86,12 @@ export const mcpApi = {
   async syncEnabledToCodex(): Promise<boolean> {
     return await invoke("sync_enabled_mcp_to_codex");
   },
+
+  async syncEnabledToGemini(): Promise<boolean> {
+    return await invoke("sync_enabled_mcp_to_gemini");
+  },
+
+  async importFromGemini(): Promise<number> {
+    return await invoke("import_mcp_from_gemini");
+  },
 };

@@ -51,6 +51,9 @@ const McpPanel: React.FC<McpPanelProps> = ({ open, onOpenChange, appId }) => {
         } else if (appId === "codex") {
           const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
           await mcpApi.importFromCodex();
+        } else if (appId === "gemini") {
+          const mcpApi = await import("@/lib/api").then((m) => m.mcpApi);
+          await mcpApi.importFromGemini();
         }
       } catch (e) {
         console.warn("MCP initialization import failed (ignored)", e);

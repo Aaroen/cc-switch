@@ -712,3 +712,82 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
     crate::config::write_text_file(&path, &new_text)?;
     Ok(())
 }
+
+/// 将 config.json 中 enabled==true 的项投影写入 ~/.gemini/settings.json
+pub fn sync_enabled_to_gemini(config: &MultiAppConfig) -> Result<(), AppError> {
+    let enabled = collect_enabled_servers(&config.mcp.gemini);
+    crate::gemini_mcp::set_mcp_servers_map(&enabled)
+}
+
+/// 从 ~/.gemini/settings.json 导入 mcpServers 到 config.json（设为 enabled=true）。
+/// 已存在的项仅强制 enabled=true，不覆盖其他字段。
+pub fn import_from_gemini(config: &mut MultiAppConfig) -> Result<usize, AppError> {
+    let text_opt = crate::gemini_mcp::read_mcp_json()?;
+    let Some(text) = text_opt else { return Ok(0) };
+    let mut changed = normalize_servers_for(config, &AppType::Gemini);
+    let v: Value = serde_json::from_str(&text)
+        .map_err(|e| AppError::McpValidation(format!("解析 ~/.gemini/settings.json 失败: {e}")))?;
+    let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
+        return Ok(changed);
+    };
+
+    for (id, spec) in map.iter() {
+        // 校验目标 spec
+        validate_server_spec(spec)?;
+
+        let entry = config
+            .mcp_for_mut(&AppType::Gemini)
+            .servers
+            .entry(id.clone());
+        use std::collections::hash_map::Entry;
+        match entry {
+            Entry::Vacant(vac) => {
+                let mut obj = serde_json::Map::new();
+                obj.insert(String::from("id"), json!(id));
+                obj.insert(String::from("name"), json!(id));
+                obj.insert(String::from("server"), spec.clone());
+                obj.insert(String::from("enabled"), json!(true));
+                vac.insert(Value::Object(obj));
+                changed += 1;
+            }
+            Entry::Occupied(mut occ) => {
+                let value = occ.get_mut();
+                let Some(existing) = value.as_object_mut() else {
+                    log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
+                    let mut obj = serde_json::Map::new();
+                    obj.insert(String::from("id"), json!(id));
+                    obj.insert(String::from("name"), json!(id));
+                    obj.insert(String::from("server"), spec.clone());
+                    obj.insert(String::from("enabled"), json!(true));
+                    occ.insert(Value::Object(obj));
+                    changed += 1;
+                    continue;
+                };
+
+                let mut modified = false;
+                let prev_enabled = existing
+                    .get("enabled")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false);
+                if !prev_enabled {
+                    existing.insert(String::from("enabled"), json!(true));
+                    modified = true;
+                }
+                if existing.get("server").is_none() {
+                    log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
+                    existing.insert(String::from("server"), spec.clone());
+                    modified = true;
+                }
+                if existing.get("id").is_none() {
+                    log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
+                    existing.insert(String::from("id"), json!(id));
+                    modified = true;
+                }
+                if modified {
+                    changed += 1;
+                }
+            }
+        }
+    }
+    Ok(changed)
+}
