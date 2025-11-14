@@ -41,6 +41,7 @@ fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
     Ok(())
 }
 
+#[allow(dead_code)] // v3.7.0: 旧的验证逻辑，保留用于未来可能的迁移
 fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
     let obj = entry
         .as_object()
@@ -210,6 +211,7 @@ fn collect_enabled_servers(cfg: &McpConfig) -> HashMap<String, Value> {
     out
 }
 
+#[allow(dead_code)] // v3.7.0: 旧的分应用 API，保留用于未来可能的迁移
 pub fn get_servers_snapshot_for(
     config: &mut MultiAppConfig,
     app: &AppType,
@@ -235,6 +237,7 @@ pub fn get_servers_snapshot_for(
     (snapshot, normalized)
 }
 
+#[allow(dead_code)] // v3.7.0: 旧的分应用 API，保留用于未来可能的迁移
 pub fn upsert_in_config_for(
     config: &mut MultiAppConfig,
     app: &AppType,
@@ -273,6 +276,7 @@ pub fn upsert_in_config_for(
     Ok(before.is_none())
 }
 
+#[allow(dead_code)] // v3.7.0: 旧的分应用 API，保留用于未来可能的迁移
 pub fn delete_in_config_for(
     config: &mut MultiAppConfig,
     app: &AppType,
@@ -286,6 +290,7 @@ pub fn delete_in_config_for(
     Ok(existed)
 }
 
+#[allow(dead_code)] // v3.7.0: 旧的分应用 API，保留用于未来可能的迁移
 /// 设置启用状态（不执行落盘或文件同步）
 pub fn set_enabled_flag_for(
     config: &mut MultiAppConfig,
@@ -900,8 +905,8 @@ pub fn sync_single_server_to_codex(
     let config_path = crate::codex_config::get_codex_config_path();
 
     let mut doc = if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| AppError::io(&config_path, e))?;
+        let content =
+            std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
         content
             .parse::<toml_edit::DocumentMut>()
             .map_err(|e| AppError::McpValidation(format!("解析 Codex config.toml 失败: {e}")))?
@@ -915,10 +920,10 @@ pub fn sync_single_server_to_codex(
     }
 
     // 确保 [mcp.servers] 子表存在
-    if !doc["mcp"]
+    if doc["mcp"]
         .as_table()
         .and_then(|t| t.get("servers"))
-        .is_some()
+        .is_none()
     {
         doc["mcp"]["servers"] = toml_edit::table();
     }
@@ -929,8 +934,7 @@ pub fn sync_single_server_to_codex(
     doc["mcp"]["servers"][id] = Item::Table(toml_table);
 
     // 写回文件
-    std::fs::write(&config_path, doc.to_string())
-        .map_err(|e| AppError::io(&config_path, e))?;
+    std::fs::write(&config_path, doc.to_string()).map_err(|e| AppError::io(&config_path, e))?;
 
     Ok(())
 }
@@ -943,8 +947,8 @@ pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
         return Ok(()); // 文件不存在，无需删除
     }
 
-    let content = std::fs::read_to_string(&config_path)
-        .map_err(|e| AppError::io(&config_path, e))?;
+    let content =
+        std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
 
     let mut doc = content
         .parse::<toml_edit::DocumentMut>()
@@ -958,8 +962,7 @@ pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
     }
 
     // 写回文件
-    std::fs::write(&config_path, doc.to_string())
-        .map_err(|e| AppError::io(&config_path, e))?;
+    std::fs::write(&config_path, doc.to_string()).map_err(|e| AppError::io(&config_path, e))?;
 
     Ok(())
 }

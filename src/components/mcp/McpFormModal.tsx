@@ -1,14 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  Save,
-  Plus,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle,
-} from "lucide-react";
+import { Save, Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { mcpApi, type AppId } from "@/lib/api";
+import type { AppId } from "@/lib/api/types";
 import { McpServer, McpServerSpec } from "@/types";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import McpWizardModal from "./McpWizardModal";
@@ -40,14 +33,9 @@ interface McpFormModalProps {
   appId: AppId;
   editingId?: string;
   initialData?: McpServer;
-  onSave: (
-    id: string,
-    server: McpServer,
-    options?: { syncOtherSide?: boolean },
-  ) => Promise<void>;
+  onSave: () => Promise<void>; // v3.7.0: 简化为仅用于关闭表单的回调
   onClose: () => void;
   existingIds?: string[];
-  unified?: boolean; // 统一模式：使用 useUpsertMcpServer 而非传统回调
 }
 
 /**
@@ -62,13 +50,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onSave,
   onClose,
   existingIds = [],
-  unified = false,
 }) => {
   const { t } = useTranslation();
   const { formatTomlError, validateTomlConfig, validateJsonConfig } =
     useMcpValidation();
 
-  // 统一模式下使用 mutation
   const upsertMutation = useUpsertMcpServer();
 
   const [formId, setFormId] = useState(
@@ -112,38 +98,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [idError, setIdError] = useState("");
-  const [syncOtherSide, setSyncOtherSide] = useState(false);
-  const [otherSideHasConflict, setOtherSideHasConflict] = useState(false);
 
   // 判断是否使用 TOML 格式
   const useToml = appId === "codex";
-  const syncTargetLabel = appId === "claude" ? "Codex" : "Claude";
-  const otherAppType: AppId = appId === "claude" ? "codex" : "claude";
-  const syncCheckboxId = useMemo(() => `sync-other-side-${appId}`, [appId]);
-
-  // 检测另一侧是否有同名 MCP
-  useEffect(() => {
-    const checkOtherSide = async () => {
-      const currentId = formId.trim();
-      if (!currentId) {
-        setOtherSideHasConflict(false);
-        return;
-      }
-
-      try {
-        const otherConfig = await mcpApi.getConfig(otherAppType);
-        const hasConflict = Object.keys(otherConfig.servers || {}).includes(
-          currentId,
-        );
-        setOtherSideHasConflict(hasConflict);
-      } catch (error) {
-        console.error("检查另一侧 MCP 配置失败:", error);
-        setOtherSideHasConflict(false);
-      }
-    };
-
-    checkOtherSide();
-  }, [formId, otherAppType]);
 
   const wizardInitialSpec = useMemo(() => {
     const fallback = initialData?.server;
@@ -377,21 +334,12 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         name: finalName,
         server: serverSpec,
         // 确保 apps 字段始终存在（v3.7.0 新架构必需）
-        apps: initialData?.apps || { claude: false, codex: false, gemini: false },
+        apps: initialData?.apps || {
+          claude: false,
+          codex: false,
+          gemini: false,
+        },
       };
-
-      // 统一模式下无需再初始化 apps（上面已经处理）
-      // 传统模式需要设置 enabled 字段
-      if (!unified) {
-        // 传统模式：新增 MCP 时默认启用（enabled=true）
-        // 编辑模式下保留原有的 enabled 状态
-        if (initialData?.enabled !== undefined) {
-          entry.enabled = initialData.enabled;
-        } else {
-          // 新增模式：默认启用
-          entry.enabled = true;
-        }
-      }
 
       const descriptionTrimmed = formDescription.trim();
       if (descriptionTrimmed) {
@@ -424,16 +372,10 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         delete entry.tags;
       }
 
-      // 显式等待保存流程
-      if (unified) {
-        // 统一模式：调用 useUpsertMcpServer mutation
-        await upsertMutation.mutateAsync(entry);
-        toast.success(t("common.success"));
-        onClose();
-      } else {
-        // 传统模式：调用父组件回调
-        await onSave(trimmedId, entry, { syncOtherSide });
-      }
+      // 保存到统一配置
+      await upsertMutation.mutateAsync(entry);
+      toast.success(t("common.success"));
+      await onSave(); // 通知父组件关闭表单
     } catch (error: any) {
       const detail = extractErrorMessage(error);
       const mapped = translateMcpBackendError(detail, t);
@@ -646,58 +588,24 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
           </div>
 
           {/* Footer */}
-          <DialogFooter className="flex-col sm:flex-row sm:justify-between gap-3 pt-4">
-            {/* 双端同步选项 */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <input
-                  id={syncCheckboxId}
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-border-default text-emerald-600 focus:ring-emerald-500  dark:bg-gray-800"
-                  checked={syncOtherSide}
-                  onChange={(event) => setSyncOtherSide(event.target.checked)}
-                />
-                <label
-                  htmlFor={syncCheckboxId}
-                  className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                  title={t("mcp.form.syncOtherSideHint", {
-                    target: syncTargetLabel,
-                  })}
-                >
-                  {t("mcp.form.syncOtherSide", { target: syncTargetLabel })}
-                </label>
-              </div>
-              {syncOtherSide && otherSideHasConflict && (
-                <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <AlertTriangle size={14} />
-                  <span className="text-xs font-medium">
-                    {t("mcp.form.willOverwriteWarning", {
-                      target: syncTargetLabel,
-                    })}
-                  </span>
-                </div>
-              )}
-            </div>
-
+          <DialogFooter className="flex justify-end gap-3 pt-4">
             {/* 操作按钮 */}
-            <div className="flex items-center gap-3">
-              <Button type="button" variant="ghost" onClick={onClose}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving || (!isEditing && !!idError)}
-                variant="mcp"
-              >
-                {isEditing ? <Save size={16} /> : <Plus size={16} />}
-                {saving
-                  ? t("common.saving")
-                  : isEditing
-                    ? t("common.save")
-                    : t("common.add")}
-              </Button>
-            </div>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || (!isEditing && !!idError)}
+              variant="mcp"
+            >
+              {isEditing ? <Save size={16} /> : <Plus size={16} />}
+              {saving
+                ? t("common.saving")
+                : isEditing
+                  ? t("common.save")
+                  : t("common.add")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -6,8 +6,8 @@ mod codex_config;
 mod commands;
 mod config;
 mod error;
-mod gemini_mcp;
 mod gemini_config; // 新增
+mod gemini_mcp;
 mod init_status;
 mod mcp;
 mod prompt;
@@ -541,18 +541,11 @@ pub fn run() {
             commands::upsert_mcp_server_in_config,
             commands::delete_mcp_server_in_config,
             commands::set_mcp_enabled,
-            commands::sync_enabled_mcp_to_claude,
-            commands::sync_enabled_mcp_to_codex,
-            commands::sync_enabled_mcp_to_gemini,
-            commands::import_mcp_from_claude,
-            commands::import_mcp_from_codex,
-            commands::import_mcp_from_gemini,
             // v3.7.0: Unified MCP management
             commands::get_mcp_servers,
             commands::upsert_mcp_server,
             commands::delete_mcp_server,
             commands::toggle_mcp_app,
-            commands::sync_all_mcp_servers,
             // Prompt management
             commands::get_prompts,
             commands::upsert_prompt,

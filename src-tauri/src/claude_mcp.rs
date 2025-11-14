@@ -242,11 +242,7 @@ pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>
     let servers = root
         .get("mcpServers")
         .and_then(|v| v.as_object())
-        .map(|obj| {
-            obj.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
-        })
+        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default();
 
     Ok(servers)

@@ -38,24 +38,6 @@ fn write_json_value(path: &Path, value: &Value) -> Result<(), AppError> {
     atomic_write(path, json.as_bytes())
 }
 
-/// 获取 Gemini MCP 状态
-pub fn get_mcp_status() -> Result<McpStatus, AppError> {
-    let path = user_config_path();
-    let (exists, count) = if path.exists() {
-        let v = read_json_value(&path)?;
-        let servers = v.get("mcpServers").and_then(|x| x.as_object());
-        (true, servers.map(|m| m.len()).unwrap_or(0))
-    } else {
-        (false, 0)
-    };
-
-    Ok(McpStatus {
-        user_config_path: path.to_string_lossy().to_string(),
-        user_config_exists: exists,
-        server_count: count,
-    })
-}
-
 /// 读取 Gemini MCP 配置文件的完整 JSON 文本
 pub fn read_mcp_json() -> Result<Option<String>, AppError> {
     let path = user_config_path();
@@ -66,96 +48,7 @@ pub fn read_mcp_json() -> Result<Option<String>, AppError> {
     Ok(Some(content))
 }
 
-/// 在 Gemini settings.json 中新增或更新一个 MCP 服务器
-pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
-    if id.trim().is_empty() {
-        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
-    }
-    // 基础字段校验（尽量宽松）
-    if !spec.is_object() {
-        return Err(AppError::McpValidation(
-            "MCP 服务器定义必须为 JSON 对象".into(),
-        ));
-    }
-    let t_opt = spec.get("type").and_then(|x| x.as_str());
-    let is_stdio = t_opt.map(|t| t == "stdio").unwrap_or(true); // 兼容缺省（按 stdio 处理）
-    let is_http = t_opt.map(|t| t == "http").unwrap_or(false);
-    if !(is_stdio || is_http) {
-        return Err(AppError::McpValidation(
-            "MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into(),
-        ));
-    }
 
-    // stdio 类型必须有 command
-    if is_stdio {
-        let cmd = spec.get("command").and_then(|x| x.as_str()).unwrap_or("");
-        if cmd.is_empty() {
-            return Err(AppError::McpValidation(
-                "stdio 类型的 MCP 服务器缺少 command 字段".into(),
-            ));
-        }
-    }
-
-    // http 类型必须有 url
-    if is_http {
-        let url = spec.get("url").and_then(|x| x.as_str()).unwrap_or("");
-        if url.is_empty() {
-            return Err(AppError::McpValidation(
-                "http 类型的 MCP 服务器缺少 url 字段".into(),
-            ));
-        }
-    }
-
-    let path = user_config_path();
-    let mut root = if path.exists() {
-        read_json_value(&path)?
-    } else {
-        serde_json::json!({})
-    };
-
-    // 确保 mcpServers 对象存在
-    {
-        let obj = root
-            .as_object_mut()
-            .ok_or_else(|| AppError::Config("settings.json 根必须是对象".into()))?;
-        if !obj.contains_key("mcpServers") {
-            obj.insert("mcpServers".into(), serde_json::json!({}));
-        }
-    }
-
-    let before = root.clone();
-    if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
-        servers.insert(id.to_string(), spec);
-    }
-
-    if before == root && path.exists() {
-        return Ok(false);
-    }
-
-    write_json_value(&path, &root)?;
-    Ok(true)
-}
-
-/// 删除 Gemini settings.json 中的一个 MCP 服务器
-pub fn delete_mcp_server(id: &str) -> Result<bool, AppError> {
-    if id.trim().is_empty() {
-        return Err(AppError::InvalidInput("MCP 服务器 ID 不能为空".into()));
-    }
-    let path = user_config_path();
-    if !path.exists() {
-        return Ok(false);
-    }
-    let mut root = read_json_value(&path)?;
-    let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) else {
-        return Ok(false);
-    };
-    let existed = servers.remove(id).is_some();
-    if !existed {
-        return Ok(false);
-    }
-    write_json_value(&path, &root)?;
-    Ok(true)
-}
 
 /// 读取 Gemini settings.json 中的 mcpServers 映射
 pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>, AppError> {
@@ -168,11 +61,7 @@ pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>
     let servers = root
         .get("mcpServers")
         .and_then(|v| v.as_object())
-        .map(|obj| {
-            obj.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
-        })
+        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default();
 
     Ok(servers)

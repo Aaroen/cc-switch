@@ -302,10 +302,7 @@ function App() {
         appId={activeApp}
       />
 
-      <UnifiedMcpPanel
-        open={isMcpOpen}
-        onOpenChange={setIsMcpOpen}
-      />
+      <UnifiedMcpPanel open={isMcpOpen} onOpenChange={setIsMcpOpen} />
     </div>
   );
 }

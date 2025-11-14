@@ -193,14 +193,15 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
         <McpFormModal
           appId="claude" // Default to claude for unified panel
           editingId={editingId || undefined}
-          initialData={editingId && serversMap ? serversMap[editingId] : undefined}
+          initialData={
+            editingId && serversMap ? serversMap[editingId] : undefined
+          }
           existingIds={serversMap ? Object.keys(serversMap) : []}
           onSave={async () => {
             setIsFormOpen(false);
             setEditingId(null);
           }}
           onClose={handleCloseForm}
-          unified
         />
       )}
 

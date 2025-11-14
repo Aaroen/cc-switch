@@ -141,7 +141,10 @@ pub async fn open_app_config_folder(handle: AppHandle) -> Result<bool, String> {
 pub async fn get_claude_common_config_snippet(
     state: tauri::State<'_, crate::store::AppState>,
 ) -> Result<Option<String>, String> {
-    let guard = state.config.read().map_err(|e| format!("读取配置锁失败: {e}"))?;
+    let guard = state
+        .config
+        .read()
+        .map_err(|e| format!("读取配置锁失败: {e}"))?;
     Ok(guard.claude_common_config_snippet.clone())
 }
 

@@ -50,6 +50,7 @@ pub struct McpConfigResponse {
 use std::str::FromStr;
 
 #[tauri::command]
+#[allow(deprecated)] // 兼容层命令，内部调用已废弃的 Service 方法
 pub async fn get_mcp_config(
     state: State<'_, AppState>,
     app: String,
@@ -101,7 +102,8 @@ pub async fn upsert_mcp_server_in_config(
         apps.set_enabled_for(&app_ty, true);
 
         // 尝试从 spec 中提取 name，否则使用 id
-        let name = spec.get("name")
+        let name = spec
+            .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or(&id)
             .to_string();
@@ -142,6 +144,7 @@ pub async fn delete_mcp_server_in_config(
 
 /// 设置启用状态并同步到客户端配置
 #[tauri::command]
+#[allow(deprecated)] // 兼容层命令，内部调用已废弃的 Service 方法
 pub async fn set_mcp_enabled(
     state: State<'_, AppState>,
     app: String,
@@ -150,48 +153,6 @@ pub async fn set_mcp_enabled(
 ) -> Result<bool, String> {
     let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     McpService::set_enabled(&state, app_ty, &id, enabled).map_err(|e| e.to_string())
-}
-
-/// 手动同步：将启用的 MCP 投影到 ~/.claude.json
-#[tauri::command]
-pub async fn sync_enabled_mcp_to_claude(state: State<'_, AppState>) -> Result<bool, String> {
-    McpService::sync_enabled(&state, AppType::Claude)
-        .map(|_| true)
-        .map_err(|e| e.to_string())
-}
-
-/// 手动同步：将启用的 MCP 投影到 ~/.codex/config.toml
-#[tauri::command]
-pub async fn sync_enabled_mcp_to_codex(state: State<'_, AppState>) -> Result<bool, String> {
-    McpService::sync_enabled(&state, AppType::Codex)
-        .map(|_| true)
-        .map_err(|e| e.to_string())
-}
-
-/// 从 ~/.claude.json 导入 MCP 定义到 config.json
-#[tauri::command]
-pub async fn import_mcp_from_claude(state: State<'_, AppState>) -> Result<usize, String> {
-    McpService::import_from_claude(&state).map_err(|e| e.to_string())
-}
-
-/// 从 ~/.codex/config.toml 导入 MCP 定义到 config.json
-#[tauri::command]
-pub async fn import_mcp_from_codex(state: State<'_, AppState>) -> Result<usize, String> {
-    McpService::import_from_codex(&state).map_err(|e| e.to_string())
-}
-
-/// 手动同步：将启用的 MCP 投影到 ~/.gemini/settings.json
-#[tauri::command]
-pub async fn sync_enabled_mcp_to_gemini(state: State<'_, AppState>) -> Result<bool, String> {
-    McpService::sync_enabled(&state, AppType::Gemini)
-        .map(|_| true)
-        .map_err(|e| e.to_string())
-}
-
-/// 从 ~/.gemini/settings.json 导入 MCP 定义到 config.json
-#[tauri::command]
-pub async fn import_mcp_from_gemini(state: State<'_, AppState>) -> Result<usize, String> {
-    McpService::import_from_gemini(&state).map_err(|e| e.to_string())
 }
 
 // ============================================================================
@@ -219,10 +180,7 @@ pub async fn upsert_mcp_server(
 
 /// 删除 MCP 服务器
 #[tauri::command]
-pub async fn delete_mcp_server(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<bool, String> {
+pub async fn delete_mcp_server(state: State<'_, AppState>, id: String) -> Result<bool, String> {
     McpService::delete_server(&state, &id).map_err(|e| e.to_string())
 }
 
@@ -236,10 +194,4 @@ pub async fn toggle_mcp_app(
 ) -> Result<(), String> {
     let app_ty = AppType::from_str(&app).map_err(|e| e.to_string())?;
     McpService::toggle_app(&state, &server_id, app_ty, enabled).map_err(|e| e.to_string())
-}
-
-/// 手动同步所有启用的 MCP 服务器到对应的应用
-#[tauri::command]
-pub async fn sync_all_mcp_servers(state: State<'_, AppState>) -> Result<(), String> {
-    McpService::sync_all_enabled(&state).map_err(|e| e.to_string())
 }

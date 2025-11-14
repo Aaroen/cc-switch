@@ -32,18 +32,16 @@ export const mcpApi = {
     return await invoke("validate_mcp_command", { cmd });
   },
 
+  /**
+   * @deprecated 使用 getAllServers() 代替（v3.7.0+）
+   */
   async getConfig(app: AppId = "claude"): Promise<McpConfigResponse> {
     return await invoke("get_mcp_config", { app });
   },
 
-  async importFromClaude(): Promise<number> {
-    return await invoke("import_mcp_from_claude");
-  },
-
-  async importFromCodex(): Promise<number> {
-    return await invoke("import_mcp_from_codex");
-  },
-
+  /**
+   * @deprecated 使用 upsertUnifiedServer() 代替（v3.7.0+）
+   */
   async upsertServerInConfig(
     app: AppId,
     id: string,
@@ -61,6 +59,9 @@ export const mcpApi = {
     return await invoke("upsert_mcp_server_in_config", payload);
   },
 
+  /**
+   * @deprecated 使用 deleteUnifiedServer() 代替（v3.7.0+）
+   */
   async deleteServerInConfig(
     app: AppId,
     id: string,
@@ -76,24 +77,11 @@ export const mcpApi = {
     return await invoke("delete_mcp_server_in_config", payload);
   },
 
+  /**
+   * @deprecated 使用 toggleApp() 代替（v3.7.0+）
+   */
   async setEnabled(app: AppId, id: string, enabled: boolean): Promise<boolean> {
     return await invoke("set_mcp_enabled", { app, id, enabled });
-  },
-
-  async syncEnabledToClaude(): Promise<boolean> {
-    return await invoke("sync_enabled_mcp_to_claude");
-  },
-
-  async syncEnabledToCodex(): Promise<boolean> {
-    return await invoke("sync_enabled_mcp_to_codex");
-  },
-
-  async syncEnabledToGemini(): Promise<boolean> {
-    return await invoke("sync_enabled_mcp_to_gemini");
-  },
-
-  async importFromGemini(): Promise<number> {
-    return await invoke("import_mcp_from_gemini");
   },
 
   // ========================================================================
@@ -130,12 +118,5 @@ export const mcpApi = {
     enabled: boolean,
   ): Promise<void> {
     return await invoke("toggle_mcp_app", { serverId, app, enabled });
-  },
-
-  /**
-   * 手动同步所有启用的 MCP 服务器到对应的应用
-   */
-  async syncAllServers(): Promise<void> {
-    return await invoke("sync_all_mcp_servers");
   },
 };
