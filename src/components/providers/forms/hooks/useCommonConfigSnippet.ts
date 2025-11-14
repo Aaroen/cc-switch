@@ -29,8 +29,9 @@ export function useCommonConfigSnippet({
   initialData,
 }: UseCommonConfigSnippetProps) {
   const [useCommonConfig, setUseCommonConfig] = useState(false);
-  const [commonConfigSnippet, setCommonConfigSnippetState] =
-    useState<string>(DEFAULT_COMMON_CONFIG_SNIPPET);
+  const [commonConfigSnippet, setCommonConfigSnippetState] = useState<string>(
+    DEFAULT_COMMON_CONFIG_SNIPPET,
+  );
   const [commonConfigError, setCommonConfigError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -64,7 +65,9 @@ export function useCommonConfigSnippet({
                 }
                 // 清理 localStorage
                 window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-                console.log("[迁移] 通用配置已从 localStorage 迁移到 config.json");
+                console.log(
+                  "[迁移] 通用配置已从 localStorage 迁移到 config.json",
+                );
               }
             } catch (e) {
               console.warn("[迁移] 从 localStorage 迁移失败:", e);

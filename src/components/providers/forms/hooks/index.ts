@@ -10,3 +10,5 @@ export { useCommonConfigSnippet } from "./useCommonConfigSnippet";
 export { useCodexCommonConfig } from "./useCodexCommonConfig";
 export { useSpeedTestEndpoints } from "./useSpeedTestEndpoints";
 export { useCodexTomlValidation } from "./useCodexTomlValidation";
+export { useGeminiConfigState } from "./useGeminiConfigState";
+export { useGeminiCommonConfig } from "./useGeminiCommonConfig";
