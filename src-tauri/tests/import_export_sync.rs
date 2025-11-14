@@ -487,16 +487,12 @@ url = "https://example.com"
     let changed = cc_switch_lib::import_from_codex(&mut config).expect("import codex");
     assert!(changed >= 2, "should import both servers");
 
-    let servers = &config.mcp.codex.servers;
-    let echo = servers
-        .get("echo_server")
-        .and_then(|v| v.as_object())
-        .expect("echo server");
-    assert_eq!(echo.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let server_spec = echo
-        .get("server")
-        .and_then(|v| v.as_object())
-        .expect("server spec");
+    // v3.7.0: 检查统一结构
+    let servers = config.mcp.servers.as_ref().expect("unified servers should exist");
+
+    let echo = servers.get("echo_server").expect("echo server");
+    assert_eq!(echo.apps.codex, true, "Codex app should be enabled for echo_server");
+    let server_spec = echo.server.as_object().expect("server spec");
     assert_eq!(
         server_spec
             .get("command")
@@ -505,14 +501,9 @@ url = "https://example.com"
         "echo"
     );
 
-    let http = servers
-        .get("http_server")
-        .and_then(|v| v.as_object())
-        .expect("http server");
-    let http_spec = http
-        .get("server")
-        .and_then(|v| v.as_object())
-        .expect("http spec");
+    let http = servers.get("http_server").expect("http server");
+    assert_eq!(http.apps.codex, true, "Codex app should be enabled for http_server");
+    let http_spec = http.server.as_object().expect("http spec");
     assert_eq!(
         http_spec.get("url").and_then(|v| v.as_str()).unwrap_or(""),
         "https://example.com"
@@ -537,36 +528,51 @@ command = "echo"
     .expect("write codex config");
 
     let mut config = MultiAppConfig::default();
-    config.mcp.codex.servers.insert(
-        "existing".into(),
-        json!({
-            "id": "existing",
-            "name": "existing",
-            "enabled": false,
-            "server": {
+    // v3.7.0: 在统一结构中创建已存在的服务器
+    config.mcp.servers = Some(std::collections::HashMap::new());
+    config.mcp.servers.as_mut().unwrap().insert(
+        "existing".to_string(),
+        cc_switch_lib::McpServer {
+            id: "existing".to_string(),
+            name: "existing".to_string(),
+            server: json!({
                 "type": "stdio",
                 "command": "prev"
-            }
-        }),
+            }),
+            apps: cc_switch_lib::McpApps {
+                claude: false,
+                codex: false,  // 初始未启用
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
     );
 
     let changed = cc_switch_lib::import_from_codex(&mut config).expect("import codex");
     assert!(changed >= 1, "should mark change for enabled flag");
 
+    // v3.7.0: 检查统一结构
     let entry = config
         .mcp
-        .codex
         .servers
+        .as_ref()
+        .unwrap()
         .get("existing")
-        .and_then(|v| v.as_object())
         .expect("existing entry");
-    assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let spec = entry
-        .get("server")
-        .and_then(|v| v.as_object())
-        .expect("server spec");
-    // 保留原 command，确保导入不会覆盖现有 server 细节
-    assert_eq!(spec.get("command").and_then(|v| v.as_str()), Some("prev"));
+
+    // 验证 Codex 应用已启用
+    assert_eq!(entry.apps.codex, true, "Codex app should be enabled after import");
+
+    // 验证现有配置被保留（server 不应被覆盖）
+    let spec = entry.server.as_object().expect("server spec");
+    assert_eq!(
+        spec.get("command").and_then(|v| v.as_str()),
+        Some("prev"),
+        "existing server config should be preserved, not overwritten by import"
+    );
 }
 
 #[test]
@@ -644,34 +650,46 @@ fn import_from_claude_merges_into_config() {
     .expect("write claude json");
 
     let mut config = MultiAppConfig::default();
-    config.mcp.claude.servers.insert(
-        "stdio-enabled".into(),
-        json!({
-            "id": "stdio-enabled",
-            "name": "stdio-enabled",
-            "enabled": false,
-            "server": {
+    // v3.7.0: 在统一结构中创建已存在的服务器
+    config.mcp.servers = Some(std::collections::HashMap::new());
+    config.mcp.servers.as_mut().unwrap().insert(
+        "stdio-enabled".to_string(),
+        cc_switch_lib::McpServer {
+            id: "stdio-enabled".to_string(),
+            name: "stdio-enabled".to_string(),
+            server: json!({
                 "type": "stdio",
                 "command": "prev"
-            }
-        }),
+            }),
+            apps: cc_switch_lib::McpApps {
+                claude: false,  // 初始未启用
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
     );
 
     let changed = cc_switch_lib::import_from_claude(&mut config).expect("import from claude");
     assert!(changed >= 1, "should mark at least one change");
 
+    // v3.7.0: 检查统一结构
     let entry = config
         .mcp
-        .claude
         .servers
+        .as_ref()
+        .unwrap()
         .get("stdio-enabled")
-        .and_then(|v| v.as_object())
         .expect("entry exists");
-    assert_eq!(entry.get("enabled").and_then(|v| v.as_bool()), Some(true));
-    let server = entry
-        .get("server")
-        .and_then(|v| v.as_object())
-        .expect("server obj");
+
+    // 验证 Claude 应用已启用
+    assert_eq!(entry.apps.claude, true, "Claude app should be enabled after import");
+
+    // 验证现有配置被保留（server 不应被覆盖）
+    let server = entry.server.as_object().expect("server obj");
     assert_eq!(
         server.get("command").and_then(|v| v.as_str()).unwrap_or(""),
         "prev",
