@@ -3,6 +3,7 @@ import type {
   McpConfigResponse,
   McpServer,
   McpServerSpec,
+  McpServersMap,
   McpStatus,
 } from "@/types";
 import type { AppId } from "./types";
@@ -93,5 +94,48 @@ export const mcpApi = {
 
   async importFromGemini(): Promise<number> {
     return await invoke("import_mcp_from_gemini");
+  },
+
+  // ========================================================================
+  // v3.7.0 新增：统一 MCP 管理 API
+  // ========================================================================
+
+  /**
+   * 获取所有 MCP 服务器（统一结构）
+   */
+  async getAllServers(): Promise<McpServersMap> {
+    return await invoke("get_mcp_servers");
+  },
+
+  /**
+   * 添加或更新 MCP 服务器（统一结构）
+   */
+  async upsertUnifiedServer(server: McpServer): Promise<void> {
+    return await invoke("upsert_mcp_server", { server });
+  },
+
+  /**
+   * 删除 MCP 服务器
+   */
+  async deleteUnifiedServer(id: string): Promise<boolean> {
+    return await invoke("delete_mcp_server", { id });
+  },
+
+  /**
+   * 切换 MCP 服务器在指定应用的启用状态
+   */
+  async toggleApp(
+    serverId: string,
+    app: AppId,
+    enabled: boolean,
+  ): Promise<void> {
+    return await invoke("toggle_mcp_app", { serverId, app, enabled });
+  },
+
+  /**
+   * 手动同步所有启用的 MCP 服务器到对应的应用
+   */
+  async syncAllServers(): Promise<void> {
+    return await invoke("sync_all_mcp_servers");
   },
 };

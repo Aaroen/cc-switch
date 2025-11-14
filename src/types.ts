@@ -125,19 +125,31 @@ export interface McpServerSpec {
   [key: string]: any;
 }
 
-// MCP 服务器条目（含元信息）
+// v3.7.0: MCP 服务器应用启用状态
+export interface McpApps {
+  claude: boolean;
+  codex: boolean;
+  gemini: boolean;
+}
+
+// MCP 服务器条目（v3.7.0 统一结构）
 export interface McpServer {
   id: string;
-  name?: string;
+  name: string;
+  server: McpServerSpec;
+  apps: McpApps; // v3.7.0: 标记应用到哪些客户端
   description?: string;
   tags?: string[];
   homepage?: string;
   docs?: string;
-  enabled?: boolean;
-  server: McpServerSpec;
+  // 兼容旧字段（v3.6.x 及以前）
+  enabled?: boolean; // 已废弃，v3.7.0 使用 apps 字段
   source?: string;
   [key: string]: any;
 }
+
+// MCP 服务器映射（id -> McpServer）
+export type McpServersMap = Record<string, McpServer>;
 
 // MCP 配置状态
 export interface McpStatus {
