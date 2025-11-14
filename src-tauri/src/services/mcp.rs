@@ -231,11 +231,7 @@ impl McpService {
         Ok(())
     }
 
-    /// [已废弃] 从 Claude 导入 MCP（兼容旧 API）
-    #[deprecated(
-        since = "3.7.0",
-        note = "Import will be handled differently in unified structure"
-    )]
+    /// 从 Claude 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_claude(state: &AppState) -> Result<usize, AppError> {
         let mut cfg = state.config.write()?;
         let count = mcp::import_from_claude(&mut cfg)?;
@@ -244,11 +240,7 @@ impl McpService {
         Ok(count)
     }
 
-    /// [已废弃] 从 Codex 导入 MCP（兼容旧 API）
-    #[deprecated(
-        since = "3.7.0",
-        note = "Import will be handled differently in unified structure"
-    )]
+    /// 从 Codex 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_codex(state: &AppState) -> Result<usize, AppError> {
         let mut cfg = state.config.write()?;
         let count = mcp::import_from_codex(&mut cfg)?;
@@ -257,11 +249,7 @@ impl McpService {
         Ok(count)
     }
 
-    /// [已废弃] 从 Gemini 导入 MCP（兼容旧 API）
-    #[deprecated(
-        since = "3.7.0",
-        note = "Import will be handled differently in unified structure"
-    )]
+    /// 从 Gemini 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_gemini(state: &AppState) -> Result<usize, AppError> {
         let mut cfg = state.config.write()?;
         let count = mcp::import_from_gemini(&mut cfg)?;

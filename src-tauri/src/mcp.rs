@@ -324,91 +324,100 @@ pub fn sync_enabled_to_claude(config: &MultiAppConfig) -> Result<(), AppError> {
     crate::claude_mcp::set_mcp_servers_map(&enabled)
 }
 
-/// 从 ~/.claude.json 导入 mcpServers 到 config.json（设为 enabled=true）。
-/// 已存在的项仅强制 enabled=true，不覆盖其他字段。
+/// 从 ~/.claude.json 导入 mcpServers 到统一结构（v3.7.0+）
+/// 已存在的服务器将启用 Claude 应用，不覆盖其他字段和应用状态
 pub fn import_from_claude(config: &mut MultiAppConfig) -> Result<usize, AppError> {
+    use crate::app_config::{McpApps, McpServer};
+
     let text_opt = crate::claude_mcp::read_mcp_json()?;
     let Some(text) = text_opt else { return Ok(0) };
-    let mut changed = normalize_servers_for(config, &AppType::Claude);
+
     let v: Value = serde_json::from_str(&text)
         .map_err(|e| AppError::McpValidation(format!("解析 ~/.claude.json 失败: {e}")))?;
     let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
-        return Ok(changed);
+        return Ok(0);
     };
 
+    // 确保新结构存在
+    if config.mcp.servers.is_none() {
+        config.mcp.servers = Some(HashMap::new());
+    }
+    let servers = config.mcp.servers.as_mut().unwrap();
+
+    let mut changed = 0;
+    let mut errors = Vec::new();
+
     for (id, spec) in map.iter() {
-        // 校验目标 spec
-        validate_server_spec(spec)?;
+        // 校验：单项失败不中止，收集错误继续处理
+        if let Err(e) = validate_server_spec(spec) {
+            log::warn!("跳过无效 MCP 服务器 '{id}': {e}");
+            errors.push(format!("{id}: {e}"));
+            continue;
+        }
 
-        let entry = config
-            .mcp_for_mut(&AppType::Claude)
-            .servers
-            .entry(id.clone());
-        use std::collections::hash_map::Entry;
-        match entry {
-            Entry::Vacant(vac) => {
-                let mut obj = serde_json::Map::new();
-                obj.insert(String::from("id"), json!(id));
-                obj.insert(String::from("name"), json!(id));
-                obj.insert(String::from("server"), spec.clone());
-                obj.insert(String::from("enabled"), json!(true));
-                vac.insert(Value::Object(obj));
+        if let Some(existing) = servers.get_mut(id) {
+            // 已存在：仅启用 Claude 应用
+            if !existing.apps.claude {
+                existing.apps.claude = true;
                 changed += 1;
+                log::info!("MCP 服务器 '{id}' 已启用 Claude 应用");
             }
-            Entry::Occupied(mut occ) => {
-                let value = occ.get_mut();
-                let Some(existing) = value.as_object_mut() else {
-                    log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
-                    let mut obj = serde_json::Map::new();
-                    obj.insert(String::from("id"), json!(id));
-                    obj.insert(String::from("name"), json!(id));
-                    obj.insert(String::from("server"), spec.clone());
-                    obj.insert(String::from("enabled"), json!(true));
-                    occ.insert(Value::Object(obj));
-                    changed += 1;
-                    continue;
-                };
-
-                let mut modified = false;
-                let prev_enabled = existing
-                    .get("enabled")
-                    .and_then(|b| b.as_bool())
-                    .unwrap_or(false);
-                if !prev_enabled {
-                    existing.insert(String::from("enabled"), json!(true));
-                    modified = true;
-                }
-                if existing.get("server").is_none() {
-                    log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
-                    existing.insert(String::from("server"), spec.clone());
-                    modified = true;
-                }
-                if existing.get("id").is_none() {
-                    log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
-                    existing.insert(String::from("id"), json!(id));
-                    modified = true;
-                }
-                if modified {
-                    changed += 1;
-                }
-            }
+        } else {
+            // 新建服务器：默认仅启用 Claude
+            servers.insert(
+                id.clone(),
+                McpServer {
+                    id: id.clone(),
+                    name: id.clone(),
+                    server: spec.clone(),
+                    apps: McpApps {
+                        claude: true,
+                        codex: false,
+                        gemini: false,
+                    },
+                    description: None,
+                    homepage: None,
+                    docs: None,
+                    tags: Vec::new(),
+                },
+            );
+            changed += 1;
+            log::info!("导入新 MCP 服务器 '{id}'");
         }
     }
+
+    if !errors.is_empty() {
+        log::warn!(
+            "导入完成，但有 {} 项失败: {:?}",
+            errors.len(),
+            errors
+        );
+    }
+
     Ok(changed)
 }
 
-/// 从 ~/.codex/config.toml 导入 MCP 到 config.json（Codex 作用域），并将导入项设为 enabled=true。
-/// 支持两种 schema：[mcp.servers.<id>] 与 [mcp_servers.<id>]。
-/// 已存在的项仅强制 enabled=true，不覆盖其他字段。
+/// 从 ~/.codex/config.toml 导入 MCP 到统一结构（v3.7.0+）
+/// 支持两种 schema：[mcp.servers.<id>] 与 [mcp_servers.<id>]
+/// 已存在的服务器将启用 Codex 应用，不覆盖其他字段和应用状态
 pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError> {
+    use crate::app_config::{McpApps, McpServer};
+
     let text = crate::codex_config::read_and_validate_codex_config_text()?;
     if text.trim().is_empty() {
         return Ok(0);
     }
-    let mut changed_total = normalize_servers_for(config, &AppType::Codex);
 
     let root: toml::Table = toml::from_str(&text)
         .map_err(|e| AppError::McpValidation(format!("解析 ~/.codex/config.toml 失败: {e}")))?;
+
+    // 确保新结构存在
+    if config.mcp.servers.is_none() {
+        config.mcp.servers = Some(HashMap::new());
+    }
+    let servers = config.mcp.servers.as_mut().unwrap();
+
+    let mut changed_total = 0usize;
 
     // helper：处理一组 servers 表
     let mut import_servers_tbl = |servers_tbl: &toml::value::Table| {
@@ -476,70 +485,48 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                         }
                     }
                 }
-                _ => {}
+                _ => {
+                    log::warn!("跳过未知类型 '{typ}' 的 Codex MCP 项 '{id}'");
+                    return changed;
+                }
             }
 
             let spec_v = serde_json::Value::Object(spec);
 
-            // 校验
+            // 校验：单项失败继续处理
             if let Err(e) = validate_server_spec(&spec_v) {
                 log::warn!("跳过无效 Codex MCP 项 '{id}': {e}");
                 continue;
             }
 
-            // 合并：仅强制 enabled=true
-            use std::collections::hash_map::Entry;
-            let entry = config
-                .mcp_for_mut(&AppType::Codex)
-                .servers
-                .entry(id.clone());
-            match entry {
-                Entry::Vacant(vac) => {
-                    let mut obj = serde_json::Map::new();
-                    obj.insert(String::from("id"), json!(id));
-                    obj.insert(String::from("name"), json!(id));
-                    obj.insert(String::from("server"), spec_v.clone());
-                    obj.insert(String::from("enabled"), json!(true));
-                    vac.insert(serde_json::Value::Object(obj));
+            if let Some(existing) = servers.get_mut(id) {
+                // 已存在：仅启用 Codex 应用
+                if !existing.apps.codex {
+                    existing.apps.codex = true;
                     changed += 1;
+                    log::info!("MCP 服务器 '{id}' 已启用 Codex 应用");
                 }
-                Entry::Occupied(mut occ) => {
-                    let value = occ.get_mut();
-                    let Some(existing) = value.as_object_mut() else {
-                        log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
-                        let mut obj = serde_json::Map::new();
-                        obj.insert(String::from("id"), json!(id));
-                        obj.insert(String::from("name"), json!(id));
-                        obj.insert(String::from("server"), spec_v.clone());
-                        obj.insert(String::from("enabled"), json!(true));
-                        occ.insert(serde_json::Value::Object(obj));
-                        changed += 1;
-                        continue;
-                    };
-
-                    let mut modified = false;
-                    let prev = existing
-                        .get("enabled")
-                        .and_then(|b| b.as_bool())
-                        .unwrap_or(false);
-                    if !prev {
-                        existing.insert(String::from("enabled"), json!(true));
-                        modified = true;
-                    }
-                    if existing.get("server").is_none() {
-                        log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
-                        existing.insert(String::from("server"), spec_v.clone());
-                        modified = true;
-                    }
-                    if existing.get("id").is_none() {
-                        log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
-                        existing.insert(String::from("id"), json!(id));
-                        modified = true;
-                    }
-                    if modified {
-                        changed += 1;
-                    }
-                }
+            } else {
+                // 新建服务器：默认仅启用 Codex
+                servers.insert(
+                    id.clone(),
+                    McpServer {
+                        id: id.clone(),
+                        name: id.clone(),
+                        server: spec_v,
+                        apps: McpApps {
+                            claude: false,
+                            codex: true,
+                            gemini: false,
+                        },
+                        description: None,
+                        homepage: None,
+                        docs: None,
+                        tags: Vec::new(),
+                    },
+                );
+                changed += 1;
+                log::info!("导入新 MCP 服务器 '{id}'");
             }
         }
         changed
@@ -724,76 +711,76 @@ pub fn sync_enabled_to_gemini(config: &MultiAppConfig) -> Result<(), AppError> {
     crate::gemini_mcp::set_mcp_servers_map(&enabled)
 }
 
-/// 从 ~/.gemini/settings.json 导入 mcpServers 到 config.json（设为 enabled=true）。
-/// 已存在的项仅强制 enabled=true，不覆盖其他字段。
+/// 从 ~/.gemini/settings.json 导入 mcpServers 到统一结构（v3.7.0+）
+/// 已存在的服务器将启用 Gemini 应用，不覆盖其他字段和应用状态
 pub fn import_from_gemini(config: &mut MultiAppConfig) -> Result<usize, AppError> {
+    use crate::app_config::{McpApps, McpServer};
+
     let text_opt = crate::gemini_mcp::read_mcp_json()?;
     let Some(text) = text_opt else { return Ok(0) };
-    let mut changed = normalize_servers_for(config, &AppType::Gemini);
+
     let v: Value = serde_json::from_str(&text)
         .map_err(|e| AppError::McpValidation(format!("解析 ~/.gemini/settings.json 失败: {e}")))?;
     let Some(map) = v.get("mcpServers").and_then(|x| x.as_object()) else {
-        return Ok(changed);
+        return Ok(0);
     };
 
+    // 确保新结构存在
+    if config.mcp.servers.is_none() {
+        config.mcp.servers = Some(HashMap::new());
+    }
+    let servers = config.mcp.servers.as_mut().unwrap();
+
+    let mut changed = 0;
+    let mut errors = Vec::new();
+
     for (id, spec) in map.iter() {
-        // 校验目标 spec
-        validate_server_spec(spec)?;
+        // 校验：单项失败不中止，收集错误继续处理
+        if let Err(e) = validate_server_spec(spec) {
+            log::warn!("跳过无效 MCP 服务器 '{id}': {e}");
+            errors.push(format!("{id}: {e}"));
+            continue;
+        }
 
-        let entry = config
-            .mcp_for_mut(&AppType::Gemini)
-            .servers
-            .entry(id.clone());
-        use std::collections::hash_map::Entry;
-        match entry {
-            Entry::Vacant(vac) => {
-                let mut obj = serde_json::Map::new();
-                obj.insert(String::from("id"), json!(id));
-                obj.insert(String::from("name"), json!(id));
-                obj.insert(String::from("server"), spec.clone());
-                obj.insert(String::from("enabled"), json!(true));
-                vac.insert(Value::Object(obj));
+        if let Some(existing) = servers.get_mut(id) {
+            // 已存在：仅启用 Gemini 应用
+            if !existing.apps.gemini {
+                existing.apps.gemini = true;
                 changed += 1;
+                log::info!("MCP 服务器 '{id}' 已启用 Gemini 应用");
             }
-            Entry::Occupied(mut occ) => {
-                let value = occ.get_mut();
-                let Some(existing) = value.as_object_mut() else {
-                    log::warn!("MCP 条目 '{id}' 不是 JSON 对象，覆盖为导入数据");
-                    let mut obj = serde_json::Map::new();
-                    obj.insert(String::from("id"), json!(id));
-                    obj.insert(String::from("name"), json!(id));
-                    obj.insert(String::from("server"), spec.clone());
-                    obj.insert(String::from("enabled"), json!(true));
-                    occ.insert(Value::Object(obj));
-                    changed += 1;
-                    continue;
-                };
-
-                let mut modified = false;
-                let prev_enabled = existing
-                    .get("enabled")
-                    .and_then(|b| b.as_bool())
-                    .unwrap_or(false);
-                if !prev_enabled {
-                    existing.insert(String::from("enabled"), json!(true));
-                    modified = true;
-                }
-                if existing.get("server").is_none() {
-                    log::warn!("MCP 条目 '{id}' 缺少 server 字段，覆盖为导入数据");
-                    existing.insert(String::from("server"), spec.clone());
-                    modified = true;
-                }
-                if existing.get("id").is_none() {
-                    log::warn!("MCP 条目 '{id}' 缺少 id 字段，自动填充");
-                    existing.insert(String::from("id"), json!(id));
-                    modified = true;
-                }
-                if modified {
-                    changed += 1;
-                }
-            }
+        } else {
+            // 新建服务器：默认仅启用 Gemini
+            servers.insert(
+                id.clone(),
+                McpServer {
+                    id: id.clone(),
+                    name: id.clone(),
+                    server: spec.clone(),
+                    apps: McpApps {
+                        claude: false,
+                        codex: false,
+                        gemini: true,
+                    },
+                    description: None,
+                    homepage: None,
+                    docs: None,
+                    tags: Vec::new(),
+                },
+            );
+            changed += 1;
+            log::info!("导入新 MCP 服务器 '{id}'");
         }
     }
+
+    if !errors.is_empty() {
+        log::warn!(
+            "导入完成，但有 {} 项失败: {:?}",
+            errors.len(),
+            errors
+        );
+    }
+
     Ok(changed)
 }
 
