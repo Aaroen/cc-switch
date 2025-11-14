@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Server, Check, RefreshCw, Download } from "lucide-react";
+import { Plus, Server, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,6 @@ import { useAllMcpServers, useToggleMcpApp, useSyncAllMcpServers } from "@/hooks
 import type { McpServer } from "@/types";
 import type { AppId } from "@/lib/api/types";
 import McpFormModal from "./McpFormModal";
-import McpImportDialog from "./McpImportDialog";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useDeleteMcpServer } from "@/hooks/useMcp";
 import { Edit3, Trash2 } from "lucide-react";
@@ -37,7 +36,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -47,7 +45,7 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
   } | null>(null);
 
   // Queries and Mutations
-  const { data: serversMap, isLoading, refetch } = useAllMcpServers();
+  const { data: serversMap, isLoading } = useAllMcpServers();
   const toggleAppMutation = useToggleMcpApp();
   const deleteServerMutation = useDeleteMcpServer();
   const syncAllMutation = useSyncAllMcpServers();
@@ -128,11 +126,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
     setEditingId(null);
   };
 
-  const handleImportComplete = () => {
-    // Refresh the servers list after import
-    refetch();
-  };
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,15 +134,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
             <div className="flex items-center justify-between pr-8">
               <DialogTitle>{t("mcp.unifiedPanel.title")}</DialogTitle>
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsImportOpen(true)}
-                >
-                  <Download size={16} />
-                  {t("mcp.unifiedPanel.import.button")}
-                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -246,13 +230,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
           unified
         />
       )}
-
-      {/* Import Dialog */}
-      <McpImportDialog
-        open={isImportOpen}
-        onOpenChange={setIsImportOpen}
-        onImportComplete={handleImportComplete}
-      />
 
       {/* Confirm Dialog */}
       {confirmDialog && (
