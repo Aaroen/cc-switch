@@ -254,18 +254,32 @@ impl MultiAppConfig {
         // 解析 v2 结构
         let mut config: Self =
             serde_json::from_value(value).map_err(|e| AppError::json(&config_path, e))?;
+        let mut updated = false;
 
         // 确保 gemini 应用存在（兼容旧配置文件）
         if !config.apps.contains_key("gemini") {
             config
                 .apps
                 .insert("gemini".to_string(), ProviderManager::default());
+            updated = true;
         }
 
         // 执行 MCP 迁移（v3.6.x → v3.7.0）
         let migrated = config.migrate_mcp_to_unified()?;
         if migrated {
             log::info!("MCP 配置已迁移到 v3.7.0 统一结构，保存配置...");
+            updated = true;
+        }
+
+        // 对于已经存在的配置文件，如果此前版本还没有 Prompt 功能，
+        // 且 prompts 仍然是空的，则尝试自动导入现有提示词文件。
+        let imported_prompts = config.maybe_auto_import_prompts_for_existing_config()?;
+        if imported_prompts {
+            updated = true;
+        }
+
+        if updated {
+            log::info!("配置结构已更新（包括 MCP 迁移或 Prompt 自动导入），保存配置...");
             config.save()?;
         }
 
@@ -337,14 +351,52 @@ impl MultiAppConfig {
         Ok(config)
     }
 
+    /// 已存在配置文件时的 Prompt 自动导入逻辑
+    ///
+    /// 适用于「老版本已经生成过 config.json，但当时还没有 Prompt 功能」的升级场景。
+    /// 判定规则：
+    /// - 仅当所有应用的 prompts 都为空时才尝试导入（避免打扰已经在使用 Prompt 功能的用户）
+    /// - 每个应用最多导入一次，对应各自的提示词文件（如 CLAUDE.md/AGENTS.md/GEMINI.md）
+    ///
+    /// 返回值：
+    /// - Ok(true)  表示至少有一个应用成功导入了提示词
+    /// - Ok(false) 表示无需导入或未导入任何内容
+    fn maybe_auto_import_prompts_for_existing_config(&mut self) -> Result<bool, AppError> {
+        // 如果任一应用已经有提示词配置，说明用户已经在使用 Prompt 功能，避免再次自动导入
+        if !self.prompts.claude.prompts.is_empty()
+            || !self.prompts.codex.prompts.is_empty()
+            || !self.prompts.gemini.prompts.is_empty()
+        {
+            return Ok(false);
+        }
+
+        log::info!(
+            "检测到已存在配置文件且 Prompt 列表为空，将尝试从现有提示词文件自动导入"
+        );
+
+        let mut imported = false;
+        for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+            // 复用已有的单应用导入逻辑
+            if Self::auto_import_prompt_if_exists(self, app)? {
+                imported = true;
+            }
+        }
+
+        Ok(imported)
+    }
+
     /// 检查并自动导入单个应用的提示词文件
-    fn auto_import_prompt_if_exists(config: &mut Self, app: AppType) -> Result<(), AppError> {
+    ///
+    /// 返回值：
+    /// - Ok(true)  表示成功导入了非空文件
+    /// - Ok(false) 表示未导入（文件不存在、内容为空或读取失败）
+    fn auto_import_prompt_if_exists(config: &mut Self, app: AppType) -> Result<bool, AppError> {
         let file_path = prompt_file_path(&app)?;
 
         // 检查文件是否存在
         if !file_path.exists() {
             log::debug!("提示词文件不存在，跳过自动导入: {file_path:?}");
-            return Ok(());
+            return Ok(false);
         }
 
         // 读取文件内容
@@ -352,14 +404,14 @@ impl MultiAppConfig {
             Ok(c) => c,
             Err(e) => {
                 log::warn!("读取提示词文件失败: {file_path:?}, 错误: {e}");
-                return Ok(()); // 失败时不中断，继续处理其他应用
+                return Ok(false); // 失败时不中断，继续处理其他应用
             }
         };
 
         // 检查内容是否为空
         if content.trim().is_empty() {
             log::debug!("提示词文件内容为空，跳过导入: {file_path:?}");
-            return Ok(());
+            return Ok(false);
         }
 
         log::info!("发现提示词文件，自动导入: {file_path:?}");
@@ -394,7 +446,7 @@ impl MultiAppConfig {
         prompts.insert(id, prompt);
 
         log::info!("自动导入完成: {}", app.as_str());
-        Ok(())
+        Ok(true)
     }
 
     /// 将 v3.6.x 的分应用 MCP 结构迁移到 v3.7.0 的统一结构
