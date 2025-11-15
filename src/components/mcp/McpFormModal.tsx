@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Save, Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -30,26 +31,28 @@ import { useMcpValidation } from "./useMcpValidation";
 import { useUpsertMcpServer } from "@/hooks/useMcp";
 
 interface McpFormModalProps {
-  appId: AppId;
   editingId?: string;
   initialData?: McpServer;
   onSave: () => Promise<void>; // v3.7.0: 简化为仅用于关闭表单的回调
   onClose: () => void;
   existingIds?: string[];
+  defaultFormat?: "json" | "toml"; // 默认配置格式（可选，默认为 JSON）
+  defaultEnabledApps?: AppId[]; // 默认启用到哪些应用（可选，默认为 Claude）
 }
 
 /**
- * MCP 表单模态框组件（简化版）
- * Claude: 使用 JSON 格式
- * Codex: 使用 TOML 格式
+ * MCP 表单模态框组件（v3.7.0 完整重构版）
+ * - 支持 JSON 和 TOML 两种格式
+ * - 统一管理，通过复选框选择启用到哪些应用
  */
 const McpFormModal: React.FC<McpFormModalProps> = ({
-  appId,
   editingId,
   initialData,
   onSave,
   onClose,
   existingIds = [],
+  defaultFormat = "json",
+  defaultEnabledApps = ["claude"],
 }) => {
   const { t } = useTranslation();
   const { formatTomlError, validateTomlConfig, validateJsonConfig } =
@@ -68,6 +71,23 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [formDocs, setFormDocs] = useState(initialData?.docs || "");
   const [formTags, setFormTags] = useState(initialData?.tags?.join(", ") || "");
 
+  // 启用状态：编辑模式使用现有值，新增模式使用默认值
+  const [enabledApps, setEnabledApps] = useState<{
+    claude: boolean;
+    codex: boolean;
+    gemini: boolean;
+  }>(() => {
+    if (initialData?.apps) {
+      return { ...initialData.apps };
+    }
+    // 新增模式：根据 defaultEnabledApps 设置初始值
+    return {
+      claude: defaultEnabledApps.includes("claude"),
+      codex: defaultEnabledApps.includes("codex"),
+      gemini: defaultEnabledApps.includes("gemini"),
+    };
+  });
+
   // 编辑模式下禁止修改 ID
   const isEditing = !!editingId;
 
@@ -84,11 +104,20 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     isEditing ? hasAdditionalInfo : false,
   );
 
-  // 根据 appId 决定初始格式
+  // 配置格式：优先使用 defaultFormat，编辑模式下可从现有数据推断
+  const useTomlFormat = useMemo(() => {
+    if (initialData?.server) {
+      // 编辑模式：尝试从现有数据推断格式（这里简化处理，默认 JSON）
+      return defaultFormat === "toml";
+    }
+    return defaultFormat === "toml";
+  }, [defaultFormat, initialData]);
+
+  // 根据格式决定初始配置
   const [formConfig, setFormConfig] = useState(() => {
     const spec = initialData?.server;
     if (!spec) return "";
-    if (appId === "codex") {
+    if (useTomlFormat) {
       return mcpServerToToml(spec);
     }
     return JSON.stringify(spec, null, 2);
@@ -99,8 +128,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [idError, setIdError] = useState("");
 
-  // 判断是否使用 TOML 格式
-  const useToml = appId === "codex";
+  // 判断是否使用 TOML 格式（向后兼容，后续可扩展为格式切换按钮）
+  const useToml = useTomlFormat;
 
   const wizardInitialSpec = useMemo(() => {
     const fallback = initialData?.server;
@@ -333,12 +362,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         id: trimmedId,
         name: finalName,
         server: serverSpec,
-        // 确保 apps 字段始终存在（v3.7.0 新架构必需）
-        apps: initialData?.apps || {
-          claude: false,
-          codex: false,
-          gemini: false,
-        },
+        // 使用表单中的启用状态（v3.7.0 完整重构）
+        apps: enabledApps,
       };
 
       const descriptionTrimmed = formDescription.trim();
@@ -387,11 +412,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   };
 
   const getFormTitle = () => {
-    if (appId === "claude") {
-      return isEditing ? t("mcp.editClaudeServer") : t("mcp.addClaudeServer");
-    } else {
-      return isEditing ? t("mcp.editCodexServer") : t("mcp.addCodexServer");
-    }
+    return isEditing ? t("mcp.editServer") : t("mcp.addServer");
   };
 
   return (
@@ -475,6 +496,62 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
               />
+            </div>
+
+            {/* 启用到哪些应用（v3.7.0 新增） */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                {t("mcp.form.enabledApps")}
+              </label>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="enable-claude"
+                    checked={enabledApps.claude}
+                    onCheckedChange={(checked: boolean) =>
+                      setEnabledApps({ ...enabledApps, claude: checked })
+                    }
+                  />
+                  <label
+                    htmlFor="enable-claude"
+                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                  >
+                    {t("mcp.unifiedPanel.apps.claude")}
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="enable-codex"
+                    checked={enabledApps.codex}
+                    onCheckedChange={(checked: boolean) =>
+                      setEnabledApps({ ...enabledApps, codex: checked })
+                    }
+                  />
+                  <label
+                    htmlFor="enable-codex"
+                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                  >
+                    {t("mcp.unifiedPanel.apps.codex")}
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="enable-gemini"
+                    checked={enabledApps.gemini}
+                    onCheckedChange={(checked: boolean) =>
+                      setEnabledApps({ ...enabledApps, gemini: checked })
+                    }
+                  />
+                  <label
+                    htmlFor="enable-gemini"
+                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                  >
+                    {t("mcp.unifiedPanel.apps.gemini")}
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* 可折叠的附加信息按钮 */}

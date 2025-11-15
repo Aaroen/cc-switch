@@ -191,12 +191,13 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
       {/* Form Modal */}
       {isFormOpen && (
         <McpFormModal
-          appId="claude" // Default to claude for unified panel
           editingId={editingId || undefined}
           initialData={
             editingId && serversMap ? serversMap[editingId] : undefined
           }
           existingIds={serversMap ? Object.keys(serversMap) : []}
+          defaultFormat="json"
+          defaultEnabledApps={["claude"]} // 默认启用 Claude
           onSave={async () => {
             setIsFormOpen(false);
             setEditingId(null);

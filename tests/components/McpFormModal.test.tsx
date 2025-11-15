@@ -5,7 +5,11 @@ import McpFormModal from "@/components/mcp/McpFormModal";
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const toastSuccessMock = vi.hoisted(() => vi.fn());
-const getConfigMock = vi.hoisted(() => vi.fn().mockResolvedValue({ servers: {} }));
+const upsertMock = vi.hoisted(() => {
+  const fn = vi.fn();
+  fn.mockResolvedValue(undefined);
+  return fn;
+});
 
 vi.mock("sonner", () => ({
   toast: {
@@ -65,6 +69,18 @@ vi.mock("@/components/ui/textarea", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/checkbox", () => ({
+  Checkbox: ({ id, checked, onCheckedChange, ...rest }: any) => (
+    <input
+      type="checkbox"
+      id={id}
+      checked={checked ?? false}
+      onChange={(e) => onCheckedChange?.(e.target.checked)}
+      {...rest}
+    />
+  ),
+}));
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children }: any) => <div>{children}</div>,
   DialogContent: ({ children }: any) => <div>{children}</div>,
@@ -91,40 +107,44 @@ vi.mock("@/components/mcp/McpWizardModal", () => ({
     ) : null,
 }));
 
-vi.mock("@/lib/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+vi.mock("@/hooks/useMcp", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useMcp")>(
+    "@/hooks/useMcp",
+  );
   return {
     ...actual,
-    mcpApi: {
-      ...actual.mcpApi,
-      getConfig: (...args: unknown[]) => getConfigMock(...args),
-    },
+    useUpsertMcpServer: () => ({
+      mutateAsync: (...args: unknown[]) => upsertMock(...args),
+    }),
   };
 });
 
 describe("McpFormModal", () => {
   beforeEach(() => {
-    toastErrorMock.mockReset();
-    toastSuccessMock.mockReset();
-    getConfigMock.mockReset();
-    getConfigMock.mockResolvedValue({ servers: {} });
+    toastErrorMock.mockClear();
+    toastSuccessMock.mockClear();
+    upsertMock.mockClear();
   });
 
-const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) => {
-  const { onSave: overrideOnSave, onClose: overrideOnClose, ...rest } = props ?? {};
-  const onSave = overrideOnSave ?? vi.fn().mockResolvedValue(undefined);
-  const onClose = overrideOnClose ?? vi.fn();
-  render(
-    <McpFormModal
-      appId="claude"
-      onSave={onSave}
-      onClose={onClose}
-      existingIds={[]}
+  const renderForm = (
+    props?: Partial<React.ComponentProps<typeof McpFormModal>>,
+  ) => {
+    const { onSave: overrideOnSave, onClose: overrideOnClose, ...rest } =
+      props ?? {};
+    const onSave = overrideOnSave ?? vi.fn().mockResolvedValue(undefined);
+    const onClose = overrideOnClose ?? vi.fn();
+    render(
+      <McpFormModal
+        onSave={onSave}
+        onClose={onClose}
+        existingIds={[]}
+        defaultFormat="json"
+        defaultEnabledApps={["claude"]}
         {...rest}
-    />,
-  );
-  return { onSave, onClose };
-};
+      />,
+    );
+    return { onSave, onClose };
+  };
 
   it("应用预设后填充 ID 与配置内容", async () => {
     renderForm();
@@ -145,30 +165,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
     expect(configTextarea.value).toBe('{\n  "type": "stdio",\n  "command": "preset-cmd"\n}');
   });
 
-  it("在同步另一侧存在冲突时展示警告", async () => {
-    getConfigMock.mockResolvedValue({ servers: { conflict: {} } });
-    renderForm();
-
-    const idInput = screen.getByPlaceholderText(
-      "mcp.form.titlePlaceholder",
-    ) as HTMLInputElement;
-    fireEvent.change(idInput, { target: { value: "conflict" } });
-
-    await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
-
-    const checkbox = screen.getByLabelText(
-      'mcp.form.syncOtherSide:{"target":"apps.codex"}',
-    ) as HTMLInputElement;
-    fireEvent.click(checkbox);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText('mcp.form.willOverwriteWarning:{"target":"apps.codex"}'),
-      ).toBeInTheDocument(),
-    );
-  });
-
-  it("提交时清洗字段并调用 onSave", async () => {
+  it("提交时清洗字段并调用 upsert 与 onSave", async () => {
     const { onSave } = renderForm();
 
     fireEvent.change(screen.getByPlaceholderText("mcp.form.titlePlaceholder"), {
@@ -197,17 +194,11 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
       target: { value: '{"type":"stdio","command":"run"}' },
     });
 
-    const syncCheckbox = screen.getByLabelText(
-      'mcp.form.syncOtherSide:{"target":"apps.codex"}',
-    ) as HTMLInputElement;
-    fireEvent.click(syncCheckbox);
-
     fireEvent.click(screen.getByText("common.add"));
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, payload, options] = (onSave as any).mock.calls[0];
-    expect(id).toBe("my-server");
-    expect(payload).toMatchObject({
+    await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
+    const [entry] = upsertMock.mock.calls.at(-1) ?? [];
+    expect(entry).toMatchObject({
       id: "my-server",
       name: "Friendly",
       description: "Description",
@@ -218,8 +209,14 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
         type: "stdio",
         command: "run",
       },
+      apps: {
+        claude: true,
+        codex: false,
+        gemini: false,
+      },
     });
-    expect(options).toEqual({ syncOtherSide: true });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith();
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
@@ -236,7 +233,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
     fireEvent.click(screen.getByText("common.add"));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
-    expect(onSave).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
     const [message] = toastErrorMock.mock.calls.at(-1) ?? [];
     expect(message).toBe("mcp.error.jsonInvalid");
   });
@@ -262,7 +259,7 @@ const renderForm = (props?: Partial<React.ComponentProps<typeof McpFormModal>>) 
   });
 
   it("TOML 模式下自动提取 ID 并成功保存", async () => {
-    const { onSave } = renderForm({ appId: "codex" });
+    const { onSave } = renderForm({ defaultFormat: "toml" });
 
     const configTextarea = screen.getByPlaceholderText(
       "mcp.form.tomlPlaceholder",
@@ -282,15 +279,17 @@ command = "run"
 
     fireEvent.click(screen.getByText("common.add"));
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, payload] = (onSave as any).mock.calls[0];
-    expect(id).toBe("demo");
-    expect(payload.server).toEqual({ type: "stdio", command: "run" });
+    await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
+    const [entry] = upsertMock.mock.calls.at(-1) ?? [];
+    expect(entry.id).toBe("demo");
+    expect(entry.server).toEqual({ type: "stdio", command: "run" });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith();
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
   it("TOML 模式下缺少命令时展示错误提示并阻止提交", async () => {
-    const { onSave } = renderForm({ appId: "codex" });
+    const { onSave } = renderForm({ defaultFormat: "toml" });
 
     const configTextarea = screen.getByPlaceholderText(
       "mcp.form.tomlPlaceholder",
@@ -304,11 +303,11 @@ type = "stdio"
     fireEvent.click(screen.getByText("common.add"));
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith("mcp.error.idRequired", {
+      expect(toastErrorMock).toHaveBeenCalledWith("mcp.error.tomlInvalid", {
         duration: 3000,
       }),
     );
-    expect(onSave).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("编辑模式下保持 ID 并更新配置", async () => {
@@ -321,7 +320,6 @@ type = "stdio"
     } as McpServer;
 
     const { onSave } = renderForm({
-      appId: "claude",
       editingId: "existing",
       initialData,
     });
@@ -343,12 +341,48 @@ type = "stdio"
 
     fireEvent.click(screen.getByText("common.save"));
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [id, entry, options] = (onSave as any).mock.calls[0];
-    expect(id).toBe("existing");
+    await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
+    const [entry] = upsertMock.mock.calls.at(-1) ?? [];
+    expect(entry.id).toBe("existing");
     expect(entry.server.command).toBe("updated");
     expect(entry.enabled).toBe(true);
-    expect(options).toEqual({ syncOtherSide: false });
+    expect(entry.apps).toEqual({
+      claude: true,
+      codex: false,
+      gemini: false,
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith();
+  });
+
+  it("允许未选择任何应用保存配置，并保持 apps 全 false", async () => {
+    const { onSave } = renderForm();
+
+    fireEvent.change(screen.getByPlaceholderText("mcp.form.titlePlaceholder"), {
+      target: { value: "no-apps" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("mcp.form.jsonPlaceholder"), {
+      target: { value: '{"type":"stdio","command":"run"}' },
+    });
+
+    const claudeCheckbox = screen.getByLabelText(
+      "mcp.unifiedPanel.apps.claude",
+    ) as HTMLInputElement;
+    expect(claudeCheckbox.checked).toBe(true);
+    fireEvent.click(claudeCheckbox);
+
+    fireEvent.click(screen.getByText("common.add"));
+
+    await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
+    const [entry] = upsertMock.mock.calls.at(-1) ?? [];
+    expect(entry.id).toBe("no-apps");
+    expect(entry.apps).toEqual({
+      claude: false,
+      codex: false,
+      gemini: false,
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
   it("保存失败时展示翻译后的错误并恢复按钮", async () => {

@@ -478,6 +478,8 @@
       "titlePlaceholder": "my-mcp-server",
       "name": "Display Name",
       "namePlaceholder": "e.g. @modelcontextprotocol/server-time",
+      "enabledApps": "Enable to Apps",
+      "noAppsWarning": "At least one app must be selected",
       "description": "Description",
       "descriptionPlaceholder": "Optional description",
       "tags": "Tags (comma separated)",

@@ -478,6 +478,8 @@
       "titlePlaceholder": "my-mcp-server",
       "name": "显示名称",
       "namePlaceholder": "例如 @modelcontextprotocol/server-time",
+      "enabledApps": "启用到应用",
+      "noAppsWarning": "至少选择一个应用",
       "description": "描述",
       "descriptionPlaceholder": "可选的描述信息",
       "tags": "标签（逗号分隔）",
