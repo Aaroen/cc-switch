@@ -34,11 +34,8 @@ fn get_base_dir_with_fallback(
         .ok_or_else(|| {
             AppError::localized(
                 "home_dir_not_found",
-                format!("无法确定 {} 配置目录：用户主目录不存在", fallback_dir),
-                format!(
-                    "Cannot determine {} config directory: user home not found",
-                    fallback_dir
-                ),
+                format!("无法确定 {fallback_dir} 配置目录：用户主目录不存在"),
+                format!("Cannot determine {fallback_dir} config directory: user home not found"),
             )
         })
 }
