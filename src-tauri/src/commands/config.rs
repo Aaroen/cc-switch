@@ -136,7 +136,7 @@ pub async fn open_app_config_folder(handle: AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
-/// 获取 Claude 通用配置片段
+/// 获取 Claude 通用配置片段（已废弃，使用 get_common_config_snippet）
 #[tauri::command]
 pub async fn get_claude_common_config_snippet(
     state: tauri::State<'_, crate::store::AppState>,
@@ -145,10 +145,10 @@ pub async fn get_claude_common_config_snippet(
         .config
         .read()
         .map_err(|e| format!("读取配置锁失败: {e}"))?;
-    Ok(guard.claude_common_config_snippet.clone())
+    Ok(guard.common_config_snippets.claude.clone())
 }
 
-/// 设置 Claude 通用配置片段
+/// 设置 Claude 通用配置片段（已废弃，使用 set_common_config_snippet）
 #[tauri::command]
 pub async fn set_claude_common_config_snippet(
     snippet: String,
@@ -165,11 +165,77 @@ pub async fn set_claude_common_config_snippet(
             .map_err(|e| format!("无效的 JSON 格式: {e}"))?;
     }
 
-    guard.claude_common_config_snippet = if snippet.trim().is_empty() {
+    guard.common_config_snippets.claude = if snippet.trim().is_empty() {
         None
     } else {
         Some(snippet)
     };
+
+    guard.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 获取通用配置片段（统一接口）
+#[tauri::command]
+pub async fn get_common_config_snippet(
+    app_type: String,
+    state: tauri::State<'_, crate::store::AppState>,
+) -> Result<Option<String>, String> {
+    use crate::app_config::AppType;
+    use std::str::FromStr;
+
+    let app = AppType::from_str(&app_type)
+        .map_err(|e| format!("无效的应用类型: {}", e))?;
+
+    let guard = state
+        .config
+        .read()
+        .map_err(|e| format!("读取配置锁失败: {}", e))?;
+
+    Ok(guard.common_config_snippets.get(&app).cloned())
+}
+
+/// 设置通用配置片段（统一接口）
+#[tauri::command]
+pub async fn set_common_config_snippet(
+    app_type: String,
+    snippet: String,
+    state: tauri::State<'_, crate::store::AppState>,
+) -> Result<(), String> {
+    use crate::app_config::AppType;
+    use std::str::FromStr;
+
+    let app = AppType::from_str(&app_type)
+        .map_err(|e| format!("无效的应用类型: {}", e))?;
+
+    let mut guard = state
+        .config
+        .write()
+        .map_err(|e| format!("写入配置锁失败: {}", e))?;
+
+    // 验证格式（根据应用类型）
+    if !snippet.trim().is_empty() {
+        match app {
+            AppType::Claude | AppType::Gemini => {
+                // 验证 JSON 格式
+                serde_json::from_str::<serde_json::Value>(&snippet)
+                    .map_err(|e| format!("无效的 JSON 格式: {}", e))?;
+            }
+            AppType::Codex => {
+                // TOML 格式暂不验证（或可使用 toml crate）
+                // 注意：TOML 验证较为复杂，暂时跳过
+            }
+        }
+    }
+
+    guard.common_config_snippets.set(
+        &app,
+        if snippet.trim().is_empty() {
+            None
+        } else {
+            Some(snippet)
+        },
+    );
 
     guard.save().map_err(|e| e.to_string())?;
     Ok(())

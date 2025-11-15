@@ -44,8 +44,8 @@ export function useCommonConfigSnippet({
 
     const loadSnippet = async () => {
       try {
-        // 尝试从 config.json 加载
-        const snippet = await configApi.getClaudeCommonConfigSnippet();
+        // 使用统一 API 加载
+        const snippet = await configApi.getCommonConfigSnippet("claude");
 
         if (snippet && snippet.trim()) {
           if (mounted) {
@@ -59,14 +59,14 @@ export function useCommonConfigSnippet({
                 window.localStorage.getItem(LEGACY_STORAGE_KEY);
               if (legacySnippet && legacySnippet.trim()) {
                 // 迁移到 config.json
-                await configApi.setClaudeCommonConfigSnippet(legacySnippet);
+                await configApi.setCommonConfigSnippet("claude", legacySnippet);
                 if (mounted) {
                   setCommonConfigSnippetState(legacySnippet);
                 }
                 // 清理 localStorage
                 window.localStorage.removeItem(LEGACY_STORAGE_KEY);
                 console.log(
-                  "[迁移] 通用配置已从 localStorage 迁移到 config.json",
+                  "[迁移] Claude 通用配置已从 localStorage 迁移到 config.json",
                 );
               }
             } catch (e) {
@@ -139,8 +139,9 @@ export function useCommonConfigSnippet({
       if (!value.trim()) {
         setCommonConfigError("");
         // 保存到 config.json（清空）
-        configApi.setClaudeCommonConfigSnippet("").catch((error) => {
+        configApi.setCommonConfigSnippet("claude", "").catch((error) => {
           console.error("保存通用配置失败:", error);
+          setCommonConfigError(`保存失败: ${error}`);
         });
 
         if (useCommonConfig) {
@@ -162,7 +163,7 @@ export function useCommonConfigSnippet({
       } else {
         setCommonConfigError("");
         // 保存到 config.json
-        configApi.setClaudeCommonConfigSnippet(value).catch((error) => {
+        configApi.setCommonConfigSnippet("claude", value).catch((error) => {
           console.error("保存通用配置失败:", error);
           setCommonConfigError(`保存失败: ${error}`);
         });

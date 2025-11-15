@@ -3,8 +3,9 @@ import {
   updateTomlCommonConfigSnippet,
   hasTomlCommonConfigSnippet,
 } from "@/utils/providerConfigUtils";
+import { configApi } from "@/lib/api";
 
-const CODEX_COMMON_CONFIG_STORAGE_KEY = "cc-switch:codex-common-config-snippet";
+const LEGACY_STORAGE_KEY = "cc-switch:codex-common-config-snippet";
 const DEFAULT_CODEX_COMMON_CONFIG_SNIPPET = `# Common Codex config
 # Add your common TOML configuration here`;
 
@@ -18,6 +19,7 @@ interface UseCodexCommonConfigProps {
 
 /**
  * 管理 Codex 通用配置片段 (TOML 格式)
+ * 从 config.json 读取和保存，支持从 localStorage 平滑迁移
  */
 export function useCodexCommonConfig({
   codexConfig,
@@ -26,31 +28,69 @@ export function useCodexCommonConfig({
 }: UseCodexCommonConfigProps) {
   const [useCommonConfig, setUseCommonConfig] = useState(false);
   const [commonConfigSnippet, setCommonConfigSnippetState] = useState<string>(
-    () => {
-      if (typeof window === "undefined") {
-        return DEFAULT_CODEX_COMMON_CONFIG_SNIPPET;
-      }
-      try {
-        const stored = window.localStorage.getItem(
-          CODEX_COMMON_CONFIG_STORAGE_KEY,
-        );
-        if (stored && stored.trim()) {
-          return stored;
-        }
-      } catch {
-        // ignore localStorage 读取失败
-      }
-      return DEFAULT_CODEX_COMMON_CONFIG_SNIPPET;
-    },
+    DEFAULT_CODEX_COMMON_CONFIG_SNIPPET,
   );
   const [commonConfigError, setCommonConfigError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   // 用于跟踪是否正在通过通用配置更新
   const isUpdatingFromCommonConfig = useRef(false);
 
+  // 初始化：从 config.json 加载，支持从 localStorage 迁移
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSnippet = async () => {
+      try {
+        // 使用统一 API 加载
+        const snippet = await configApi.getCommonConfigSnippet("codex");
+
+        if (snippet && snippet.trim()) {
+          if (mounted) {
+            setCommonConfigSnippetState(snippet);
+          }
+        } else {
+          // 如果 config.json 中没有，尝试从 localStorage 迁移
+          if (typeof window !== "undefined") {
+            try {
+              const legacySnippet =
+                window.localStorage.getItem(LEGACY_STORAGE_KEY);
+              if (legacySnippet && legacySnippet.trim()) {
+                // 迁移到 config.json
+                await configApi.setCommonConfigSnippet("codex", legacySnippet);
+                if (mounted) {
+                  setCommonConfigSnippetState(legacySnippet);
+                }
+                // 清理 localStorage
+                window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+                console.log(
+                  "[迁移] Codex 通用配置已从 localStorage 迁移到 config.json",
+                );
+              }
+            } catch (e) {
+              console.warn("[迁移] 从 localStorage 迁移失败:", e);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("加载 Codex 通用配置失败:", error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadSnippet();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // 初始化时检查通用配置片段（编辑模式）
   useEffect(() => {
-    if (initialData?.settingsConfig) {
+    if (initialData?.settingsConfig && !isLoading) {
       const config =
         typeof initialData.settingsConfig.config === "string"
           ? initialData.settingsConfig.config
@@ -58,24 +98,7 @@ export function useCodexCommonConfig({
       const hasCommon = hasTomlCommonConfigSnippet(config, commonConfigSnippet);
       setUseCommonConfig(hasCommon);
     }
-  }, [initialData, commonConfigSnippet]);
-
-  // 同步本地存储的通用配置片段
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (commonConfigSnippet.trim()) {
-        window.localStorage.setItem(
-          CODEX_COMMON_CONFIG_STORAGE_KEY,
-          commonConfigSnippet,
-        );
-      } else {
-        window.localStorage.removeItem(CODEX_COMMON_CONFIG_STORAGE_KEY);
-      }
-    } catch {
-      // ignore
-    }
-  }, [commonConfigSnippet]);
+  }, [initialData, commonConfigSnippet, isLoading]);
 
   // 处理通用配置开关
   const handleCommonConfigToggle = useCallback(
@@ -114,6 +137,12 @@ export function useCodexCommonConfig({
 
       if (!value.trim()) {
         setCommonConfigError("");
+        // 保存到 config.json（清空）
+        configApi.setCommonConfigSnippet("codex", "").catch((error) => {
+          console.error("保存 Codex 通用配置失败:", error);
+          setCommonConfigError(`保存失败: ${error}`);
+        });
+
         if (useCommonConfig) {
           const { updatedConfig } = updateTomlCommonConfigSnippet(
             codexConfig,
@@ -128,6 +157,11 @@ export function useCodexCommonConfig({
 
       // TOML 格式校验较为复杂，暂时不做校验，直接清空错误
       setCommonConfigError("");
+      // 保存到 config.json
+      configApi.setCommonConfigSnippet("codex", value).catch((error) => {
+        console.error("保存 Codex 通用配置失败:", error);
+        setCommonConfigError(`保存失败: ${error}`);
+      });
 
       // 若当前启用通用配置，需要替换为最新片段
       if (useCommonConfig) {
@@ -165,7 +199,7 @@ export function useCodexCommonConfig({
 
   // 当配置变化时检查是否包含通用配置（但避免在通过通用配置更新时检查）
   useEffect(() => {
-    if (isUpdatingFromCommonConfig.current) {
+    if (isUpdatingFromCommonConfig.current || isLoading) {
       return;
     }
     const hasCommon = hasTomlCommonConfigSnippet(
@@ -173,12 +207,13 @@ export function useCodexCommonConfig({
       commonConfigSnippet,
     );
     setUseCommonConfig(hasCommon);
-  }, [codexConfig, commonConfigSnippet]);
+  }, [codexConfig, commonConfigSnippet, isLoading]);
 
   return {
     useCommonConfig,
     commonConfigSnippet,
     commonConfigError,
+    isLoading,
     handleCommonConfigToggle,
     handleCommonConfigSnippetChange,
   };

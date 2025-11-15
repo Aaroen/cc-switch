@@ -517,6 +517,8 @@ pub fn run() {
             commands::open_app_config_folder,
             commands::get_claude_common_config_snippet,
             commands::set_claude_common_config_snippet,
+            commands::get_common_config_snippet,
+            commands::set_common_config_snippet,
             commands::read_live_provider_settings,
             commands::get_settings,
             commands::save_settings,
