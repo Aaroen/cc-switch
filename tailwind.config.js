@@ -6,27 +6,27 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        // 扩展蓝色系列以匹配 Linear 风格
-        blue: {
-          500: '#3498db',
-          600: '#2980b9',
-          400: '#5dade2',
-        },
-        // 自定义灰色系列
-        gray: {
-          50: '#fafafa',   // bg-primary
-          100: '#f4f4f5',  // bg-tertiary
-          200: '#e4e4e7',  // border
-          300: '#d4d4d8',  // border-hover
-          400: '#a1a1aa',  // text-tertiary
-          500: '#71717a',  // text-secondary
-          600: '#52525b',  // text-secondary-dark
-          700: '#3f3f46',  // bg-tertiary-dark
-          800: '#27272a',  // bg-secondary-dark
-          900: '#18181b',  // text-primary
-          950: '#0a0a0b',  // bg-primary-dark
-        },
+	      colors: {
+	        // macOS 风格系统蓝
+	        blue: {
+	          400: '#409CFF',
+	          500: '#0A84FF',
+	          600: '#0060DF',
+	        },
+	        // 自定义灰色系列（对齐 macOS 深色 System Gray）
+	        gray: {
+	          50: '#fafafa',   // bg-primary
+	          100: '#f4f4f5',  // bg-tertiary
+	          200: '#e4e4e7',  // border
+	          300: '#d4d4d8',  // border-hover
+	          400: '#a1a1aa',  // text-tertiary
+	          500: '#71717a',  // text-secondary
+	          600: '#636366',  // text-secondary-dark / systemGray2
+	          700: '#48484A',  // bg-tertiary-dark / separators
+	          800: '#3A3A3C',  // bg-secondary-dark
+	          900: '#2C2C2E',  // header / modal bg
+	          950: '#1C1C1E',  // app main bg
+	        },
         // 状态颜色
         green: {
           500: '#10b981',
