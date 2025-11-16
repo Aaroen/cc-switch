@@ -239,9 +239,6 @@
     "codexApiEndpointPlaceholder": "https://your-api-endpoint.com/v1",
     "manageAndTest": "Manage & Test",
     "configContent": "Config Content",
-    "useConfigWizard": "Use Configuration Wizard",
-    "openConfigWizard": "Open configuration wizard",
-    "manualConfig": "Manually configure provider, requires complete configuration, or",
     "officialNoApiKey": "Official login does not require API Key, save directly",
     "codexOfficialNoApiKey": "Official does not require API Key, save directly",
     "codexApiKeyAutoFill": "Just fill in here, auth.json below will be auto-filled",
@@ -314,7 +311,6 @@
     "testFailed": "Speed test failed: {{error}}"
   },
   "codexConfig": {
-    "quickWizard": "Quick Configuration Wizard",
     "authJson": "auth.json (JSON) *",
     "authJsonPlaceholder": "{\n  \"OPENAI_API_KEY\": \"sk-your-api-key-here\"\n}",
     "authJsonHint": "Codex auth.json configuration content",
@@ -324,24 +320,7 @@
     "editCommonConfig": "Edit Common Config",
     "editCommonConfigTitle": "Edit Codex Common Config Snippet",
     "commonConfigHint": "This snippet will be appended to the end of config.toml when 'Write Common Config' is checked",
-    "wizardHint": "Enter key parameters, the system will automatically generate standard auth.json and config.toml configuration.",
-    "apiKeyLabel": "API Key *",
-    "apiKeyPlaceholder": "sk-your-api-key-here",
-    "supplierNameLabel": "Provider Name *",
-    "supplierNamePlaceholder": "e.g., Codex Official",
-    "supplierNameHint": "Will be displayed in the provider list, can use Chinese",
-    "supplierCodeLabel": "Provider Code (English)",
-    "supplierCodePlaceholder": "custom (optional)",
-    "supplierCodeHint": "Will be used as identifier in config file, defaults to custom",
-    "apiUrlLabel": "API Request URL *",
-    "apiUrlPlaceholder": "https://your-api-endpoint.com/v1",
-    "websiteLabel": "Website URL",
-    "websitePlaceholder": "https://example.com",
-    "websiteHint": "Official website address (optional)",
-    "modelNameLabel": "Model Name *",
-    "modelNamePlaceholder": "gpt-5-codex",
-    "configPreview": "Configuration Preview",
-    "applyConfig": "Apply Configuration"
+    "apiUrlLabel": "API Request URL"
   },
   "geminiConfig": {
     "envFile": "Environment Variables (.env)",

@@ -239,9 +239,6 @@
     "codexApiEndpointPlaceholder": "https://your-api-endpoint.com/v1",
     "manageAndTest": "管理与测速",
     "configContent": "配置内容",
-    "useConfigWizard": "使用配置向导",
-    "openConfigWizard": "打开配置向导",
-    "manualConfig": "手动配置供应商，需要填写完整的配置信息，或者",
     "officialNoApiKey": "官方登录无需填写 API Key，直接保存即可",
     "codexOfficialNoApiKey": "官方无需填写 API Key，直接保存即可",
     "codexApiKeyAutoFill": "只需要填这里，下方 auth.json 会自动填充",
@@ -314,7 +311,6 @@
     "testFailed": "测速失败: {{error}}"
   },
   "codexConfig": {
-    "quickWizard": "快速配置向导",
     "authJson": "auth.json (JSON) *",
     "authJsonPlaceholder": "{\n  \"OPENAI_API_KEY\": \"sk-your-api-key-here\"\n}",
     "authJsonHint": "Codex auth.json 配置内容",
@@ -324,24 +320,7 @@
     "editCommonConfig": "编辑通用配置",
     "editCommonConfigTitle": "编辑 Codex 通用配置片段",
     "commonConfigHint": "该片段会在勾选'写入通用配置'时追加到 config.toml 末尾",
-    "wizardHint": "输入关键参数，系统将自动生成标准的 auth.json 和 config.toml 配置。",
-    "apiKeyLabel": "API 密钥 *",
-    "apiKeyPlaceholder": "sk-your-api-key-here",
-    "supplierNameLabel": "供应商名称 *",
-    "supplierNamePlaceholder": "例如：Codex 官方",
-    "supplierNameHint": "将显示在供应商列表中，可使用中文",
-    "supplierCodeLabel": "供应商代号（英文）",
-    "supplierCodePlaceholder": "custom（可选）",
-    "supplierCodeHint": "将用作配置文件中的标识符，默认为 custom",
-    "apiUrlLabel": "API 请求地址 *",
-    "apiUrlPlaceholder": "https://your-api-endpoint.com/v1",
-    "websiteLabel": "官网地址",
-    "websitePlaceholder": "https://example.com",
-    "websiteHint": "官方网站地址（可选）",
-    "modelNameLabel": "模型名称 *",
-    "modelNamePlaceholder": "gpt-5-codex",
-    "configPreview": "配置预览",
-    "applyConfig": "应用配置"
+    "apiUrlLabel": "API 请求地址"
   },
   "geminiConfig": {
     "envFile": "环境变量 (.env)",

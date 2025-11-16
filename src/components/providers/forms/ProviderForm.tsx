@@ -220,9 +220,6 @@ export function ProviderForm({
     [originalHandleCodexConfigChange, debouncedValidate],
   );
 
-  const [isCodexTemplateModalOpen, setIsCodexTemplateModalOpen] =
-    useState(false);
-
   useEffect(() => {
     form.reset(defaultValues);
   }, [defaultValues, form]);
@@ -615,11 +612,6 @@ export function ProviderForm({
             onPresetChange={handlePresetChange}
             category={category}
             appId={appId}
-            onOpenWizard={
-              appId === "codex"
-                ? () => setIsCodexTemplateModalOpen(true)
-                : undefined
-            }
           />
         )}
 
@@ -739,10 +731,6 @@ export function ProviderForm({
               commonConfigError={codexCommonConfigError}
               authError={codexAuthError}
               configError={codexConfigError}
-              onWebsiteUrlChange={(url) => form.setValue("websiteUrl", url)}
-              onNameChange={(name) => form.setValue("name", name)}
-              isTemplateModalOpen={isCodexTemplateModalOpen}
-              setIsTemplateModalOpen={setIsCodexTemplateModalOpen}
             />
             {/* 配置验证错误显示 */}
             <FormField

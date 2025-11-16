@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { CodexAuthSection, CodexConfigSection } from "./CodexConfigSections";
-import { CodexQuickWizardModal } from "./CodexQuickWizardModal";
 import { CodexCommonConfigModal } from "./CodexCommonConfigModal";
 
 interface CodexConfigEditorProps {
@@ -27,14 +26,6 @@ interface CodexConfigEditorProps {
   authError: string;
 
   configError: string; // config.toml 错误提示
-
-  onWebsiteUrlChange?: (url: string) => void; // 更新网址回调
-
-  isTemplateModalOpen?: boolean; // 模态框状态
-
-  setIsTemplateModalOpen?: (open: boolean) => void; // 设置模态框状态
-
-  onNameChange?: (name: string) => void; // 更新供应商名称回调
 }
 
 const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
@@ -50,20 +41,8 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
   commonConfigError,
   authError,
   configError,
-  onWebsiteUrlChange,
-  onNameChange,
-  isTemplateModalOpen: externalTemplateModalOpen,
-  setIsTemplateModalOpen: externalSetTemplateModalOpen,
 }) => {
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
-
-  // Use internal state or external state
-  const [internalTemplateModalOpen, setInternalTemplateModalOpen] =
-    useState(false);
-  const isTemplateModalOpen =
-    externalTemplateModalOpen ?? internalTemplateModalOpen;
-  const setIsTemplateModalOpen =
-    externalSetTemplateModalOpen ?? setInternalTemplateModalOpen;
 
   // Auto-open common config modal if there's an error
   useEffect(() => {
@@ -71,23 +50,6 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
       setIsCommonConfigModalOpen(true);
     }
   }, [commonConfigError, isCommonConfigModalOpen]);
-
-  const handleQuickWizardApply = (
-    auth: string,
-    config: string,
-    extras: { websiteUrl?: string; displayName?: string },
-  ) => {
-    onAuthChange(auth);
-    onConfigChange(config);
-
-    if (onWebsiteUrlChange && extras.websiteUrl) {
-      onWebsiteUrlChange(extras.websiteUrl);
-    }
-
-    if (onNameChange && extras.displayName) {
-      onNameChange(extras.displayName);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -108,13 +70,6 @@ const CodexConfigEditor: React.FC<CodexConfigEditorProps> = ({
         onEditCommonConfig={() => setIsCommonConfigModalOpen(true)}
         commonConfigError={commonConfigError}
         configError={configError}
-      />
-
-      {/* Quick Wizard Modal */}
-      <CodexQuickWizardModal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-        onApply={handleQuickWizardApply}
       />
 
       {/* Common Config Modal */}
