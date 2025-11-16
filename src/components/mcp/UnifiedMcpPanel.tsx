@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useAllMcpServers, useToggleMcpApp } from "@/hooks/useMcp";
 import type { McpServer } from "@/types";
 import type { AppId } from "@/lib/api/types";
@@ -117,7 +117,7 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[85vh] min-h-[600px] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <DialogTitle>{t("mcp.unifiedPanel.title")}</DialogTitle>
@@ -264,9 +264,22 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
       <div className="flex items-center gap-4">
         {/* 左侧：服务器信息 */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-            {name}
-          </h3>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">
+              {name}
+            </h3>
+            {docsUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={openDocs}
+                title={t("mcp.presets.docs")}
+              >
+                {t("mcp.presets.docs")}
+              </Button>
+            )}
+          </div>
           {description && (
             <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
               {description}
@@ -279,70 +292,59 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
           )}
         </div>
 
-        {/* 中间：应用复选框 */}
-        <div className="flex items-center gap-4 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-claude`}
-              checked={server.apps.claude}
-              onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "claude", checked === true)
-              }
-            />
+        {/* 中间：应用开关 */}
+        <div className="flex flex-col gap-2 flex-shrink-0 min-w-[120px]">
+          <div className="flex items-center justify-between gap-3">
             <label
               htmlFor={`${id}-claude`}
               className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
             >
               {t("mcp.unifiedPanel.apps.claude")}
             </label>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-codex`}
-              checked={server.apps.codex}
+            <Switch
+              id={`${id}-claude`}
+              checked={server.apps.claude}
               onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "codex", checked === true)
+                onToggleApp(id, "claude", checked)
               }
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
             <label
               htmlFor={`${id}-codex`}
               className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
             >
               {t("mcp.unifiedPanel.apps.codex")}
             </label>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-gemini`}
-              checked={server.apps.gemini}
+            <Switch
+              id={`${id}-codex`}
+              checked={server.apps.codex}
               onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "gemini", checked === true)
+                onToggleApp(id, "codex", checked)
               }
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
             <label
               htmlFor={`${id}-gemini`}
               className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
             >
               {t("mcp.unifiedPanel.apps.gemini")}
             </label>
+            <Switch
+              id={`${id}-gemini`}
+              checked={server.apps.gemini}
+              onCheckedChange={(checked: boolean) =>
+                onToggleApp(id, "gemini", checked)
+              }
+            />
           </div>
         </div>
 
         {/* 右侧：操作按钮 */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {docsUrl && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={openDocs}
-              title={t("mcp.presets.docs")}
-            >
-              {t("mcp.presets.docs")}
-            </Button>
-          )}
           <Button
             type="button"
             variant="ghost"
