@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::app_config::{AppType, McpConfig, MultiAppConfig};
 use crate::error::AppError;
 
-/// 基础校验：允许 stdio/http；或省略 type（视为 stdio）。对应必填字段存在
+/// 基础校验：允许 stdio/http/sse；或省略 type（视为 stdio）。对应必填字段存在
 fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
     if !spec.is_object() {
         return Err(AppError::McpValidation(
@@ -12,13 +12,14 @@ fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
         ));
     }
     let t_opt = spec.get("type").and_then(|x| x.as_str());
-    // 支持两种：stdio/http；若缺省 type 则按 stdio 处理（与社区常见 .mcp.json 一致）
+    // 支持三种：stdio/http/sse；若缺省 type 则按 stdio 处理（与社区常见 .mcp.json 一致）
     let is_stdio = t_opt.map(|t| t == "stdio").unwrap_or(true);
     let is_http = t_opt.map(|t| t == "http").unwrap_or(false);
+    let is_sse = t_opt.map(|t| t == "sse").unwrap_or(false);
 
-    if !(is_stdio || is_http) {
+    if !(is_stdio || is_http || is_sse) {
         return Err(AppError::McpValidation(
-            "MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into(),
+            "MCP 服务器 type 必须是 'stdio'、'http' 或 'sse'（或省略表示 stdio）".into(),
         ));
     }
 
@@ -35,6 +36,14 @@ fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
         if url.trim().is_empty() {
             return Err(AppError::McpValidation(
                 "http 类型的 MCP 服务器缺少 url 字段".into(),
+            ));
+        }
+    }
+    if is_sse {
+        let url = spec.get("url").and_then(|x| x.as_str()).unwrap_or("");
+        if url.trim().is_empty() {
+            return Err(AppError::McpValidation(
+                "sse 类型的 MCP 服务器缺少 url 字段".into(),
             ));
         }
     }
@@ -469,7 +478,7 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                         }
                     }
                 }
-                "http" => {
+                "http" | "sse" => {
                     if let Some(url) = entry_tbl.get("url").and_then(|v| v.as_str()) {
                         spec.insert("url".into(), json!(url));
                     }
@@ -643,7 +652,7 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
                         }
                     }
                 }
-                "http" => {
+                "http" | "sse" => {
                     let url = spec.get("url").and_then(|v| v.as_str()).unwrap_or("");
                     t["url"] = toml_edit::value(url);
                     if let Some(headers) = spec.get("headers").and_then(|v| v.as_object()) {
@@ -858,7 +867,7 @@ fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError>
                 }
             }
         }
-        "http" => {
+        "http" | "sse" => {
             let url = spec.get("url").and_then(|v| v.as_str()).unwrap_or("");
             t["url"] = toml_edit::value(url);
 

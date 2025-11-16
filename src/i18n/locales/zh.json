@@ -483,6 +483,7 @@
       "type": "类型",
       "typeStdio": "stdio",
       "typeHttp": "http",
+      "typeSse": "sse",
       "command": "命令",
       "commandPlaceholder": "npx 或 uvx",
       "args": "参数",

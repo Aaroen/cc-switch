@@ -145,13 +145,13 @@ function normalizeServerConfig(config: any): McpServerSpec {
     }
 
     return server;
-  } else if (type === "http") {
+  } else if (type === "http" || type === "sse") {
     if (!config.url || typeof config.url !== "string") {
-      throw new Error("http 类型的 MCP 服务器必须包含 url 字段");
+      throw new Error(`${type} 类型的 MCP 服务器必须包含 url 字段`);
     }
 
     const server: McpServerSpec = {
-      type: "http",
+      type: type as "http" | "sse",
       url: config.url,
     };
     knownFields.add("type");

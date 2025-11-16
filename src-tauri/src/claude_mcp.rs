@@ -118,9 +118,10 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
     let t_opt = spec.get("type").and_then(|x| x.as_str());
     let is_stdio = t_opt.map(|t| t == "stdio").unwrap_or(true); // 兼容缺省（按 stdio 处理）
     let is_http = t_opt.map(|t| t == "http").unwrap_or(false);
-    if !(is_stdio || is_http) {
+    let is_sse = t_opt.map(|t| t == "sse").unwrap_or(false);
+    if !(is_stdio || is_http || is_sse) {
         return Err(AppError::McpValidation(
-            "MCP 服务器 type 必须是 'stdio' 或 'http'（或省略表示 stdio）".into(),
+            "MCP 服务器 type 必须是 'stdio'、'http' 或 'sse'（或省略表示 stdio）".into(),
         ));
     }
 
@@ -134,12 +135,16 @@ pub fn upsert_mcp_server(id: &str, spec: Value) -> Result<bool, AppError> {
         }
     }
 
-    // http 类型必须有 url
-    if is_http {
+    // http/sse 类型必须有 url
+    if is_http || is_sse {
         let url = spec.get("url").and_then(|x| x.as_str()).unwrap_or("");
         if url.is_empty() {
             return Err(AppError::McpValidation(
-                "http 类型的 MCP 服务器缺少 url 字段".into(),
+                if is_http {
+                    "http 类型的 MCP 服务器缺少 url 字段".into()
+                } else {
+                    "sse 类型的 MCP 服务器缺少 url 字段".into()
+                },
             ));
         }
     }

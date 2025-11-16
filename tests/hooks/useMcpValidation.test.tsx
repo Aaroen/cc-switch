@@ -87,6 +87,15 @@ describe("useMcpValidation", () => {
       expect(validateTomlConfig("foo")).toBe("mcp.wizard.urlRequired");
     });
 
+    it("returns url required when sse server missing url", () => {
+      tomlToMcpServerMock.mockReturnValue({
+        type: "sse",
+        url: "",
+      });
+      const { validateTomlConfig } = getHookResult();
+      expect(validateTomlConfig("foo")).toBe("mcp.wizard.urlRequired");
+    });
+
     it("surface tomlToMcpServer errors via formatter", () => {
       tomlToMcpServerMock.mockImplementation(() => {
         throw new Error("normalize failed");
@@ -128,6 +137,11 @@ describe("useMcpValidation", () => {
       expect(validateJsonConfig('{"type":"http","url":""}')).toBe("mcp.wizard.urlRequired");
     });
 
+    it("requires url for sse type", () => {
+      const { validateJsonConfig } = getHookResult();
+      expect(validateJsonConfig('{"type":"sse","url":""}')).toBe("mcp.wizard.urlRequired");
+    });
+
     it("returns empty string when json config valid", () => {
       const { validateJsonConfig } = getHookResult();
       expect(
@@ -142,4 +156,3 @@ describe("useMcpValidation", () => {
     });
   });
 });
-

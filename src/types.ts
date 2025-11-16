@@ -112,13 +112,13 @@ export interface Settings {
 // MCP 服务器连接参数（宽松：允许扩展字段）
 export interface McpServerSpec {
   // 可选：社区常见 .mcp.json 中 stdio 配置可不写 type
-  type?: "stdio" | "http";
+  type?: "stdio" | "http" | "sse";
   // stdio 字段
   command?: string;
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
-  // http 字段
+  // http 和 sse 字段
   url?: string;
   headers?: Record<string, string>;
   // 通用字段

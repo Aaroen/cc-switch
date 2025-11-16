@@ -483,6 +483,7 @@
       "type": "Type",
       "typeStdio": "stdio",
       "typeHttp": "http",
+      "typeSse": "sse",
       "command": "Command",
       "commandPlaceholder": "npx or uvx",
       "args": "Arguments",

@@ -41,7 +41,10 @@ export function useMcpValidation() {
         if (server.type === "stdio" && !server.command?.trim()) {
           return t("mcp.error.commandRequired");
         }
-        if (server.type === "http" && !server.url?.trim()) {
+        if (
+          (server.type === "http" || server.type === "sse") &&
+          !server.url?.trim()
+        ) {
           return t("mcp.wizard.urlRequired");
         }
       } catch (e: any) {
@@ -73,7 +76,10 @@ export function useMcpValidation() {
           if (typ === "stdio" && !(obj as any)?.command?.trim()) {
             return t("mcp.error.commandRequired");
           }
-          if (typ === "http" && !(obj as any)?.url?.trim()) {
+          if (
+            (typ === "http" || typ === "sse") &&
+            !(obj as any)?.url?.trim()
+          ) {
             return t("mcp.wizard.urlRequired");
           }
         }

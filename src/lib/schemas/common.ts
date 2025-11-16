@@ -58,7 +58,7 @@ export const jsonConfigSchema = z
  * 通用的 TOML 配置文本校验：
  * - 允许为空（由上层业务决定是否必填）
  * - 语法与结构有效
- * - 针对 stdio/http 的必填字段（command/url）进行提示
+ * - 针对 stdio/http/sse 的必填字段（command/url）进行提示
  */
 export const tomlConfigSchema = z.string().superRefine((value, ctx) => {
   const err = validateToml(value);
@@ -80,10 +80,13 @@ export const tomlConfigSchema = z.string().superRefine((value, ctx) => {
         message: "stdio 类型需填写 command",
       });
     }
-    if (server.type === "http" && !server.url?.trim()) {
+    if (
+      (server.type === "http" || server.type === "sse") &&
+      !server.url?.trim()
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "http 类型需填写 url",
+        message: `${server.type} 类型需填写 url`,
       });
     }
   } catch (e: any) {

@@ -80,13 +80,13 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
   initialServer,
 }) => {
   const { t } = useTranslation();
-  const [wizardType, setWizardType] = useState<"stdio" | "http">("stdio");
+  const [wizardType, setWizardType] = useState<"stdio" | "http" | "sse">("stdio");
   const [wizardTitle, setWizardTitle] = useState("");
   // stdio 字段
   const [wizardCommand, setWizardCommand] = useState("");
   const [wizardArgs, setWizardArgs] = useState("");
   const [wizardEnv, setWizardEnv] = useState("");
-  // http 字段
+  // http 和 sse 字段
   const [wizardUrl, setWizardUrl] = useState("");
   const [wizardHeaders, setWizardHeaders] = useState("");
 
@@ -115,7 +115,7 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
         }
       }
     } else {
-      // http 类型必需字段
+      // http 和 sse 类型必需字段
       config.url = wizardUrl.trim();
 
       // 可选字段
@@ -139,7 +139,7 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
       toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
       return;
     }
-    if (wizardType === "http" && !wizardUrl.trim()) {
+    if ((wizardType === "http" || wizardType === "sse") && !wizardUrl.trim()) {
       toast.error(t("mcp.wizard.urlRequired"), { duration: 3000 });
       return;
     }
@@ -179,7 +179,7 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
 
     setWizardType(resolvedType);
 
-    if (resolvedType === "http") {
+    if (resolvedType === "http" || resolvedType === "sse") {
       setWizardUrl(initialServer?.url ?? "");
       const headersCandidate = initialServer?.headers;
       const headers =
@@ -250,7 +250,7 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
                     value="stdio"
                     checked={wizardType === "stdio"}
                     onChange={(e) =>
-                      setWizardType(e.target.value as "stdio" | "http")
+                      setWizardType(e.target.value as "stdio" | "http" | "sse")
                     }
                     className="w-4 h-4 text-emerald-500 bg-white dark:bg-gray-800 border-border-default  focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:ring-2"
                   />
@@ -264,12 +264,26 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
                     value="http"
                     checked={wizardType === "http"}
                     onChange={(e) =>
-                      setWizardType(e.target.value as "stdio" | "http")
+                      setWizardType(e.target.value as "stdio" | "http" | "sse")
                     }
                     className="w-4 h-4 text-emerald-500 bg-white dark:bg-gray-800 border-border-default  focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:ring-2"
                   />
                   <span className="text-sm text-gray-900 dark:text-gray-100">
                     {t("mcp.wizard.typeHttp")}
+                  </span>
+                </label>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="sse"
+                    checked={wizardType === "sse"}
+                    onChange={(e) =>
+                      setWizardType(e.target.value as "stdio" | "http" | "sse")
+                    }
+                    className="w-4 h-4 text-emerald-500 bg-white dark:bg-gray-800 border-border-default  focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:ring-2"
+                  />
+                  <span className="text-sm text-gray-900 dark:text-gray-100">
+                    {t("mcp.wizard.typeSse")}
                   </span>
                 </label>
               </div>
@@ -339,8 +353,8 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
               </>
             )}
 
-            {/* HTTP 类型字段 */}
-            {wizardType === "http" && (
+            {/* HTTP 和 SSE 类型字段 */}
+            {(wizardType === "http" || wizardType === "sse") && (
               <>
                 {/* URL */}
                 <div>
