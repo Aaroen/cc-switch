@@ -21,6 +21,7 @@ import {
 } from "@/config/geminiProviderPresets";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import { mergeProviderMeta } from "@/utils/providerMetaUtils";
+import { getCodexCustomTemplate } from "@/config/codexTemplates";
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import GeminiConfigEditor from "./GeminiConfigEditor";
@@ -89,7 +90,7 @@ export function ProviderForm({
   initialData,
   showButtons = true,
 }: ProviderFormProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isEditMode = Boolean(initialData);
 
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
@@ -219,6 +220,15 @@ export function ProviderForm({
     },
     [originalHandleCodexConfigChange, debouncedValidate],
   );
+
+  // Codex 新建模式：初始化时自动填充模板（支持国际化）
+  useEffect(() => {
+    if (appId === "codex" && !initialData && selectedPresetId === "custom") {
+      const locale = (i18n.language || "zh").startsWith("zh") ? "zh" : "en";
+      const template = getCodexCustomTemplate(locale);
+      resetCodexConfig(template.auth, template.config);
+    }
+  }, [appId, initialData, selectedPresetId, resetCodexConfig, i18n.language]);
 
   useEffect(() => {
     form.reset(defaultValues);
@@ -525,9 +535,11 @@ export function ProviderForm({
       setActivePreset(null);
       form.reset(defaultValues);
 
-      // Codex 自定义模式：重置为空配置
+      // Codex 自定义模式：加载模板（支持国际化）
       if (appId === "codex") {
-        resetCodexConfig({}, "");
+        const locale = (i18n.language || "zh").startsWith("zh") ? "zh" : "en";
+        const template = getCodexCustomTemplate(locale);
+        resetCodexConfig(template.auth, template.config);
       }
       // Gemini 自定义模式：重置为空配置
       if (appId === "gemini") {
