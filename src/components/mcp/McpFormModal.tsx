@@ -265,10 +265,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
           }
         }
 
-        // 如果智能解析提取了配置（格式转换），自动格式化输入框内容
-        if (result.id && result.formattedConfig !== value.trim()) {
-          setFormConfig(result.formattedConfig);
-        }
+        // 不在输入时自动格式化，保持用户输入的原样
+        // 格式清理将在提交时进行
 
         setConfigError("");
       } catch (err: any) {
@@ -361,13 +359,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
     } else {
       // JSON mode
-      const jsonError = validateJsonConfig(formConfig);
-      setConfigError(jsonError);
-      if (jsonError) {
-        toast.error(t("mcp.error.jsonInvalid"), { duration: 3000 });
-        return;
-      }
-
       if (!formConfig.trim()) {
         // Empty configuration
         serverSpec = {
@@ -377,9 +368,12 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         };
       } else {
         try {
-          serverSpec = JSON.parse(formConfig) as McpServerSpec;
+          // 使用智能解析器，支持带外层键的格式
+          const result = parseSmartMcpJson(formConfig);
+          serverSpec = result.config as McpServerSpec;
         } catch (e: any) {
-          setConfigError(t("mcp.error.jsonInvalid"));
+          const errorMessage = e?.message || String(e);
+          setConfigError(t("mcp.error.jsonInvalid") + ": " + errorMessage);
           toast.error(t("mcp.error.jsonInvalid"), { duration: 4000 });
           return;
         }
