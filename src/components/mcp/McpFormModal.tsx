@@ -651,11 +651,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
             {/* 配置输入框（根据格式显示 JSON 或 TOML） */}
             <div>
-              <div className="flex items-baseline gap-1 mb-2">
+              <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {useToml
-                    ? t("mcp.form.tomlConfigOrPrefix")
-                    : t("mcp.form.jsonConfigOrPrefix")}
+                    ? t("mcp.form.tomlConfig")
+                    : t("mcp.form.jsonConfig")}
                 </label>
                 {(isEditing || selectedPreset === -1) && (
                   <button
