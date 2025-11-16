@@ -197,7 +197,6 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
           }
           existingIds={serversMap ? Object.keys(serversMap) : []}
           defaultFormat="json"
-          defaultEnabledApps={["claude"]} // 默认启用 Claude
           onSave={async () => {
             setIsFormOpen(false);
             setEditingId(null);

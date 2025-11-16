@@ -139,7 +139,6 @@ describe("McpFormModal", () => {
         onClose={onClose}
         existingIds={[]}
         defaultFormat="json"
-        defaultEnabledApps={["claude"]}
         {...rest}
       />,
     );
@@ -211,8 +210,8 @@ describe("McpFormModal", () => {
       },
       apps: {
         claude: true,
-        codex: false,
-        gemini: false,
+        codex: true,
+        gemini: true,
       },
     });
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -291,6 +290,11 @@ command = "run"
   it("TOML 模式下缺少命令时展示错误提示并阻止提交", async () => {
     const { onSave } = renderForm({ defaultFormat: "toml" });
 
+    // 填写 ID 字段
+    fireEvent.change(screen.getByPlaceholderText("mcp.form.titlePlaceholder"), {
+      target: { value: "test-toml" },
+    });
+
     const configTextarea = screen.getByPlaceholderText(
       "mcp.form.tomlPlaceholder",
     ) as HTMLTextAreaElement;
@@ -317,6 +321,7 @@ type = "stdio"
       enabled: true,
       description: "Old desc",
       server: { type: "stdio", command: "old" },
+      apps: { claude: true, codex: false, gemini: false },
     } as McpServer;
 
     const { onSave } = renderForm({
@@ -370,6 +375,18 @@ type = "stdio"
     ) as HTMLInputElement;
     expect(claudeCheckbox.checked).toBe(true);
     fireEvent.click(claudeCheckbox);
+
+    const codexCheckbox = screen.getByLabelText(
+      "mcp.unifiedPanel.apps.codex",
+    ) as HTMLInputElement;
+    expect(codexCheckbox.checked).toBe(true);
+    fireEvent.click(codexCheckbox);
+
+    const geminiCheckbox = screen.getByLabelText(
+      "mcp.unifiedPanel.apps.gemini",
+    ) as HTMLInputElement;
+    expect(geminiCheckbox.checked).toBe(true);
+    fireEvent.click(geminiCheckbox);
 
     fireEvent.click(screen.getByText("common.add"));
 

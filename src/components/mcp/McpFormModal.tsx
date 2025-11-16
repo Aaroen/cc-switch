@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Save, Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Save, Plus, AlertCircle, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -27,6 +27,7 @@ import {
   mcpServerToToml,
 } from "@/utils/tomlUtils";
 import { normalizeTomlText } from "@/utils/textNormalization";
+import { formatJSON } from "@/utils/formatters";
 import { useMcpValidation } from "./useMcpValidation";
 import { useUpsertMcpServer } from "@/hooks/useMcp";
 
@@ -37,7 +38,7 @@ interface McpFormModalProps {
   onClose: () => void;
   existingIds?: string[];
   defaultFormat?: "json" | "toml"; // 默认配置格式（可选，默认为 JSON）
-  defaultEnabledApps?: AppId[]; // 默认启用到哪些应用（可选，默认为 Claude）
+  defaultEnabledApps?: AppId[]; // 默认启用到哪些应用（可选，默认为全部应用）
 }
 
 /**
@@ -52,7 +53,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onClose,
   existingIds = [],
   defaultFormat = "json",
-  defaultEnabledApps = ["claude"],
+  defaultEnabledApps = ["claude", "codex", "gemini"],
 }) => {
   const { t } = useTranslation();
   const { formatTomlError, validateTomlConfig, validateJsonConfig } =
@@ -249,6 +250,24 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     }
 
     setConfigError("");
+  };
+
+  const handleFormatJson = () => {
+    if (!formConfig.trim()) return;
+
+    try {
+      const formatted = formatJSON(formConfig);
+      setFormConfig(formatted);
+      toast.success(t("common.formatSuccess"));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      toast.error(
+        t("common.formatError", {
+          error: errorMessage,
+        }),
+      );
+    }
   };
 
   const handleWizardApply = (title: string, json: string) => {
@@ -632,11 +651,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
             {/* 配置输入框（根据格式显示 JSON 或 TOML） */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="flex items-baseline gap-1 mb-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {useToml
-                    ? t("mcp.form.tomlConfig")
-                    : t("mcp.form.jsonConfig")}
+                    ? t("mcp.form.tomlConfigOrPrefix")
+                    : t("mcp.form.jsonConfigOrPrefix")}
                 </label>
                 {(isEditing || selectedPreset === -1) && (
                   <button
@@ -658,6 +677,19 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 value={formConfig}
                 onChange={(e) => handleConfigChange(e.target.value)}
               />
+              {/* 格式化按钮（仅 JSON 模式） */}
+              {!useToml && (
+                <div className="flex items-center justify-between mt-2">
+                  <button
+                    type="button"
+                    onClick={handleFormatJson}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    {t("common.format")}
+                  </button>
+                </div>
+              )}
               {configError && (
                 <div className="flex items-center gap-2 mt-2 text-red-500 dark:text-red-400 text-sm">
                   <AlertCircle size={16} />

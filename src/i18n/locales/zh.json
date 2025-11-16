@@ -469,6 +469,8 @@
       "docsPlaceholder": "https://example.com/docs",
       "additionalInfo": "附加信息",
       "jsonConfig": "JSON 配置",
+      "jsonConfigOrPrefix": "完整的 JSON 配置或者使用",
+      "tomlConfigOrPrefix": "完整的 TOML 配置或者使用",
       "jsonPlaceholder": "{\n  \"type\": \"stdio\",\n  \"command\": \"uvx\",\n  \"args\": [\"mcp-server-fetch\"]\n}",
       "tomlConfig": "TOML 配置",
       "tomlPlaceholder": "type = \"stdio\"\ncommand = \"uvx\"\nargs = [\"mcp-server-fetch\"]",
