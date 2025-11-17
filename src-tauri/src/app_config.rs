@@ -317,7 +317,9 @@ impl MultiAppConfig {
 
         // 迁移通用配置片段：claude_common_config_snippet → common_config_snippets.claude
         if let Some(old_claude_snippet) = config.claude_common_config_snippet.take() {
-            log::info!("迁移通用配置：claude_common_config_snippet → common_config_snippets.claude");
+            log::info!(
+                "迁移通用配置：claude_common_config_snippet → common_config_snippets.claude"
+            );
             config.common_config_snippets.claude = Some(old_claude_snippet);
             updated = true;
         }
@@ -414,9 +416,7 @@ impl MultiAppConfig {
             return Ok(false);
         }
 
-        log::info!(
-            "检测到已存在配置文件且 Prompt 列表为空，将尝试从现有提示词文件自动导入"
-        );
+        log::info!("检测到已存在配置文件且 Prompt 列表为空，将尝试从现有提示词文件自动导入");
 
         let mut imported = false;
         for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
