@@ -446,6 +446,14 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
             let mut spec = serde_json::Map::new();
             spec.insert("type".into(), json!(typ));
 
+            // 核心字段（需要手动处理的字段）
+            let core_fields = match typ {
+                "stdio" => vec!["type", "command", "args", "env", "cwd"],
+                "http" | "sse" => vec!["type", "url", "headers"],
+                _ => vec!["type"],
+            };
+
+            // 1. 处理核心字段（强类型）
             match typ {
                 "stdio" => {
                     if let Some(cmd) = entry_tbl.get("command").and_then(|v| v.as_str()) {
@@ -497,6 +505,65 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                 _ => {
                     log::warn!("跳过未知类型 '{typ}' 的 Codex MCP 项 '{id}'");
                     return changed;
+                }
+            }
+
+            // 2. 处理扩展字段和其他未知字段（通用 TOML → JSON 转换）
+            for (key, toml_val) in entry_tbl.iter() {
+                // 跳过已处理的核心字段
+                if core_fields.contains(&key.as_str()) {
+                    continue;
+                }
+
+                // 通用 TOML 值到 JSON 值转换
+                let json_val = match toml_val {
+                    toml::Value::String(s) => Some(json!(s)),
+                    toml::Value::Integer(i) => Some(json!(i)),
+                    toml::Value::Float(f) => Some(json!(f)),
+                    toml::Value::Boolean(b) => Some(json!(b)),
+                    toml::Value::Array(arr) => {
+                        // 只支持简单类型数组
+                        let json_arr: Vec<serde_json::Value> = arr
+                            .iter()
+                            .filter_map(|item| match item {
+                                toml::Value::String(s) => Some(json!(s)),
+                                toml::Value::Integer(i) => Some(json!(i)),
+                                toml::Value::Float(f) => Some(json!(f)),
+                                toml::Value::Boolean(b) => Some(json!(b)),
+                                _ => None,
+                            })
+                            .collect();
+                        if !json_arr.is_empty() {
+                            Some(serde_json::Value::Array(json_arr))
+                        } else {
+                            log::debug!("跳过复杂数组字段 '{}' (TOML → JSON)", key);
+                            None
+                        }
+                    }
+                    toml::Value::Table(tbl) => {
+                        // 浅层表转为 JSON 对象（仅支持字符串值）
+                        let mut json_obj = serde_json::Map::new();
+                        for (k, v) in tbl.iter() {
+                            if let Some(s) = v.as_str() {
+                                json_obj.insert(k.clone(), json!(s));
+                            }
+                        }
+                        if !json_obj.is_empty() {
+                            Some(serde_json::Value::Object(json_obj))
+                        } else {
+                            log::debug!("跳过复杂对象字段 '{}' (TOML → JSON)", key);
+                            None
+                        }
+                    }
+                    toml::Value::Datetime(_) => {
+                        log::debug!("跳过日期时间字段 '{}' (TOML → JSON)", key);
+                        None
+                    }
+                };
+
+                if let Some(val) = json_val {
+                    spec.insert(key.clone(), val);
+                    log::debug!("导入扩展字段 '{}' = {:?}", key, toml_val);
                 }
             }
 
@@ -619,57 +686,15 @@ pub fn sync_enabled_to_codex(config: &MultiAppConfig) -> Result<(), AppError> {
         ids.sort();
         for id in ids {
             let spec = enabled.get(&id).expect("spec must exist");
-            let mut t = Table::new();
-            let typ = spec.get("type").and_then(|v| v.as_str()).unwrap_or("stdio");
-            t["type"] = toml_edit::value(typ);
-            match typ {
-                "stdio" => {
-                    let cmd = spec.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                    t["command"] = toml_edit::value(cmd);
-                    if let Some(args) = spec.get("args").and_then(|v| v.as_array()) {
-                        let mut arr_v = toml_edit::Array::default();
-                        for a in args.iter().filter_map(|x| x.as_str()) {
-                            arr_v.push(a);
-                        }
-                        if !arr_v.is_empty() {
-                            t["args"] = toml_edit::Item::Value(toml_edit::Value::Array(arr_v));
-                        }
-                    }
-                    if let Some(cwd) = spec.get("cwd").and_then(|v| v.as_str()) {
-                        if !cwd.trim().is_empty() {
-                            t["cwd"] = toml_edit::value(cwd);
-                        }
-                    }
-                    if let Some(env) = spec.get("env").and_then(|v| v.as_object()) {
-                        let mut env_tbl = Table::new();
-                        for (k, v) in env.iter() {
-                            if let Some(s) = v.as_str() {
-                                env_tbl[&k[..]] = toml_edit::value(s);
-                            }
-                        }
-                        if !env_tbl.is_empty() {
-                            t["env"] = Item::Table(env_tbl);
-                        }
-                    }
+            // 复用通用转换函数（已包含扩展字段支持）
+            match json_server_to_toml_table(spec) {
+                Ok(table) => {
+                    servers[&id[..]] = Item::Table(table);
                 }
-                "http" | "sse" => {
-                    let url = spec.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                    t["url"] = toml_edit::value(url);
-                    if let Some(headers) = spec.get("headers").and_then(|v| v.as_object()) {
-                        let mut h_tbl = Table::new();
-                        for (k, v) in headers.iter() {
-                            if let Some(s) = v.as_str() {
-                                h_tbl[&k[..]] = toml_edit::value(s);
-                            }
-                        }
-                        if !h_tbl.is_empty() {
-                            t["headers"] = Item::Table(h_tbl);
-                        }
-                    }
+                Err(err) => {
+                    log::error!("跳过无效的 MCP 服务器 '{id}': {err}");
                 }
-                _ => {}
             }
-            servers[&id[..]] = Item::Table(t);
         }
         servers
     };
@@ -826,7 +851,108 @@ pub fn remove_server_from_claude(id: &str) -> Result<(), AppError> {
     crate::claude_mcp::set_mcp_servers_map(&current)
 }
 
+/// 通用 JSON 值到 TOML 值转换器（支持简单类型和浅层嵌套）
+///
+/// 支持的类型转换：
+/// - String → TOML String
+/// - Number (i64) → TOML Integer
+/// - Number (f64) → TOML Float
+/// - Boolean → TOML Boolean
+/// - Array[简单类型] → TOML Array
+/// - Object → TOML Inline Table (仅字符串值)
+///
+/// 不支持的类型（返回 None）：
+/// - null
+/// - 深度嵌套对象
+/// - 混合类型数组
+fn json_value_to_toml_item(value: &Value, field_name: &str) -> Option<toml_edit::Item> {
+    use toml_edit::{Array, InlineTable, Item};
+
+    match value {
+        Value::String(s) => Some(toml_edit::value(s.as_str())),
+
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Some(toml_edit::value(i))
+            } else if let Some(f) = n.as_f64() {
+                Some(toml_edit::value(f))
+            } else {
+                log::warn!(
+                    "跳过字段 '{field_name}': 无法转换的数字类型 {}",
+                    n
+                );
+                None
+            }
+        }
+
+        Value::Bool(b) => Some(toml_edit::value(*b)),
+
+        Value::Array(arr) => {
+            // 只支持简单类型的数组（字符串、数字、布尔）
+            let mut toml_arr = Array::default();
+            let mut all_same_type = true;
+
+            for item in arr {
+                match item {
+                    Value::String(s) => toml_arr.push(s.as_str()),
+                    Value::Number(n) if n.is_i64() => toml_arr.push(n.as_i64().unwrap()),
+                    Value::Number(n) if n.is_f64() => toml_arr.push(n.as_f64().unwrap()),
+                    Value::Bool(b) => toml_arr.push(*b),
+                    _ => {
+                        all_same_type = false;
+                        break;
+                    }
+                }
+            }
+
+            if all_same_type && !toml_arr.is_empty() {
+                Some(Item::Value(toml_edit::Value::Array(toml_arr)))
+            } else {
+                log::warn!(
+                    "跳过字段 '{field_name}': 不支持的数组类型（混合类型或嵌套结构）"
+                );
+                None
+            }
+        }
+
+        Value::Object(obj) => {
+            // 只支持浅层对象（所有值都是字符串）→ TOML Inline Table
+            let mut inline_table = InlineTable::new();
+            let mut all_strings = true;
+
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    // InlineTable 需要 Value 类型，toml_edit::value() 返回 Item，需要提取内部的 Value
+                    inline_table.insert(k, s.into());
+                } else {
+                    all_strings = false;
+                    break;
+                }
+            }
+
+            if all_strings && !inline_table.is_empty() {
+                Some(Item::Value(toml_edit::Value::InlineTable(inline_table)))
+            } else {
+                log::warn!(
+                    "跳过字段 '{field_name}': 对象值包含非字符串类型，建议使用子表语法"
+                );
+                None
+            }
+        }
+
+        Value::Null => {
+            log::debug!("跳过字段 '{field_name}': TOML 不支持 null 值");
+            None
+        }
+    }
+}
+
 /// Helper: 将 JSON MCP 服务器规范转换为 toml_edit::Table
+///
+/// 策略：
+/// 1. 核心字段（type, command, args, url, headers, env, cwd）使用强类型处理
+/// 2. 扩展字段（timeout、retry 等）通过白名单列表自动转换
+/// 3. 其他未知字段使用通用转换器尝试转换
 fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError> {
     use toml_edit::{Array, Item, Table};
 
@@ -834,6 +960,42 @@ fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError>
     let typ = spec.get("type").and_then(|v| v.as_str()).unwrap_or("stdio");
     t["type"] = toml_edit::value(typ);
 
+    // 定义核心字段（已在下方处理，跳过通用转换）
+    let core_fields = match typ {
+        "stdio" => vec!["type", "command", "args", "env", "cwd"],
+        "http" | "sse" => vec!["type", "url", "headers"],
+        _ => vec!["type"],
+    };
+
+    // 定义扩展字段白名单（Codex 常见可选字段）
+    let extended_fields = [
+        // 通用字段
+        "timeout",
+        "timeout_ms",
+        "startup_timeout_ms",
+        "startup_timeout_sec",
+        "connection_timeout",
+        "read_timeout",
+        "debug",
+        "log_level",
+        "disabled",
+        // stdio 特有
+        "shell",
+        "encoding",
+        "working_dir",
+        "restart_on_exit",
+        "max_restart_count",
+        // http/sse 特有
+        "retry_count",
+        "max_retry_attempts",
+        "retry_delay",
+        "cache_tools_list",
+        "verify_ssl",
+        "insecure",
+        "proxy",
+    ];
+
+    // 1. 处理核心字段（强类型）
     match typ {
         "stdio" => {
             let cmd = spec.get("command").and_then(|v| v.as_str()).unwrap_or("");
@@ -884,6 +1046,28 @@ fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError>
             }
         }
         _ => {}
+    }
+
+    // 2. 处理扩展字段和其他未知字段
+    if let Some(obj) = spec.as_object() {
+        for (key, value) in obj {
+            // 跳过已处理的核心字段
+            if core_fields.contains(&key.as_str()) {
+                continue;
+            }
+
+            // 尝试使用通用转换器
+            if let Some(toml_item) = json_value_to_toml_item(value, key) {
+                t[&key[..]] = toml_item;
+
+                // 记录扩展字段的处理
+                if extended_fields.contains(&key.as_str()) {
+                    log::debug!("已转换扩展字段 '{}' = {:?}", key, value);
+                } else {
+                    log::info!("已转换自定义字段 '{}' = {:?}", key, value);
+                }
+            }
+        }
     }
 
     Ok(t)
