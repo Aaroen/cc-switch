@@ -586,6 +586,10 @@ pub fn run() {
             commands::open_file_dialog,
             commands::sync_current_providers_live,
             update_tray_menu,
+            // Environment variable management
+            commands::check_env_conflicts,
+            commands::delete_env_vars,
+            commands::restore_env_backup,
             // Skill management
             commands::get_skills,
             commands::install_skill,
