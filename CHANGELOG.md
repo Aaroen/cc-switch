@@ -5,6 +5,222 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2025-11-19
+
+### Major Features
+
+#### Gemini CLI Integration
+
+- **Complete Gemini CLI support** - Third major application added alongside Claude Code and Codex
+- **Dual-file configuration** - Support for both `.env` and `settings.json` file formats
+- **Environment variable detection** - Auto-detect `GOOGLE_GEMINI_BASE_URL`, `GEMINI_MODEL`, etc.
+- **MCP management** - Full MCP configuration capabilities for Gemini
+- **Provider presets**
+  - Google Official (OAuth authentication)
+  - PackyCode (partner integration)
+  - Custom endpoint support
+- **Deep link support** - Import Gemini providers via `ccswitch://` protocol
+- **System tray integration** - Quick-switch Gemini providers from tray menu
+- **Backend modules** - New `gemini_config.rs` (20KB) and `gemini_mcp.rs`
+
+#### MCP v3.7.0 Unified Architecture
+
+- **Unified management panel** - Single interface for Claude/Codex/Gemini MCP servers
+- **SSE transport type** - New Server-Sent Events support alongside stdio/http
+- **Smart JSON parser** - Fault-tolerant parsing of various MCP config formats
+- **Extended field support** - Preserve custom fields in Codex TOML conversion
+- **Codex format correction** - Proper `[mcp_servers]` format (auto-cleanup of incorrect `[mcp.servers]`)
+- **Import/export system** - Unified import from Claude/Codex/Gemini live configs
+- **UX improvements**
+  - Default app selection in forms
+  - JSON formatter for config validation
+  - Improved layout and visual hierarchy
+  - Better validation error messages
+
+#### Claude Skills Management System
+
+- **GitHub repository integration** - Auto-scan and discover skills from GitHub repos
+- **Pre-configured repositories**
+  - `ComposioHQ/awesome-claude-skills` (curated collection)
+  - `anthropics/skills` (official Anthropic skills)
+  - `cexll/myclaude` (community, with subdirectory scanning)
+- **Lifecycle management**
+  - One-click install to `~/.claude/skills/`
+  - Safe uninstall with state tracking
+  - Update checking (infrastructure ready)
+- **Custom repository support** - Add any GitHub repo as a skill source
+- **Subdirectory scanning** - Optional `skillsPath` for repos with nested skill directories
+- **Backend architecture** - `SkillService` (526 lines) with GitHub API integration
+- **Frontend interface**
+  - SkillsPage: Browse and manage skills
+  - SkillCard: Visual skill presentation
+  - RepoManager: Repository management dialog
+- **State persistence** - Installation state stored in `skills.json`
+- **Full i18n support** - Complete Chinese/English translations (47+ keys)
+
+#### Prompts (System Prompts) Management
+
+- **Multi-preset management** - Create, edit, and switch between multiple system prompts
+- **Cross-app support**
+  - Claude: `~/.claude/CLAUDE.md`
+  - Codex: `~/.codex/AGENTS.md`
+  - Gemini: `~/.gemini/GEMINI.md`
+- **Markdown editor** - Full-featured CodeMirror 6 editor with syntax highlighting
+- **Smart synchronization**
+  - Auto-write to live files on enable
+  - Content backfill protection (save current before switching)
+  - First-launch auto-import from live files
+- **Single-active enforcement** - Only one prompt can be active at a time
+- **Delete protection** - Cannot delete active prompts
+- **Backend service** - `PromptService` (213 lines) with CRUD operations
+- **Frontend components**
+  - PromptPanel: Main management interface (177 lines)
+  - PromptFormModal: Edit dialog with validation (160 lines)
+  - MarkdownEditor: CodeMirror integration (159 lines)
+  - usePromptActions: Business logic hook (152 lines)
+- **Full i18n support** - Complete Chinese/English translations (41+ keys)
+
+#### Deep Link Protocol (ccswitch://)
+
+- **Protocol registration** - `ccswitch://` URL scheme for one-click imports
+- **Provider import** - Import provider configurations from URLs or shared links
+- **Lifecycle integration** - Deep link handling integrated into app startup
+- **Cross-platform support** - Works on Windows, macOS, and Linux
+
+#### Environment Variable Conflict Detection
+
+- **Claude & Codex detection** - Identify conflicting environment variables
+- **Gemini auto-detection** - Automatic environment variable discovery
+- **Conflict management** - UI for resolving configuration conflicts
+- **Prevention system** - Warn before overwriting existing configurations
+
+### New Features
+
+#### Provider Management
+
+- **DouBaoSeed preset** - Added ByteDance's DouBao provider
+- **Kimi For Coding** - Moonshot AI coding assistant
+- **BaiLing preset** - BaiLing AI integration
+- **Removed AnyRouter preset** - Discontinued provider
+- **Model configuration** - Support for custom model names in Codex and Gemini
+- **Provider notes field** - Add custom notes to providers for better organization
+
+#### Configuration Management
+
+- **Common config migration** - Moved Claude common config snippets from localStorage to `config.json`
+- **Unified persistence** - Common config snippets now shared across all apps
+- **Auto-import on first launch** - Automatically import configs from live files on first run
+- **Backfill priority fix** - Correct priority handling when enabling prompts
+
+#### UI/UX Improvements
+
+- **macOS native design** - Migrated color scheme to macOS native design system
+- **Window centering** - Default window position centered on screen
+- **Password input fixes** - Disabled Edge/IE reveal and clear buttons
+- **URL overflow prevention** - Fixed overflow in provider cards
+- **Error notification enhancement** - Copy-to-clipboard for error messages
+- **Tray menu sync** - Real-time sync after drag-and-drop sorting
+
+### Improvements
+
+#### Architecture
+
+- **MCP v3.7.0 cleanup** - Removed legacy code and warnings
+- **Unified structure** - Default initialization with v3.7.0 unified structure
+- **Backward compatibility** - Compilation fixes for older configs
+- **Code formatting** - Applied consistent formatting across backend and frontend
+
+#### Platform Compatibility
+
+- **Windows fix** - Resolved winreg API compatibility issue (v0.52)
+- **Safe pattern matching** - Replaced `unwrap()` with safe patterns in tray menu
+
+#### Configuration
+
+- **MCP sync on switch** - Sync MCP configs for all apps when switching providers
+- **Gemini form sync** - Fixed form fields syncing with environment editor
+- **Gemini config reading** - Read from both `.env` and `settings.json`
+- **Validation improvements** - Enhanced input validation and boundary checks
+
+#### Internationalization
+
+- **JSON syntax fixes** - Resolved syntax errors in locale files
+- **App name i18n** - Added internationalization support for app names
+- **Deduplicated labels** - Reused providerForm keys to reduce duplication
+- **Gemini MCP title** - Added missing Gemini MCP panel title
+
+### Bug Fixes
+
+#### Critical Fixes
+
+- **Usage script validation** - Added input validation and boundary checks
+- **Gemini validation** - Relaxed validation when adding providers
+- **TOML quote normalization** - Handle CJK quotes to prevent parsing errors
+- **MCP field preservation** - Preserve custom fields in Codex TOML editor
+- **Password input** - Fixed white screen crash (FormLabel → Label)
+
+#### Stability
+
+- **Tray menu safety** - Replaced unwrap with safe pattern matching
+- **Error isolation** - Tray menu update failures don't block main operations
+- **Import classification** - Set category to custom for imported default configs
+
+#### UI Fixes
+
+- **Model placeholders** - Removed misleading model input placeholders
+- **Base URL population** - Auto-fill base URL for non-official providers
+- **Drag sort sync** - Fixed tray menu order after drag-and-drop
+
+### Technical Improvements
+
+#### Code Quality
+
+- **Type safety** - Complete TypeScript type coverage across codebase
+- **Test improvements** - Simplified boolean assertions in tests
+- **Clippy warnings** - Fixed `uninlined_format_args` warnings
+- **Code refactoring** - Extracted templates, optimized logic flows
+
+#### Dependencies
+
+- **Tauri** - Updated to 2.8.x series
+- **Rust dependencies** - Added `anyhow`, `zip`, `serde_yaml`, `tempfile` for Skills
+- **Frontend dependencies** - Added CodeMirror 6 packages for Markdown editor
+- **winreg** - Updated to v0.52 (Windows compatibility)
+
+#### Performance
+
+- **Startup optimization** - Removed legacy migration scanning
+- **Lock management** - Improved RwLock usage to prevent deadlocks
+- **Background query** - Enabled background mode for usage polling
+
+### Statistics
+
+- **Total commits**: 85 commits from v3.6.0 to v3.7.0
+- **Code changes**: 152 files changed, 18,104 insertions(+), 3,732 deletions(-)
+- **New modules**:
+  - Skills: 2,034 lines (21 files)
+  - Prompts: 1,302 lines (20 files)
+  - Gemini: ~1,000 lines (multiple files)
+  - MCP refactor: ~3,000 lines (refactored)
+
+### Strategic Positioning
+
+v3.7.0 represents a major evolution from "Provider Switcher" to **"All-in-One AI CLI Management Platform"**:
+
+1. **Capability Extension** - Skills provide external ability integration
+2. **Behavior Customization** - Prompts enable AI personality presets
+3. **Configuration Unification** - MCP v3.7.0 eliminates app silos
+4. **Ecosystem Openness** - Deep links enable community sharing
+5. **Multi-AI Support** - Claude/Codex/Gemini trinity
+6. **Intelligent Detection** - Auto-discovery of environment conflicts
+
+### Notes
+
+- Users upgrading from v3.1.0 or earlier should first upgrade to v3.2.x for one-time migration
+- Skills and Prompts management are new features requiring no migration
+- Gemini CLI support requires Gemini CLI to be installed separately
+- MCP v3.7.0 unified structure is backward compatible with previous configs
+
 ## [3.6.0] - 2025-11-07
 
 ### ✨ New Features
@@ -73,6 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🏗️ Technical Improvements (For Developers)
 
 **Backend Refactoring (Rust)** - Completed 5-phase refactoring:
+
 - **Phase 1**: Unified error handling (`AppError` + i18n error messages)
 - **Phase 2**: Command layer split by domain (`commands/{provider,mcp,config,settings,plugin,misc}.rs`)
 - **Phase 3**: Integration tests and transaction mechanism (config snapshot + failure rollback)
@@ -80,17 +297,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Phase 5**: Concurrency optimization (`RwLock` instead of `Mutex`, scoped guard to avoid deadlock)
 
 **Frontend Refactoring (React + TypeScript)** - Completed 4-stage refactoring:
+
 - **Stage 1**: Test infrastructure (vitest + MSW + @testing-library/react)
 - **Stage 2**: Extracted custom hooks (`useProviderActions`, `useMcpActions`, `useSettings`, `useImportExport`, etc.)
 - **Stage 3**: Component splitting and business logic extraction
 - **Stage 4**: Code cleanup and formatting unification
 
 **Testing System**:
+
 - Hooks unit tests 100% coverage
 - Integration tests covering key processes (App, SettingsDialog, MCP Panel)
 - MSW mocking backend API to ensure test independence
 
 **Code Quality**:
+
 - Unified parameter format: All Tauri commands migrated to camelCase (Tauri 2 specification)
 - `AppType` renamed to `AppId`: Semantically clearer
 - Unified parsing with `FromStr` trait: Centralized `app` parameter parsing
@@ -98,6 +318,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove unused code: `missing_param` helper function, deprecated `tauri-api.ts`, redundant `KimiModelSelector` component
 
 **Internal Optimizations**:
+
 - **Removed Legacy Migration Logic**: v3.6 removed v1 config auto-migration and copy file scanning logic
   - ✅ **Impact**: Improved startup performance, cleaner code
   - ✅ **Compatibility**: v2 format configs fully compatible, no action required
@@ -361,6 +582,7 @@ For users upgrading from v2.x (Electron version):
 - Basic provider management
 - Claude Code integration
 - Configuration file handling
+
 ## [Unreleased]
 
 ### ⚠️ Breaking Changes
