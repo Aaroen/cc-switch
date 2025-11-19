@@ -171,18 +171,16 @@ export function ProviderForm({
   });
 
   // 使用 Base URL hook (Claude, Codex, Gemini)
-  const { baseUrl, handleClaudeBaseUrlChange, handleGeminiBaseUrlChange } =
-    useBaseUrlState({
-      appType: appId,
-      category,
-      settingsConfig: form.watch("settingsConfig"),
-      codexConfig: "",
-      onSettingsConfigChange: (config) =>
-        form.setValue("settingsConfig", config),
-      onCodexConfigChange: () => {
-        /* noop */
-      },
-    });
+  const { baseUrl, handleClaudeBaseUrlChange } = useBaseUrlState({
+    appType: appId,
+    category,
+    settingsConfig: form.watch("settingsConfig"),
+    codexConfig: "",
+    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
+    onCodexConfigChange: () => {
+      /* noop */
+    },
+  });
 
   // 使用 Model hook（新：主模型 + Haiku/Sonnet/Opus 默认模型）
   const {
@@ -317,9 +315,13 @@ export function ProviderForm({
   const {
     geminiEnv,
     geminiConfig,
+    geminiApiKey,
+    geminiBaseUrl,
     geminiModel,
     envError,
     configError: geminiConfigError,
+    handleGeminiApiKeyChange: originalHandleGeminiApiKeyChange,
+    handleGeminiBaseUrlChange: originalHandleGeminiBaseUrlChange,
     handleGeminiEnvChange,
     handleGeminiConfigChange,
     resetGeminiConfig,
@@ -328,6 +330,39 @@ export function ProviderForm({
   } = useGeminiConfigState({
     initialData: appId === "gemini" ? initialData : undefined,
   });
+
+  // 包装 Gemini handlers 以同步 settingsConfig
+  const handleGeminiApiKeyChange = useCallback(
+    (key: string) => {
+      originalHandleGeminiApiKeyChange(key);
+      // 同步更新 settingsConfig
+      try {
+        const config = JSON.parse(form.watch("settingsConfig") || "{}");
+        if (!config.env) config.env = {};
+        config.env.GEMINI_API_KEY = key.trim();
+        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
+      } catch {
+        // ignore
+      }
+    },
+    [originalHandleGeminiApiKeyChange, form],
+  );
+
+  const handleGeminiBaseUrlChange = useCallback(
+    (url: string) => {
+      originalHandleGeminiBaseUrlChange(url);
+      // 同步更新 settingsConfig
+      try {
+        const config = JSON.parse(form.watch("settingsConfig") || "{}");
+        if (!config.env) config.env = {};
+        config.env.GOOGLE_GEMINI_BASE_URL = url.trim().replace(/\/+$/, "");
+        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
+      } catch {
+        // ignore
+      }
+    },
+    [originalHandleGeminiBaseUrlChange, form],
+  );
 
   // 使用 Gemini 通用配置 hook (仅 Gemini 模式)
   const {
@@ -704,15 +739,15 @@ export function ProviderForm({
               form.watch("settingsConfig"),
               isEditMode,
             )}
-            apiKey={apiKey}
-            onApiKeyChange={handleApiKeyChange}
+            apiKey={geminiApiKey}
+            onApiKeyChange={handleGeminiApiKeyChange}
             category={category}
             shouldShowApiKeyLink={shouldShowGeminiApiKeyLink}
             websiteUrl={geminiWebsiteUrl}
             isPartner={isGeminiPartner}
             partnerPromotionKey={geminiPartnerPromotionKey}
             shouldShowSpeedTest={shouldShowSpeedTest}
-            baseUrl={baseUrl}
+            baseUrl={geminiBaseUrl}
             onBaseUrlChange={handleGeminiBaseUrlChange}
             isEndpointModalOpen={isEndpointModalOpen}
             onEndpointModalToggle={setIsEndpointModalOpen}
