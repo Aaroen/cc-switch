@@ -5,12 +5,13 @@ import { homeDir, join } from "@tauri-apps/api/path";
 import { settingsApi, type AppId } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
 
-type DirectoryKey = "appConfig" | "claude" | "codex";
+type DirectoryKey = "appConfig" | "claude" | "codex" | "gemini";
 
 export interface ResolvedDirectories {
   appConfig: string;
   claude: string;
   codex: string;
+  gemini: string;
 }
 
 const sanitizeDir = (value?: string | null): string | undefined => {
@@ -37,7 +38,8 @@ const computeDefaultConfigDir = async (
 ): Promise<string | undefined> => {
   try {
     const home = await homeDir();
-    const folder = app === "claude" ? ".claude" : ".codex";
+    const folder =
+      app === "claude" ? ".claude" : app === "codex" ? ".codex" : ".gemini";
     return await join(home, folder);
   } catch (error) {
     console.error(
@@ -64,7 +66,11 @@ export interface UseDirectorySettingsResult {
   browseAppConfigDir: () => Promise<void>;
   resetDirectory: (app: AppId) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
-  resetAllDirectories: (claudeDir?: string, codexDir?: string) => void;
+  resetAllDirectories: (
+    claudeDir?: string,
+    codexDir?: string,
+    geminiDir?: string,
+  ) => void;
 }
 
 /**
@@ -89,6 +95,7 @@ export function useDirectorySettings({
     appConfig: "",
     claude: "",
     codex: "",
+    gemini: "",
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -96,6 +103,7 @@ export function useDirectorySettings({
     appConfig: "",
     claude: "",
     codex: "",
+    gemini: "",
   });
   const initialAppConfigDirRef = useRef<string | undefined>(undefined);
 
@@ -110,16 +118,20 @@ export function useDirectorySettings({
           overrideRaw,
           claudeDir,
           codexDir,
+          geminiDir,
           defaultAppConfig,
           defaultClaudeDir,
           defaultCodexDir,
+          defaultGeminiDir,
         ] = await Promise.all([
           settingsApi.getAppConfigDirOverride(),
           settingsApi.getConfigDir("claude"),
           settingsApi.getConfigDir("codex"),
+          settingsApi.getConfigDir("gemini"),
           computeDefaultAppConfigDir(),
           computeDefaultConfigDir("claude"),
           computeDefaultConfigDir("codex"),
+          computeDefaultConfigDir("gemini"),
         ]);
 
         if (!active) return;
@@ -130,6 +142,7 @@ export function useDirectorySettings({
           appConfig: defaultAppConfig ?? "",
           claude: defaultClaudeDir ?? "",
           codex: defaultCodexDir ?? "",
+          gemini: defaultGeminiDir ?? "",
         };
 
         setAppConfigDir(normalizedOverride);
@@ -139,6 +152,7 @@ export function useDirectorySettings({
           appConfig: normalizedOverride ?? defaultsRef.current.appConfig,
           claude: claudeDir || defaultsRef.current.claude,
           codex: codexDir || defaultsRef.current.codex,
+          gemini: geminiDir || defaultsRef.current.gemini,
         });
       } catch (error) {
         console.error(
@@ -167,7 +181,9 @@ export function useDirectorySettings({
         onUpdateSettings(
           key === "claude"
             ? { claudeConfigDir: sanitized }
-            : { codexConfigDir: sanitized },
+            : key === "codex"
+              ? { codexConfigDir: sanitized }
+              : { geminiConfigDir: sanitized },
         );
       }
 
@@ -188,18 +204,24 @@ export function useDirectorySettings({
 
   const updateDirectory = useCallback(
     (app: AppId, value?: string) => {
-      updateDirectoryState(app === "claude" ? "claude" : "codex", value);
+      updateDirectoryState(
+        app === "claude" ? "claude" : app === "codex" ? "codex" : "gemini",
+        value,
+      );
     },
     [updateDirectoryState],
   );
 
   const browseDirectory = useCallback(
     async (app: AppId) => {
-      const key: DirectoryKey = app === "claude" ? "claude" : "codex";
+      const key: DirectoryKey =
+        app === "claude" ? "claude" : app === "codex" ? "codex" : "gemini";
       const currentValue =
         key === "claude"
           ? (settings?.claudeConfigDir ?? resolvedDirs.claude)
-          : (settings?.codexConfigDir ?? resolvedDirs.codex);
+          : key === "codex"
+            ? (settings?.codexConfigDir ?? resolvedDirs.codex)
+            : (settings?.geminiConfigDir ?? resolvedDirs.gemini);
 
       try {
         const picked = await settingsApi.selectConfigDirectory(currentValue);
@@ -240,7 +262,8 @@ export function useDirectorySettings({
 
   const resetDirectory = useCallback(
     async (app: AppId) => {
-      const key: DirectoryKey = app === "claude" ? "claude" : "codex";
+      const key: DirectoryKey =
+        app === "claude" ? "claude" : app === "codex" ? "codex" : "gemini";
       if (!defaultsRef.current[key]) {
         const fallback = await computeDefaultConfigDir(app);
         if (fallback) {
@@ -269,13 +292,14 @@ export function useDirectorySettings({
   }, [updateDirectoryState]);
 
   const resetAllDirectories = useCallback(
-    (claudeDir?: string, codexDir?: string) => {
+    (claudeDir?: string, codexDir?: string, geminiDir?: string) => {
       setAppConfigDir(initialAppConfigDirRef.current);
       setResolvedDirs({
         appConfig:
           initialAppConfigDirRef.current ?? defaultsRef.current.appConfig,
         claude: claudeDir ?? defaultsRef.current.claude,
         codex: codexDir ?? defaultsRef.current.codex,
+        gemini: geminiDir ?? defaultsRef.current.gemini,
       });
     },
     [],

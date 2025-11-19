@@ -14,6 +14,7 @@ interface DirectorySettingsProps {
   onResetAppConfig: () => Promise<void>;
   claudeDir?: string;
   codexDir?: string;
+  geminiDir?: string;
   onDirectoryChange: (app: AppId, value?: string) => void;
   onBrowseDirectory: (app: AppId) => Promise<void>;
   onResetDirectory: (app: AppId) => Promise<void>;
@@ -27,6 +28,7 @@ export function DirectorySettings({
   onResetAppConfig,
   claudeDir,
   codexDir,
+  geminiDir,
   onDirectoryChange,
   onBrowseDirectory,
   onResetDirectory,
@@ -103,6 +105,17 @@ export function DirectorySettings({
           onChange={(val) => onDirectoryChange("codex", val)}
           onBrowse={() => onBrowseDirectory("codex")}
           onReset={() => onResetDirectory("codex")}
+        />
+
+        <DirectoryInput
+          label={t("settings.geminiConfigDir")}
+          description={undefined}
+          value={geminiDir}
+          resolvedValue={resolvedDirs.gemini}
+          placeholder={t("settings.browsePlaceholderGemini")}
+          onChange={(val) => onDirectoryChange("gemini", val)}
+          onBrowse={() => onBrowseDirectory("gemini")}
+          onReset={() => onResetDirectory("gemini")}
         />
       </section>
     </>

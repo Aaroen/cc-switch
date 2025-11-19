@@ -97,6 +97,8 @@ export interface Settings {
   claudeConfigDir?: string;
   // 覆盖 Codex 配置目录（可选）
   codexConfigDir?: string;
+  // 覆盖 Gemini 配置目录（可选）
+  geminiConfigDir?: string;
   // 首选语言（可选，默认中文）
   language?: "en" | "zh";
   // Claude 自定义端点列表

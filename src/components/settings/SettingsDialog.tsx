@@ -220,6 +220,7 @@ export function SettingsDialog({
                       onResetAppConfig={resetAppConfigDir}
                       claudeDir={settings.claudeConfigDir}
                       codexDir={settings.codexConfigDir}
+                      geminiDir={settings.geminiConfigDir}
                       onDirectoryChange={updateDirectory}
                       onBrowseDirectory={browseDirectory}
                       onResetDirectory={resetDirectory}

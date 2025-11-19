@@ -102,6 +102,7 @@ export function useSettings(): UseSettingsResult {
     resetAllDirectories(
       sanitizeDir(data?.claudeConfigDir),
       sanitizeDir(data?.codexConfigDir),
+      sanitizeDir(data?.geminiConfigDir),
     );
     setRequiresRestart(false);
   }, [
@@ -120,14 +121,17 @@ export function useSettings(): UseSettingsResult {
       const sanitizedAppDir = sanitizeDir(appConfigDir);
       const sanitizedClaudeDir = sanitizeDir(settings.claudeConfigDir);
       const sanitizedCodexDir = sanitizeDir(settings.codexConfigDir);
+      const sanitizedGeminiDir = sanitizeDir(settings.geminiConfigDir);
       const previousAppDir = initialAppConfigDir;
       const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
       const previousCodexDir = sanitizeDir(data?.codexConfigDir);
+      const previousGeminiDir = sanitizeDir(data?.geminiConfigDir);
 
       const payload: Settings = {
         ...settings,
         claudeConfigDir: sanitizedClaudeDir,
         codexConfigDir: sanitizedCodexDir,
+        geminiConfigDir: sanitizedGeminiDir,
         language: settings.language,
       };
 
@@ -170,10 +174,11 @@ export function useSettings(): UseSettingsResult {
         console.warn("[useSettings] Failed to refresh tray menu", error);
       }
 
-      // 如果 Claude/Codex 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
+      // 如果 Claude/Codex/Gemini 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
       const claudeDirChanged = sanitizedClaudeDir !== previousClaudeDir;
       const codexDirChanged = sanitizedCodexDir !== previousCodexDir;
-      if (claudeDirChanged || codexDirChanged) {
+      const geminiDirChanged = sanitizedGeminiDir !== previousGeminiDir;
+      if (claudeDirChanged || codexDirChanged || geminiDirChanged) {
         const syncResult = await syncCurrentProvidersLiveSafe();
         if (!syncResult.ok) {
           console.warn(
