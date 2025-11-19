@@ -33,14 +33,11 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     websiteUrl: "https://ai.google.dev/",
     apiKeyUrl: "https://aistudio.google.com/apikey",
     settingsConfig: {
-      env: {
-        GEMINI_MODEL: "gemini-2.5-pro",
-      },
+      env: {},
     },
     description: "Google 官方 Gemini API (OAuth)",
     category: "official",
     partnerPromotionKey: "google-official",
-    model: "gemini-2.5-pro",
     theme: {
       icon: "gemini",
       backgroundColor: "#4285F4",
@@ -54,11 +51,11 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://www.packyapi.com",
-        GEMINI_MODEL: "gemini-2.5-pro",
+        GEMINI_MODEL: "gemini-3-pro-preview",
       },
     },
     baseURL: "https://www.packyapi.com",
-    model: "gemini-2.5-pro",
+    model: "gemini-3-pro-preview",
     description: "PackyCode",
     category: "third_party",
     isPartner: true,
@@ -74,10 +71,10 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "",
-        GEMINI_MODEL: "gemini-2.5-pro",
+        GEMINI_MODEL: "gemini-3-pro-preview",
       },
     },
-    model: "gemini-2.5-pro",
+    model: "gemini-3-pro-preview",
     description: "自定义 Gemini API 端点",
     category: "custom",
   },

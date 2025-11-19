@@ -61,7 +61,7 @@ export const GeminiEnvSection: React.FC<GeminiEnvSectionProps> = ({
         onBlur={onBlur}
         placeholder={`GOOGLE_GEMINI_BASE_URL=https://your-api-endpoint.com/
 GEMINI_API_KEY=sk-your-api-key-here
-GEMINI_MODEL=gemini-2.5-pro`}
+GEMINI_MODEL=gemini-3-pro-preview`}
         rows={6}
         className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-colors resize-y min-h-[8rem]"
         autoComplete="off"

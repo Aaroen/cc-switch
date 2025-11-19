@@ -53,7 +53,7 @@ const GEMINI_DEFAULT_CONFIG = JSON.stringify(
     env: {
       GOOGLE_GEMINI_BASE_URL: "",
       GEMINI_API_KEY: "",
-      GEMINI_MODEL: "gemini-2.5-pro",
+      GEMINI_MODEL: "gemini-3-pro-preview",
     },
   },
   null,

@@ -127,7 +127,7 @@ export function GeminiFormFields({
             id="gemini-model"
             value={model}
             onChange={(e) => onModelChange(e.target.value)}
-            placeholder="gemini-2.5-pro"
+            placeholder="gemini-3-pro-preview"
           />
         </div>
       )}
