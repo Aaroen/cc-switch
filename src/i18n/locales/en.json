@@ -645,6 +645,8 @@
     },
     "error": {
       "noSelection": "Please select environment variables to delete"
+    }
+  },
   "skills": {
     "manage": "Skills",
     "title": "Claude Skills Management",
