@@ -1,8 +1,8 @@
 <div align="center">
 
-# Claude Code & Codex Provider Switcher
+# All-in-One Assistant for Claude Code, Codex & Gemini CLI
 
-[![Version](https://img.shields.io/badge/version-3.6.1-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Version](https://img.shields.io/badge/version-3.7.0-blue.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Trending](https://img.shields.io/badge/🔥_TypeScript_Trending-Daily%20%7C%20Weekly%20%7C%20Monthly-ff6b6b.svg)](https://github.com/trending/typescript)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
@@ -43,7 +43,7 @@ Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJ
 
 ## Features
 
-### Current Version: v3.6.2 | [Full Changelog](CHANGELOG.md)
+### Current Version: v3.7.0 | [Full Changelog](CHANGELOG.md)
 
 **Core Capabilities**
 

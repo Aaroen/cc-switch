@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "CC Switch",
-    "description": "Claude Code & Codex Provider Switching Tool"
+    "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
   },
   "common": {
     "add": "Add",
