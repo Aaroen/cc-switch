@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "windows"))]
 use std::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,14 +50,12 @@ fn check_system_env(keywords: &[&str]) -> Result<Vec<EnvConflict>, String> {
     if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Environment") {
         for (name, value) in hkcu.enum_values().filter_map(Result::ok) {
             if keywords.iter().any(|k| name.to_uppercase().contains(k)) {
-                if let Ok(val) = value.to_string() {
-                    conflicts.push(EnvConflict {
-                        var_name: name.clone(),
-                        var_value: val,
-                        source_type: "system".to_string(),
-                        source_path: "HKEY_CURRENT_USER\\Environment".to_string(),
-                    });
-                }
+                conflicts.push(EnvConflict {
+                    var_name: name.clone(),
+                    var_value: value.to_string(),
+                    source_type: "system".to_string(),
+                    source_path: "HKEY_CURRENT_USER\\Environment".to_string(),
+                });
             }
         }
     }
@@ -67,14 +66,12 @@ fn check_system_env(keywords: &[&str]) -> Result<Vec<EnvConflict>, String> {
     {
         for (name, value) in hklm.enum_values().filter_map(Result::ok) {
             if keywords.iter().any(|k| name.to_uppercase().contains(k)) {
-                if let Ok(val) = value.to_string() {
-                    conflicts.push(EnvConflict {
-                        var_name: name.clone(),
-                        var_value: val,
-                        source_type: "system".to_string(),
-                        source_path: "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment".to_string(),
-                    });
-                }
+                conflicts.push(EnvConflict {
+                    var_name: name.clone(),
+                    var_value: value.to_string(),
+                    source_type: "system".to_string(),
+                    source_path: "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment".to_string(),
+                });
             }
         }
     }
