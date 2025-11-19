@@ -847,19 +847,40 @@ impl ProviderService {
                 v
             }
             AppType::Gemini => {
-                // 新增
-                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+                use crate::gemini_config::{
+                    env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+                };
 
-                let path = get_gemini_env_path();
-                if !path.exists() {
+                // 读取 .env 文件（环境变量）
+                let env_path = get_gemini_env_path();
+                if !env_path.exists() {
                     return Err(AppError::localized(
                         "gemini.live.missing",
                         "Gemini 配置文件不存在",
                         "Gemini configuration file is missing",
                     ));
                 }
+
                 let env_map = read_gemini_env()?;
-                env_to_json(&env_map)
+                let env_json = env_to_json(&env_map);
+                let env_obj = env_json
+                    .get("env")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+
+                // 读取 settings.json 文件（MCP 配置等）
+                let settings_path = get_gemini_settings_path();
+                let config_obj = if settings_path.exists() {
+                    read_json_file(&settings_path)?
+                } else {
+                    json!({})
+                };
+
+                // 返回完整结构：{ "env": {...}, "config": {...} }
+                json!({
+                    "env": env_obj,
+                    "config": config_obj
+                })
             }
         };
 
@@ -914,11 +935,13 @@ impl ProviderService {
                 read_json_file(&path)
             }
             AppType::Gemini => {
-                // 新增
-                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+                use crate::gemini_config::{
+                    env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+                };
 
-                let path = get_gemini_env_path();
-                if !path.exists() {
+                // 读取 .env 文件（环境变量）
+                let env_path = get_gemini_env_path();
+                if !env_path.exists() {
                     return Err(AppError::localized(
                         "gemini.env.missing",
                         "Gemini .env 文件不存在",
@@ -927,7 +950,25 @@ impl ProviderService {
                 }
 
                 let env_map = read_gemini_env()?;
-                Ok(env_to_json(&env_map))
+                let env_json = env_to_json(&env_map);
+                let env_obj = env_json
+                    .get("env")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+
+                // 读取 settings.json 文件（MCP 配置等）
+                let settings_path = get_gemini_settings_path();
+                let config_obj = if settings_path.exists() {
+                    read_json_file(&settings_path)?
+                } else {
+                    json!({})
+                };
+
+                // 返回完整结构：{ "env": {...}, "config": {...} }
+                Ok(json!({
+                    "env": env_obj,
+                    "config": config_obj
+                }))
             }
         }
     }
