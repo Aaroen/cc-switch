@@ -184,12 +184,12 @@ pub async fn get_common_config_snippet(
     use crate::app_config::AppType;
     use std::str::FromStr;
 
-    let app = AppType::from_str(&app_type).map_err(|e| format!("无效的应用类型: {}", e))?;
+    let app = AppType::from_str(&app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
 
     let guard = state
         .config
         .read()
-        .map_err(|e| format!("读取配置锁失败: {}", e))?;
+        .map_err(|e| format!("读取配置锁失败: {e}"))?;
 
     Ok(guard.common_config_snippets.get(&app).cloned())
 }
@@ -204,12 +204,12 @@ pub async fn set_common_config_snippet(
     use crate::app_config::AppType;
     use std::str::FromStr;
 
-    let app = AppType::from_str(&app_type).map_err(|e| format!("无效的应用类型: {}", e))?;
+    let app = AppType::from_str(&app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
 
     let mut guard = state
         .config
         .write()
-        .map_err(|e| format!("写入配置锁失败: {}", e))?;
+        .map_err(|e| format!("写入配置锁失败: {e}"))?;
 
     // 验证格式（根据应用类型）
     if !snippet.trim().is_empty() {
@@ -217,7 +217,7 @@ pub async fn set_common_config_snippet(
             AppType::Claude | AppType::Gemini => {
                 // 验证 JSON 格式
                 serde_json::from_str::<serde_json::Value>(&snippet)
-                    .map_err(|e| format!("无效的 JSON 格式: {}", e))?;
+                    .map_err(|e| format!("无效的 JSON 格式: {e}"))?;
             }
             AppType::Codex => {
                 // TOML 格式暂不验证（或可使用 toml crate）

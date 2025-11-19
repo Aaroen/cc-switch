@@ -35,7 +35,7 @@ export function parseSmartMcpJson(jsonText: string): {
   }
 
   // 如果是键值对片段（"key": {...}），包装成完整对象
-  if (trimmed.startsWith('"') && !trimmed.startsWith('{')) {
+  if (trimmed.startsWith('"') && !trimmed.startsWith("{")) {
     trimmed = `{${trimmed}}`;
   }
 

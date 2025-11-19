@@ -6,7 +6,6 @@ import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
 import type { ProviderCategory } from "@/types";
-import type { AppId } from "@/lib/api";
 
 type PresetEntry = {
   id: string;
@@ -20,7 +19,6 @@ interface ProviderPresetSelectorProps {
   presetCategoryLabels: Record<string, string>;
   onPresetChange: (value: string) => void;
   category?: ProviderCategory; // 当前选中的分类
-  appId?: AppId;
 }
 
 export function ProviderPresetSelector({
@@ -30,7 +28,6 @@ export function ProviderPresetSelector({
   presetCategoryLabels,
   onPresetChange,
   category,
-  appId,
 }: ProviderPresetSelectorProps) {
   const { t } = useTranslation();
 

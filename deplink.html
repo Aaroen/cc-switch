@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CC Switch 深链接测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .link-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .link-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .link-card h3 {
+            color: #2c3e50;
+            font-size: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .link-card .description {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .deep-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        }
+
+        .deep-link:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #1f6391 100%);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .deep-link:active {
+            transform: translateY(0);
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .info-box h4 {
+            color: #856404;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .info-box ul {
+            list-style: disc;
+            margin-left: 20px;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+
+        .generator-section {
+            background: #e8f4f8;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 40px;
+        }
+
+        .generator-section h2 {
+            color: #2c3e50;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #229954 0%, #1e8449 100%);
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result-box {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 2px solid #3498db;
+        }
+
+        .result-box strong {
+            color: #2c3e50;
+            font-size: 16px;
+        }
+
+        .result-text {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 13px;
+            color: #2c3e50;
+            border: 1px solid #dee2e6;
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            margin-right: 10px;
+        }
+
+        .btn-copy:hover {
+            background: linear-gradient(135deg, #8e44ad 0%, #7d3c98 100%);
+        }
+
+        .app-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-claude {
+            background: #e8f4f8;
+            color: #3498db;
+        }
+
+        .badge-codex {
+            background: #fef5e7;
+            color: #f39c12;
+        }
+
+        .badge-gemini {
+            background: #fdeef4;
+            color: #e91e63;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .generator-section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 CC Switch 深链接测试</h1>
+            <p>点击下方链接测试深链接导入功能</p>
+        </div>
+
+        <div class="content">
+            <!-- Claude 示例 -->
+            <div class="section">
+                <h2>Claude Code 供应商</h2>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-claude">Claude</span>
+                        Claude Official (官方)
+                    </h3>
+                    <p class="description">
+                        导入 Claude 官方 API 配置。使用官方端点 api.anthropic.com，默认模型 claude-haiku-4.1。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=claude&name=Claude%20Official&homepage=https%3A%2F%2Fclaude.ai&endpoint=https%3A%2F%2Fapi.anthropic.com%2Fv1&apiKey=sk-ant-test-demo-key-12345&model=claude-haiku-4.1&notes=%E5%AE%98%E6%96%B9%E6%B5%8B%E8%AF%95%E9%85%8D%E7%BD%AE"
+                       class="deep-link">
+                        📥 导入 Claude Official
+                    </a>
+                </div>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-claude">Claude</span>
+                        Claude 测试环境
+                    </h3>
+                    <p class="description">
+                        公司内部测试环境配置示例。包含备注信息，方便区分不同环境。默认模型 claude-haiku-4.1。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=claude&name=%E5%85%AC%E5%8F%B8%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83&homepage=https%3A%2F%2Ftest.company.com&endpoint=https%3A%2F%2Fapi-test.company.com%2Fv1&apiKey=sk-ant-test-company-key&model=claude-haiku-4.1&notes=%E5%85%AC%E5%8F%B8%E5%86%85%E9%83%A8%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%EF%BC%8C%E4%BB%85%E4%BE%9B%E5%BC%80%E5%8F%91%E4%BD%BF%E7%94%A8"
+                       class="deep-link">
+                        📥 导入测试环境
+                    </a>
+                </div>
+            </div>
+
+            <!-- Codex 示例 -->
+            <div class="section">
+                <h2>Codex 供应商</h2>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-codex">Codex</span>
+                        OpenAI Official (官方)
+                    </h3>
+                    <p class="description">
+                        导入 OpenAI 官方 API 配置。使用官方端点 api.openai.com，默认模型 gpt-5.1。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=codex&name=OpenAI%20Official&homepage=https%3A%2F%2Fopenai.com&endpoint=https%3A%2F%2Fapi.openai.com%2Fv1&apiKey=sk-test-demo-openai-key-67890&model=gpt-5.1&notes=OpenAI%20%E5%AE%98%E6%96%B9%E6%9C%8D%E5%8A%A1"
+                       class="deep-link">
+                        📥 导入 OpenAI Official
+                    </a>
+                </div>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-codex">Codex</span>
+                        Azure OpenAI
+                    </h3>
+                    <p class="description">
+                        Azure 部署的 OpenAI 服务示例。适合企业用户使用 Azure 云服务。默认模型 gpt-5.1。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=codex&name=Azure%20OpenAI&homepage=https%3A%2F%2Fazure.microsoft.com%2Fopenai&endpoint=https%3A%2F%2Fyour-resource.openai.azure.com%2F&apiKey=azure-test-api-key-xyz&model=gpt-5.1&notes=Azure%20%E4%BC%81%E4%B8%9A%E7%89%88%E6%9C%AC"
+                       class="deep-link">
+                        📥 导入 Azure OpenAI
+                    </a>
+                </div>
+            </div>
+
+            <!-- Gemini 示例 -->
+            <div class="section">
+                <h2>Gemini 供应商</h2>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-gemini">Gemini</span>
+                        Google Gemini Official
+                    </h3>
+                    <p class="description">
+                        导入 Google Gemini 官方 API 配置。默认模型 gemini-3-pro-preview。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=gemini&name=Google%20Gemini&homepage=https%3A%2F%2Fai.google.dev&endpoint=https%3A%2F%2Fgenerativelanguage.googleapis.com%2Fv1beta&apiKey=AIzaSy-test-demo-key-abc123&model=gemini-3-pro-preview&notes=Google%20AI%20%E5%AE%98%E6%96%B9%E6%9C%8D%E5%8A%A1"
+                       class="deep-link">
+                        📥 导入 Google Gemini
+                    </a>
+                </div>
+
+                <div class="link-card">
+                    <h3>
+                        <span class="app-badge badge-gemini">Gemini</span>
+                        Gemini 测试环境
+                    </h3>
+                    <p class="description">
+                        公司内部 Gemini 测试环境配置示例。用于验证 Gemini 相关深链接导入流程，请求地址为：https://api-gemini-test.company.com/v1beta。默认模型 gemini-3-pro-preview。
+                    </p>
+                    <a href="ccswitch://v1/import?resource=provider&app=gemini&name=%E5%85%AC%E5%8F%B8%20Gemini%20%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83&homepage=https%3A%2F%2Fgemini-test.company.com&endpoint=https%3A%2F%2Fapi-gemini-test.company.com%2Fv1beta&apiKey=sk-gemini-test-company-key&model=gemini-3-pro-preview&notes=%E5%85%AC%E5%8F%B8%E5%86%85%E9%83%A8%20Gemini%20%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%EF%BC%8C%E4%BB%85%E4%BE%9B%E5%BC%80%E5%8F%91%E4%BD%BF%E7%94%A8"
+                       class="deep-link">
+                        📥 导入 Gemini 测试环境
+                    </a>
+                </div>
+            </div>
+
+            <!-- 注意事项 -->
+            <div class="info-box">
+                <h4>⚠️ 使用注意事项</h4>
+                <ul>
+                    <li><strong>首次点击</strong>：浏览器会询问是否允许打开 CC Switch，请点击"允许"或"打开"</li>
+                    <li><strong>macOS 用户</strong>：可能需要在"系统设置" → "隐私与安全性"中允许应用</li>
+                    <li><strong>测试 API Key</strong>：示例中的 API Key 仅用于测试格式，无法实际使用</li>
+                    <li><strong>导入确认</strong>：点击链接后会弹出确认对话框，API Key 会被掩码显示（前4位+****）</li>
+                    <li><strong>编辑配置</strong>：导入后可以在 CC Switch 中随时编辑或删除配置</li>
+                </ul>
+            </div>
+
+            <!-- 深链接生成器 -->
+            <div class="generator-section">
+                <h2>🛠️ 深链接生成器</h2>
+                <p style="color: #7f8c8d; margin-bottom: 24px;">填写下方表单，生成您自己的深链接</p>
+
+                <div class="form-group">
+                    <label>应用类型 *</label>
+                    <select id="app">
+                        <option value="claude">Claude Code</option>
+                        <option value="codex">Codex</option>
+                        <option value="gemini">Gemini</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>供应商名称 *</label>
+                    <input type="text" id="name" placeholder="例如: Claude Official">
+                </div>
+
+                <div class="form-group">
+                    <label>官网地址 *</label>
+                    <input type="url" id="homepage" placeholder="https://example.com">
+                </div>
+
+                <div class="form-group">
+                    <label>API 端点 *</label>
+                    <input type="url" id="endpoint" placeholder="https://api.example.com/v1">
+                </div>
+
+                <div class="form-group">
+                    <label>API Key *</label>
+                    <input type="text" id="apiKey" placeholder="sk-xxxxx 或 AIzaSyXXXXX">
+                </div>
+
+                <div class="form-group">
+                    <label>模型（可选）</label>
+                    <input type="text" id="model" placeholder="例如: claude-haiku-4.1, gpt-5.1, gemini-3-pro-preview">
+                </div>
+
+                <div class="form-group">
+                    <label>备注（可选）</label>
+                    <textarea id="notes" rows="2" placeholder="例如: 公司专用账号"></textarea>
+                </div>
+
+                <button class="btn" onclick="generateLink()">🚀 生成深链接</button>
+
+                <div id="result" style="display: none;">
+                    <div class="result-box">
+                        <strong>✅ 生成的深链接：</strong>
+                        <div class="result-text" id="linkText"></div>
+                        <button class="btn btn-copy" onclick="copyLink()">📋 复制链接</button>
+                        <a id="testLink" class="deep-link" style="text-decoration: none;">
+                            🧪 测试链接
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generateLink() {
+            const app = document.getElementById('app').value;
+            const name = document.getElementById('name').value.trim();
+            const homepage = document.getElementById('homepage').value.trim();
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('model').value.trim();
+            const notes = document.getElementById('notes').value.trim();
+
+            // 验证必填字段
+            if (!name || !homepage || !endpoint || !apiKey) {
+                alert('❌ 请填写所有必填字段（标记 * 的字段）！');
+                return;
+            }
+
+            // 验证 URL 格式
+            try {
+                new URL(homepage);
+                new URL(endpoint);
+            } catch (e) {
+                alert('❌ 请输入有效的 URL 格式（需包含 http:// 或 https://）！');
+                return;
+            }
+
+            // 构建参数
+            const params = new URLSearchParams({
+                resource: 'provider',
+                app: app,
+                name: name,
+                homepage: homepage,
+                endpoint: endpoint,
+                apiKey: apiKey
+            });
+
+            if (model) {
+                params.append('model', model);
+            }
+
+            if (notes) {
+                params.append('notes', notes);
+            }
+
+            const deepLink = `ccswitch://v1/import?${params.toString()}`;
+
+            // 显示结果
+            document.getElementById('linkText').textContent = deepLink;
+            document.getElementById('testLink').href = deepLink;
+            document.getElementById('result').style.display = 'block';
+
+            // 滚动到结果区域
+            document.getElementById('result').scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
+
+        function copyLink() {
+            const linkText = document.getElementById('linkText').textContent;
+
+            navigator.clipboard.writeText(linkText).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ 已复制！';
+                btn.style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('❌ 复制失败，请手动复制链接');
+            });
+        }
+
+        // 阻止表单默认提交行为
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                        generateLink();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+

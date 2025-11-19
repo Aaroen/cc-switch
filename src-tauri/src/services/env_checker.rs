@@ -124,7 +124,9 @@ fn check_shell_configs(keywords: &[&str]) -> Result<Vec<EnvConflict>, String> {
                 let trimmed = line.trim();
 
                 // Match patterns like: export VAR=value or VAR=value
-                if trimmed.starts_with("export ") || (!trimmed.starts_with('#') && trimmed.contains('=')) {
+                if trimmed.starts_with("export ")
+                    || (!trimmed.starts_with('#') && trimmed.contains('='))
+                {
                     let export_line = trimmed.strip_prefix("export ").unwrap_or(trimmed);
 
                     if let Some(eq_pos) = export_line.find('=') {
@@ -135,7 +137,10 @@ fn check_shell_configs(keywords: &[&str]) -> Result<Vec<EnvConflict>, String> {
                         if keywords.iter().any(|k| var_name.to_uppercase().contains(k)) {
                             conflicts.push(EnvConflict {
                                 var_name: var_name.to_string(),
-                                var_value: var_value.trim_matches('"').trim_matches('\'').to_string(),
+                                var_value: var_value
+                                    .trim_matches('"')
+                                    .trim_matches('\'')
+                                    .to_string(),
                                 source_type: "file".to_string(),
                                 source_path: format!("{}:{}", file_path, line_num + 1),
                             });

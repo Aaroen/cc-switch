@@ -84,6 +84,8 @@
     "name": "供应商名称",
     "namePlaceholder": "例如：Claude 官方",
     "websiteUrl": "官网链接",
+    "notes": "备注",
+    "notesPlaceholder": "例如：公司专用账号",
     "configJson": "配置 JSON",
     "writeCommonConfig": "写入通用配置",
     "editCommonConfigButton": "编辑通用配置",
@@ -408,7 +410,6 @@
   "errors": {
     "usage_query_failed": "用量查询失败"
   },
-
   "presetSelector": {
     "title": "选择配置类型",
     "custom": "自定义",
@@ -690,5 +691,23 @@
       "removeFailed": "删除失败",
       "skillCount": "识别到 {{count}} 个技能"
     }
+  },
+  "deeplink": {
+    "confirmImport": "确认导入供应商配置",
+    "confirmImportDescription": "以下配置将导入到 CC Switch",
+    "app": "应用类型",
+    "providerName": "供应商名称",
+    "homepage": "官网地址",
+    "endpoint": "API 端点",
+    "apiKey": "API 密钥",
+    "model": "模型",
+    "notes": "备注",
+    "import": "导入",
+    "importing": "导入中...",
+    "warning": "请确认以上信息准确无误后再导入。导入后可在供应商列表中编辑或删除。",
+    "parseError": "深链接解析失败",
+    "importSuccess": "导入成功",
+    "importSuccessDescription": "供应商 \"{{name}}\" 已成功导入",
+    "importError": "导入失败"
   }
 }

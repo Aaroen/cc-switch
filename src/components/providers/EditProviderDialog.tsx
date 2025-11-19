@@ -93,6 +93,7 @@ export function EditProviderDialog({
       const updatedProvider: Provider = {
         ...provider,
         name: values.name.trim(),
+        notes: values.notes?.trim() || undefined,
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
         ...(values.presetCategory ? { category: values.presetCategory } : {}),
@@ -129,6 +130,7 @@ export function EditProviderDialog({
             onCancel={() => onOpenChange(false)}
             initialData={{
               name: provider.name,
+              notes: provider.notes,
               websiteUrl: provider.websiteUrl,
               // 若读取到实时配置则优先使用
               settingsConfig: initialSettingsConfig,

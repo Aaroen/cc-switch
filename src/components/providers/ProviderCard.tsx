@@ -33,10 +33,17 @@ interface ProviderCardProps {
 }
 
 const extractApiUrl = (provider: Provider, fallbackText: string) => {
+  // 优先级 1: 备注
+  if (provider.notes?.trim()) {
+    return provider.notes.trim();
+  }
+
+  // 优先级 2: 官网地址
   if (provider.websiteUrl) {
     return provider.websiteUrl;
   }
 
+  // 优先级 3: 从配置中提取请求地址
   const config = provider.settingsConfig;
 
   if (config && typeof config === "object") {
@@ -83,10 +90,24 @@ export function ProviderCard({
     return extractApiUrl(provider, fallbackUrlText);
   }, [provider, fallbackUrlText]);
 
+  // 判断是否为可点击的 URL（备注不可点击）
+  const isClickableUrl = useMemo(() => {
+    // 如果有备注，则不可点击
+    if (provider.notes?.trim()) {
+      return false;
+    }
+    // 如果显示的是回退文本，也不可点击
+    if (displayUrl === fallbackUrlText) {
+      return false;
+    }
+    // 其他情况（官网地址或请求地址）可点击
+    return true;
+  }, [provider.notes, displayUrl, fallbackUrlText]);
+
   const usageEnabled = provider.meta?.usage_script?.enabled ?? false;
 
   const handleOpenWebsite = () => {
-    if (!displayUrl || displayUrl === fallbackUrlText) {
+    if (!isClickableUrl) {
       return;
     }
     onOpenWebsite(displayUrl);
@@ -174,8 +195,14 @@ export function ProviderCard({
               <button
                 type="button"
                 onClick={handleOpenWebsite}
-                className="inline-flex items-center text-sm text-blue-500 transition-colors hover:underline dark:text-blue-400 max-w-[280px]"
+                className={cn(
+                  "inline-flex items-center text-sm max-w-[280px]",
+                  isClickableUrl
+                    ? "text-blue-500 transition-colors hover:underline dark:text-blue-400 cursor-pointer"
+                    : "text-muted-foreground cursor-default",
+                )}
                 title={displayUrl}
+                disabled={!isClickableUrl}
               >
                 <span className="truncate">{displayUrl}</span>
               </button>

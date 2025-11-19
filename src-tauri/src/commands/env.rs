@@ -1,5 +1,7 @@
 use crate::services::env_checker::{check_env_conflicts as check_conflicts, EnvConflict};
-use crate::services::env_manager::{delete_env_vars as delete_vars, restore_from_backup, BackupInfo};
+use crate::services::env_manager::{
+    delete_env_vars as delete_vars, restore_from_backup, BackupInfo,
+};
 
 /// Check environment variable conflicts for a specific app
 #[tauri::command]

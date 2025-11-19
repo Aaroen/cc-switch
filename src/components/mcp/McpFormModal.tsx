@@ -1,7 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Save, Plus, AlertCircle, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
+import {
+  Save,
+  Plus,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Wand2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

@@ -80,7 +80,9 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
   initialServer,
 }) => {
   const { t } = useTranslation();
-  const [wizardType, setWizardType] = useState<"stdio" | "http" | "sse">("stdio");
+  const [wizardType, setWizardType] = useState<"stdio" | "http" | "sse">(
+    "stdio",
+  );
   const [wizardTitle, setWizardTitle] = useState("");
   // stdio 字段
   const [wizardCommand, setWizardCommand] = useState("");

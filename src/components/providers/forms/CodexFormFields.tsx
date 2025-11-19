@@ -26,6 +26,11 @@ interface CodexFormFieldsProps {
   onEndpointModalToggle: (open: boolean) => void;
   onCustomEndpointsChange?: (endpoints: string[]) => void;
 
+  // Model Name
+  shouldShowModelField?: boolean;
+  modelName?: string;
+  onModelNameChange?: (model: string) => void;
+
   // Speed Test Endpoints
   speedTestEndpoints: EndpointCandidate[];
 }
@@ -45,6 +50,9 @@ export function CodexFormFields({
   isEndpointModalOpen,
   onEndpointModalToggle,
   onCustomEndpointsChange,
+  shouldShowModelField = true,
+  modelName = "",
+  onModelNameChange,
   speedTestEndpoints,
 }: CodexFormFieldsProps) {
   const { t } = useTranslation();
@@ -83,6 +91,33 @@ export function CodexFormFields({
           hint={t("providerForm.codexApiHint")}
           onManageClick={() => onEndpointModalToggle(true)}
         />
+      )}
+
+      {/* Codex Model Name 输入框 */}
+      {shouldShowModelField && onModelNameChange && (
+        <div className="space-y-2">
+          <label
+            htmlFor="codexModelName"
+            className="block text-sm font-medium text-gray-900 dark:text-gray-100"
+          >
+            {t("codexConfig.modelName", { defaultValue: "模型名称" })}
+          </label>
+          <input
+            id="codexModelName"
+            type="text"
+            value={modelName}
+            onChange={(e) => onModelNameChange(e.target.value)}
+            placeholder={t("codexConfig.modelNamePlaceholder", {
+              defaultValue: "例如: gpt-5-codex",
+            })}
+            className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-colors"
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t("codexConfig.modelNameHint", {
+              defaultValue: "指定使用的模型，将自动更新到 config.toml 中",
+            })}
+          </p>
+        </div>
       )}
 
       {/* 端点测速弹窗 - Codex */}

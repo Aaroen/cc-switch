@@ -17,6 +17,7 @@ export function useGeminiConfigState({
   const [geminiConfig, setGeminiConfigState] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [geminiBaseUrl, setGeminiBaseUrl] = useState("");
+  const [geminiModel, setGeminiModel] = useState("");
   const [envError, setEnvError] = useState("");
   const [configError, setConfigError] = useState("");
 
@@ -72,21 +73,25 @@ export function useGeminiConfigState({
       const configObj = (config as any).config || {};
       setGeminiConfigState(JSON.stringify(configObj, null, 2));
 
-      // 提取 API Key 和 Base URL
+      // 提取 API Key、Base URL 和 Model
       if (typeof env.GEMINI_API_KEY === "string") {
         setGeminiApiKey(env.GEMINI_API_KEY);
       }
       if (typeof env.GOOGLE_GEMINI_BASE_URL === "string") {
         setGeminiBaseUrl(env.GOOGLE_GEMINI_BASE_URL);
       }
+      if (typeof env.GEMINI_MODEL === "string") {
+        setGeminiModel(env.GEMINI_MODEL);
+      }
     }
   }, [initialData, envObjToString]);
 
-  // 从 geminiEnv 中提取并同步 API Key 和 Base URL
+  // 从 geminiEnv 中提取并同步 API Key、Base URL 和 Model
   useEffect(() => {
     const envObj = envStringToObj(geminiEnv);
     const extractedKey = envObj.GEMINI_API_KEY || "";
     const extractedBaseUrl = envObj.GOOGLE_GEMINI_BASE_URL || "";
+    const extractedModel = envObj.GEMINI_MODEL || "";
 
     if (extractedKey !== geminiApiKey) {
       setGeminiApiKey(extractedKey);
@@ -94,7 +99,10 @@ export function useGeminiConfigState({
     if (extractedBaseUrl !== geminiBaseUrl) {
       setGeminiBaseUrl(extractedBaseUrl);
     }
-  }, [geminiEnv, envStringToObj]);
+    if (extractedModel !== geminiModel) {
+      setGeminiModel(extractedModel);
+    }
+  }, [geminiEnv, envStringToObj, geminiApiKey, geminiBaseUrl, geminiModel]);
 
   // 验证 Gemini Config JSON
   const validateGeminiConfig = useCallback((value: string): string => {
@@ -181,7 +189,7 @@ export function useGeminiConfigState({
       setGeminiEnv(envString);
       setGeminiConfig(configString);
 
-      // 提取 API Key 和 Base URL
+      // 提取 API Key、Base URL 和 Model
       if (typeof env.GEMINI_API_KEY === "string") {
         setGeminiApiKey(env.GEMINI_API_KEY);
       } else {
@@ -193,6 +201,12 @@ export function useGeminiConfigState({
       } else {
         setGeminiBaseUrl("");
       }
+
+      if (typeof env.GEMINI_MODEL === "string") {
+        setGeminiModel(env.GEMINI_MODEL);
+      } else {
+        setGeminiModel("");
+      }
     },
     [envObjToString, setGeminiEnv, setGeminiConfig],
   );
@@ -202,6 +216,7 @@ export function useGeminiConfigState({
     geminiConfig,
     geminiApiKey,
     geminiBaseUrl,
+    geminiModel,
     envError,
     configError,
     setGeminiEnv,

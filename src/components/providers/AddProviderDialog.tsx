@@ -45,6 +45,7 @@ export function AddProviderDialog({
       // 构造基础提交数据
       const providerData: Omit<Provider, "id"> = {
         name: values.name.trim(),
+        notes: values.notes?.trim() || undefined,
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
         ...(values.presetCategory ? { category: values.presetCategory } : {}),

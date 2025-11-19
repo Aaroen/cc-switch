@@ -536,7 +536,7 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                         if !json_arr.is_empty() {
                             Some(serde_json::Value::Array(json_arr))
                         } else {
-                            log::debug!("跳过复杂数组字段 '{}' (TOML → JSON)", key);
+                            log::debug!("跳过复杂数组字段 '{key}' (TOML → JSON)");
                             None
                         }
                     }
@@ -551,19 +551,19 @@ pub fn import_from_codex(config: &mut MultiAppConfig) -> Result<usize, AppError>
                         if !json_obj.is_empty() {
                             Some(serde_json::Value::Object(json_obj))
                         } else {
-                            log::debug!("跳过复杂对象字段 '{}' (TOML → JSON)", key);
+                            log::debug!("跳过复杂对象字段 '{key}' (TOML → JSON)");
                             None
                         }
                     }
                     toml::Value::Datetime(_) => {
-                        log::debug!("跳过日期时间字段 '{}' (TOML → JSON)", key);
+                        log::debug!("跳过日期时间字段 '{key}' (TOML → JSON)");
                         None
                     }
                 };
 
                 if let Some(val) = json_val {
                     spec.insert(key.clone(), val);
-                    log::debug!("导入扩展字段 '{}' = {:?}", key, toml_val);
+                    log::debug!("导入扩展字段 '{key}' = {toml_val:?}");
                 }
             }
 
@@ -831,7 +831,7 @@ fn json_value_to_toml_item(value: &Value, field_name: &str) -> Option<toml_edit:
             } else if let Some(f) = n.as_f64() {
                 Some(toml_edit::value(f))
             } else {
-                log::warn!("跳过字段 '{field_name}': 无法转换的数字类型 {}", n);
+                log::warn!("跳过字段 '{field_name}': 无法转换的数字类型 {n}");
                 None
             }
         }
@@ -1009,9 +1009,9 @@ fn json_server_to_toml_table(spec: &Value) -> Result<toml_edit::Table, AppError>
 
                 // 记录扩展字段的处理
                 if extended_fields.contains(&key.as_str()) {
-                    log::debug!("已转换扩展字段 '{}' = {:?}", key, value);
+                    log::debug!("已转换扩展字段 '{key}' = {value:?}");
                 } else {
-                    log::info!("已转换自定义字段 '{}' = {:?}", key, value);
+                    log::info!("已转换自定义字段 '{key}' = {value:?}");
                 }
             }
         }
@@ -1094,7 +1094,7 @@ pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
     if let Some(mcp_table) = doc.get_mut("mcp").and_then(|t| t.as_table_mut()) {
         if let Some(servers) = mcp_table.get_mut("servers").and_then(|s| s.as_table_mut()) {
             if servers.remove(id).is_some() {
-                log::warn!("从错误的 MCP 格式 [mcp.servers] 中清理了服务器 '{}'", id);
+                log::warn!("从错误的 MCP 格式 [mcp.servers] 中清理了服务器 '{id}'");
             }
         }
     }

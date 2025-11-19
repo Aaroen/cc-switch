@@ -43,11 +43,11 @@ pub fn delete_env_vars(conflicts: Vec<EnvConflict>) -> Result<BackupInfo, String
 fn create_backup(conflicts: &[EnvConflict]) -> Result<BackupInfo, String> {
     // Get backup directory
     let backup_dir = get_backup_dir()?;
-    fs::create_dir_all(&backup_dir).map_err(|e| format!("创建备份目录失败: {}", e))?;
+    fs::create_dir_all(&backup_dir).map_err(|e| format!("创建备份目录失败: {e}"))?;
 
     // Generate backup file name with timestamp
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
-    let backup_file = backup_dir.join(format!("env-backup-{}.json", timestamp));
+    let backup_file = backup_dir.join(format!("env-backup-{timestamp}.json"));
 
     // Create backup data
     let backup_info = BackupInfo {
@@ -58,9 +58,9 @@ fn create_backup(conflicts: &[EnvConflict]) -> Result<BackupInfo, String> {
 
     // Write backup file
     let json = serde_json::to_string_pretty(&backup_info)
-        .map_err(|e| format!("序列化备份数据失败: {}", e))?;
+        .map_err(|e| format!("序列化备份数据失败: {e}"))?;
 
-    fs::write(&backup_file, json).map_err(|e| format!("写入备份文件失败: {}", e))?;
+    fs::write(&backup_file, json).map_err(|e| format!("写入备份文件失败: {e}"))?;
 
     Ok(backup_info)
 }
@@ -115,7 +115,7 @@ fn delete_single_env(conflict: &EnvConflict) -> Result<(), String> {
 
             // Read file content
             let content = fs::read_to_string(file_path)
-                .map_err(|e| format!("读取文件失败 {}: {}", file_path, e))?;
+                .map_err(|e| format!("读取文件失败 {file_path}: {e}"))?;
 
             // Filter out the line containing the environment variable
             let new_content: Vec<String> = content
@@ -137,7 +137,7 @@ fn delete_single_env(conflict: &EnvConflict) -> Result<(), String> {
 
             // Write back to file
             fs::write(file_path, new_content.join("\n"))
-                .map_err(|e| format!("写入文件失败 {}: {}", file_path, e))?;
+                .map_err(|e| format!("写入文件失败 {file_path}: {e}"))?;
 
             Ok(())
         }
@@ -152,11 +152,10 @@ fn delete_single_env(conflict: &EnvConflict) -> Result<(), String> {
 /// Restore environment variables from backup
 pub fn restore_from_backup(backup_path: String) -> Result<(), String> {
     // Read backup file
-    let content =
-        fs::read_to_string(&backup_path).map_err(|e| format!("读取备份文件失败: {}", e))?;
+    let content = fs::read_to_string(&backup_path).map_err(|e| format!("读取备份文件失败: {e}"))?;
 
-    let backup_info: BackupInfo = serde_json::from_str(&content)
-        .map_err(|e| format!("解析备份文件失败: {}", e))?;
+    let backup_info: BackupInfo =
+        serde_json::from_str(&content).map_err(|e| format!("解析备份文件失败: {e}"))?;
 
     // Restore each variable
     for conflict in &backup_info.conflicts {
@@ -190,7 +189,10 @@ fn restore_single_env(conflict: &EnvConflict) -> Result<(), String> {
             }
             Ok(())
         }
-        _ => Err(format!("无法恢复类型为 {} 的环境变量", conflict.source_type)),
+        _ => Err(format!(
+            "无法恢复类型为 {} 的环境变量",
+            conflict.source_type
+        )),
     }
 }
 
@@ -208,19 +210,21 @@ fn restore_single_env(conflict: &EnvConflict) -> Result<(), String> {
 
             // Read file content
             let mut content = fs::read_to_string(file_path)
-                .map_err(|e| format!("读取文件失败 {}: {}", file_path, e))?;
+                .map_err(|e| format!("读取文件失败 {file_path}: {e}"))?;
 
             // Append the environment variable line
             let export_line = format!("\nexport {}={}", conflict.var_name, conflict.var_value);
             content.push_str(&export_line);
 
             // Write back to file
-            fs::write(file_path, content)
-                .map_err(|e| format!("写入文件失败 {}: {}", file_path, e))?;
+            fs::write(file_path, content).map_err(|e| format!("写入文件失败 {file_path}: {e}"))?;
 
             Ok(())
         }
-        _ => Err(format!("无法恢复类型为 {} 的环境变量", conflict.source_type)),
+        _ => Err(format!(
+            "无法恢复类型为 {} 的环境变量",
+            conflict.source_type
+        )),
     }
 }
 

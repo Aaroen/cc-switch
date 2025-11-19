@@ -46,6 +46,20 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
           </FormItem>
         )}
       />
+
+      <FormField
+        control={form.control}
+        name="notes"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t("provider.notes")}</FormLabel>
+            <FormControl>
+              <Input {...field} placeholder={t("provider.notesPlaceholder")} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
     </>
   );
 }

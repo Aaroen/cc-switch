@@ -76,10 +76,7 @@ export function useMcpValidation() {
           if (typ === "stdio" && !(obj as any)?.command?.trim()) {
             return t("mcp.error.commandRequired");
           }
-          if (
-            (typ === "http" || typ === "sse") &&
-            !(obj as any)?.url?.trim()
-          ) {
+          if ((typ === "http" || typ === "sse") && !(obj as any)?.url?.trim()) {
             return t("mcp.wizard.urlRequired");
           }
         }

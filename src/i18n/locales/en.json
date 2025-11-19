@@ -84,6 +84,8 @@
     "name": "Provider Name",
     "namePlaceholder": "e.g., Claude Official",
     "websiteUrl": "Website URL",
+    "notes": "Notes",
+    "notesPlaceholder": "e.g., Company dedicated account",
     "configJson": "Config JSON",
     "writeCommonConfig": "Write common config",
     "editCommonConfigButton": "Edit common config",
@@ -408,7 +410,6 @@
   "errors": {
     "usage_query_failed": "Usage query failed"
   },
-
   "presetSelector": {
     "title": "Select Configuration Type",
     "custom": "Custom",
@@ -690,5 +691,23 @@
       "removeFailed": "Failed to remove",
       "skillCount": "{{count}} skills detected"
     }
+  },
+  "deeplink": {
+    "confirmImport": "Confirm Import Provider",
+    "confirmImportDescription": "The following configuration will be imported from deep link into CC Switch",
+    "app": "App Type",
+    "providerName": "Provider Name",
+    "homepage": "Homepage",
+    "endpoint": "API Endpoint",
+    "apiKey": "API Key",
+    "model": "Model",
+    "notes": "Notes",
+    "import": "Import",
+    "importing": "Importing...",
+    "warning": "Please confirm the information above is correct before importing. You can edit or delete it later in the provider list.",
+    "parseError": "Failed to parse deep link",
+    "importSuccess": "Import successful",
+    "importSuccessDescription": "Provider \"{{name}}\" has been successfully imported",
+    "importError": "Failed to import"
   }
 }

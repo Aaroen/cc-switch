@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import {
   extractCodexBaseUrl,
   setCodexBaseUrl as setCodexBaseUrlInConfig,
+  extractCodexModelName,
+  setCodexModelName as setCodexModelNameInConfig,
 } from "@/utils/providerConfigUtils";
 import { normalizeTomlText } from "@/utils/textNormalization";
 
@@ -20,9 +22,11 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
   const [codexConfig, setCodexConfigState] = useState("");
   const [codexApiKey, setCodexApiKey] = useState("");
   const [codexBaseUrl, setCodexBaseUrl] = useState("");
+  const [codexModelName, setCodexModelName] = useState("");
   const [codexAuthError, setCodexAuthError] = useState("");
 
   const isUpdatingCodexBaseUrlRef = useRef(false);
+  const isUpdatingCodexModelNameRef = useRef(false);
 
   // 初始化 Codex 配置（编辑模式）
   useEffect(() => {
@@ -47,6 +51,12 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
         setCodexBaseUrl(initialBaseUrl);
       }
 
+      // 提取 Model Name
+      const initialModelName = extractCodexModelName(configStr);
+      if (initialModelName) {
+        setCodexModelName(initialModelName);
+      }
+
       // 提取 API Key
       try {
         if (auth && typeof auth.OPENAI_API_KEY === "string") {
@@ -68,6 +78,17 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
       setCodexBaseUrl(extracted);
     }
   }, [codexConfig, codexBaseUrl]);
+
+  // 与 TOML 配置保持模型名称同步
+  useEffect(() => {
+    if (isUpdatingCodexModelNameRef.current) {
+      return;
+    }
+    const extracted = extractCodexModelName(codexConfig) || "";
+    if (extracted !== codexModelName) {
+      setCodexModelName(extracted);
+    }
+  }, [codexConfig, codexModelName]);
 
   // 获取 API Key（从 auth JSON）
   const getCodexAuthApiKey = useCallback((authString: string): string => {
@@ -157,7 +178,26 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     [setCodexConfig],
   );
 
-  // 处理 config 变化（同步 Base URL）
+  // 处理 Codex Model Name 变化
+  const handleCodexModelNameChange = useCallback(
+    (modelName: string) => {
+      const trimmed = modelName.trim();
+      setCodexModelName(trimmed);
+
+      if (!trimmed) {
+        return;
+      }
+
+      isUpdatingCodexModelNameRef.current = true;
+      setCodexConfig((prev) => setCodexModelNameInConfig(prev, trimmed));
+      setTimeout(() => {
+        isUpdatingCodexModelNameRef.current = false;
+      }, 0);
+    },
+    [setCodexConfig],
+  );
+
+  // 处理 config 变化（同步 Base URL 和 Model Name）
   const handleCodexConfigChange = useCallback(
     (value: string) => {
       // 归一化中文/全角/弯引号，避免 TOML 解析报错
@@ -170,8 +210,15 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
           setCodexBaseUrl(extracted);
         }
       }
+
+      if (!isUpdatingCodexModelNameRef.current) {
+        const extractedModel = extractCodexModelName(normalized) || "";
+        if (extractedModel !== codexModelName) {
+          setCodexModelName(extractedModel);
+        }
+      }
     },
-    [setCodexConfig, codexBaseUrl],
+    [setCodexConfig, codexBaseUrl, codexModelName],
   );
 
   // 重置配置（用于预设切换）
@@ -184,6 +231,13 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
       const baseUrl = extractCodexBaseUrl(config);
       if (baseUrl) {
         setCodexBaseUrl(baseUrl);
+      }
+
+      const modelName = extractCodexModelName(config);
+      if (modelName) {
+        setCodexModelName(modelName);
+      } else {
+        setCodexModelName("");
       }
 
       // 提取 API Key
@@ -205,11 +259,13 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     codexConfig,
     codexApiKey,
     codexBaseUrl,
+    codexModelName,
     codexAuthError,
     setCodexAuth,
     setCodexConfig,
     handleCodexApiKeyChange,
     handleCodexBaseUrlChange,
+    handleCodexModelNameChange,
     handleCodexConfigChange,
     resetCodexConfig,
     getCodexAuthApiKey,

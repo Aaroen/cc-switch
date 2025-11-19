@@ -467,3 +467,66 @@ export const setCodexBaseUrl = (
       : normalizedText;
   return `${prefix}${replacementLine}\n`;
 };
+
+// ========== Codex model name utils ==========
+
+// 从 Codex 的 TOML 配置文本中提取 model 字段（支持单/双引号）
+export const extractCodexModelName = (
+  configText: string | undefined | null,
+): string | undefined => {
+  try {
+    const raw = typeof configText === "string" ? configText : "";
+    // 归一化中文/全角引号，避免正则提取失败
+    const text = normalizeQuotes(raw);
+    if (!text) return undefined;
+
+    // 匹配 model = "xxx" 或 model = 'xxx'
+    const m = text.match(/^model\s*=\s*(['"])([^'"]+)\1/m);
+    return m && m[2] ? m[2] : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// 在 Codex 的 TOML 配置文本中写入或更新 model 字段
+export const setCodexModelName = (
+  configText: string,
+  modelName: string,
+): string => {
+  const trimmed = modelName.trim();
+  if (!trimmed) {
+    return configText;
+  }
+
+  // 归一化原文本中的引号（既能匹配，也能输出稳定格式）
+  const normalizedText = normalizeQuotes(configText);
+
+  const replacementLine = `model = "${trimmed}"`;
+  const pattern = /^model\s*=\s*["']([^"']+)["']/m;
+
+  if (pattern.test(normalizedText)) {
+    return normalizedText.replace(pattern, replacementLine);
+  }
+
+  // 如果不存在 model 字段，尝试在 model_provider 之后插入
+  // 如果 model_provider 也不存在，则插入到开头
+  const providerPattern = /^model_provider\s*=\s*["'][^"']+["']/m;
+  const match = normalizedText.match(providerPattern);
+
+  if (match && match.index !== undefined) {
+    // 在 model_provider 行之后插入
+    const endOfLine = normalizedText.indexOf("\n", match.index);
+    if (endOfLine !== -1) {
+      return (
+        normalizedText.slice(0, endOfLine + 1) +
+        replacementLine +
+        "\n" +
+        normalizedText.slice(endOfLine + 1)
+      );
+    }
+  }
+
+  // 在文件开头插入
+  const lines = normalizedText.split("\n");
+  return `${replacementLine}\n${lines.join("\n")}`;
+};

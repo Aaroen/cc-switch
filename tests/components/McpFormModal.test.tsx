@@ -220,7 +220,7 @@ describe("McpFormModal", () => {
   });
 
   it("缺少配置命令时阻止提交并提示错误", async () => {
-    const { onSave } = renderForm();
+    renderForm();
 
     fireEvent.change(screen.getByPlaceholderText("mcp.form.titlePlaceholder"), {
       target: { value: "no-command" },
@@ -288,7 +288,7 @@ command = "run"
   });
 
   it("TOML 模式下缺少命令时展示错误提示并阻止提交", async () => {
-    const { onSave } = renderForm({ defaultFormat: "toml" });
+    renderForm({ defaultFormat: "toml" });
 
     // 填写 ID 字段
     fireEvent.change(screen.getByPlaceholderText("mcp.form.titlePlaceholder"), {

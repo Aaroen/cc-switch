@@ -1,0 +1,29 @@
+use crate::deeplink::{import_provider_from_deeplink, parse_deeplink_url, DeepLinkImportRequest};
+use crate::store::AppState;
+use tauri::State;
+
+/// Parse a deep link URL and return the parsed request for frontend confirmation
+#[tauri::command]
+pub fn parse_deeplink(url: String) -> Result<DeepLinkImportRequest, String> {
+    log::info!("Parsing deep link URL: {url}");
+    parse_deeplink_url(&url).map_err(|e| e.to_string())
+}
+
+/// Import a provider from a deep link request (after user confirmation)
+#[tauri::command]
+pub fn import_from_deeplink(
+    state: State<AppState>,
+    request: DeepLinkImportRequest,
+) -> Result<String, String> {
+    log::info!(
+        "Importing provider from deep link: {} for app {}",
+        request.name,
+        request.app
+    );
+
+    let provider_id = import_provider_from_deeplink(&state, request).map_err(|e| e.to_string())?;
+
+    log::info!("Successfully imported provider with ID: {provider_id}");
+
+    Ok(provider_id)
+}

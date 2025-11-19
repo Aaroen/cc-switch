@@ -26,6 +26,7 @@ import UsageScriptModal from "@/components/UsageScriptModal";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
 import { SkillsPage } from "@/components/skills/SkillsPage";
+import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -100,7 +101,10 @@ function App() {
           setShowEnvBanner(true);
         }
       } catch (error) {
-        console.error("[App] Failed to check environment conflicts on startup:", error);
+        console.error(
+          "[App] Failed to check environment conflicts on startup:",
+          error,
+        );
       }
     };
 
@@ -117,17 +121,20 @@ function App() {
           // 合并新检测到的冲突
           setEnvConflicts((prev) => {
             const existingKeys = new Set(
-              prev.map((c) => `${c.varName}:${c.sourcePath}`)
+              prev.map((c) => `${c.varName}:${c.sourcePath}`),
             );
             const newConflicts = conflicts.filter(
-              (c) => !existingKeys.has(`${c.varName}:${c.sourcePath}`)
+              (c) => !existingKeys.has(`${c.varName}:${c.sourcePath}`),
             );
             return [...prev, ...newConflicts];
           });
           setShowEnvBanner(true);
         }
       } catch (error) {
-        console.error("[App] Failed to check environment conflicts on app switch:", error);
+        console.error(
+          "[App] Failed to check environment conflicts on app switch:",
+          error,
+        );
       }
     };
 
@@ -239,7 +246,10 @@ function App() {
                 setShowEnvBanner(false);
               }
             } catch (error) {
-              console.error("[App] Failed to re-check conflicts after deletion:", error);
+              console.error(
+                "[App] Failed to re-check conflicts after deletion:",
+                error,
+              );
             }
           }}
         />
@@ -402,6 +412,7 @@ function App() {
           <SkillsPage onClose={() => setIsSkillsOpen(false)} />
         </DialogContent>
       </Dialog>
+      <DeepLinkImportDialog />
     </div>
   );
 }

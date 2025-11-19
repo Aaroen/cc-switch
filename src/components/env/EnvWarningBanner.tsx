@@ -198,7 +198,8 @@ export function EnvWarningBanner({
                               {t("env.field.value")}: {conflict.varValue}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                              {t("env.field.source")}: {getSourceDescription(conflict)}
+                              {t("env.field.source")}:{" "}
+                              {getSourceDescription(conflict)}
                             </p>
                           </div>
                         </div>
@@ -247,7 +248,9 @@ export function EnvWarningBanner({
               {t("env.confirm.title")}
             </DialogTitle>
             <DialogDescription className="space-y-2">
-              <p>{t("env.confirm.message", { count: selectedConflicts.size })}</p>
+              <p>
+                {t("env.confirm.message", { count: selectedConflicts.size })}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {t("env.confirm.backupNotice")}
               </p>
