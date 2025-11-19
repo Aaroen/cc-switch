@@ -381,14 +381,20 @@ GEMINI_MODEL=gemini-3-pro-preview
             Some(&"https://example.com".to_string())
         );
         assert_eq!(map.get("GEMINI_API_KEY"), Some(&"sk-test123".to_string()));
-        assert_eq!(map.get("GEMINI_MODEL"), Some(&"gemini-3-pro-preview".to_string()));
+        assert_eq!(
+            map.get("GEMINI_MODEL"),
+            Some(&"gemini-3-pro-preview".to_string())
+        );
     }
 
     #[test]
     fn test_serialize_env_file() {
         let mut map = HashMap::new();
         map.insert("GEMINI_API_KEY".to_string(), "sk-test".to_string());
-        map.insert("GEMINI_MODEL".to_string(), "gemini-3-pro-preview".to_string());
+        map.insert(
+            "GEMINI_MODEL".to_string(),
+            "gemini-3-pro-preview".to_string(),
+        );
 
         let content = serialize_env_file(&map);
 
@@ -432,7 +438,10 @@ GEMINI_MODEL=gemini-3-pro-preview
             Some(&"https://example.com".to_string())
         );
         assert_eq!(map.get("GEMINI_API_KEY"), Some(&"sk-test123".to_string()));
-        assert_eq!(map.get("GEMINI_MODEL"), Some(&"gemini-3-pro-preview".to_string()));
+        assert_eq!(
+            map.get("GEMINI_MODEL"),
+            Some(&"gemini-3-pro-preview".to_string())
+        );
     }
 
     #[test]

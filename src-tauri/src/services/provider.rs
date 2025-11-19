@@ -863,10 +863,7 @@ impl ProviderService {
 
                 let env_map = read_gemini_env()?;
                 let env_json = env_to_json(&env_map);
-                let env_obj = env_json
-                    .get("env")
-                    .cloned()
-                    .unwrap_or_else(|| json!({}));
+                let env_obj = env_json.get("env").cloned().unwrap_or_else(|| json!({}));
 
                 // 读取 settings.json 文件（MCP 配置等）
                 let settings_path = get_gemini_settings_path();
@@ -951,10 +948,7 @@ impl ProviderService {
 
                 let env_map = read_gemini_env()?;
                 let env_json = env_to_json(&env_map);
-                let env_obj = env_json
-                    .get("env")
-                    .cloned()
-                    .unwrap_or_else(|| json!({}));
+                let env_obj = env_json.get("env").cloned().unwrap_or_else(|| json!({}));
 
                 // 读取 settings.json 文件（MCP 配置等）
                 let settings_path = get_gemini_settings_path();

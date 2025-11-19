@@ -37,7 +37,7 @@ export function generateThirdPartyAuth(apiKey: string): Record<string, any> {
 export function generateThirdPartyConfig(
   providerName: string,
   baseUrl: string,
-  modelName = "gpt-5-codex"
+  modelName = "gpt-5-codex",
 ): string {
   // 清理供应商名称，确保符合TOML键名规范
   const cleanProviderName =
@@ -106,7 +106,7 @@ requires_openai_auth = true`,
     config: generateThirdPartyConfig(
       "aihubmix",
       "https://aihubmix.com/v1",
-      "gpt-5-codex"
+      "gpt-5-codex",
     ),
     endpointCandidates: [
       "https://aihubmix.com/v1",
@@ -121,7 +121,7 @@ requires_openai_auth = true`,
     config: generateThirdPartyConfig(
       "dmxapi",
       "https://www.dmxapi.cn/v1",
-      "gpt-5-codex"
+      "gpt-5-codex",
     ),
     endpointCandidates: ["https://www.dmxapi.cn/v1"],
   },
@@ -134,7 +134,7 @@ requires_openai_auth = true`,
     config: generateThirdPartyConfig(
       "packycode",
       "https://www.packyapi.com/v1",
-      "gpt-5-codex"
+      "gpt-5-codex",
     ),
     endpointCandidates: [
       "https://www.packyapi.com/v1",

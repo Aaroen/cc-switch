@@ -159,7 +159,10 @@ mod tests {
     fn test_get_keywords() {
         assert_eq!(get_keywords_for_app("claude"), vec!["ANTHROPIC"]);
         assert_eq!(get_keywords_for_app("codex"), vec!["OPENAI"]);
-        assert_eq!(get_keywords_for_app("gemini"), vec!["GEMINI", "GOOGLE_GEMINI"]);
+        assert_eq!(
+            get_keywords_for_app("gemini"),
+            vec!["GEMINI", "GOOGLE_GEMINI"]
+        );
         assert_eq!(get_keywords_for_app("unknown"), Vec::<&str>::new());
     }
 }
