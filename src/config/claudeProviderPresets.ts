@@ -231,6 +231,23 @@ export const providerPresets: ProviderPreset[] = [
     category: "cn_official",
   },
   {
+    name: "DouBaoSeed",
+    websiteUrl: "https://www.volcengine.com/product/doubao",
+    apiKeyUrl: "https://www.volcengine.com/product/doubao",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://ark.cn-beijing.volces.com/api/coding",
+        ANTHROPIC_AUTH_TOKEN: "",
+        API_TIMEOUT_MS: "3000000",
+        ANTHROPIC_MODEL: "doubao-seed-code-preview-latest",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "doubao-seed-code-preview-latest",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "doubao-seed-code-preview-latest",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "doubao-seed-code-preview-latest",
+      },
+    },
+    category: "cn_official",
+  },
+  {
     name: "BaiLing",
     websiteUrl: "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
     settingsConfig: {
@@ -293,23 +310,5 @@ export const providerPresets: ProviderPreset[] = [
     category: "third_party",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "packycode", // 促销信息 i18n key
-  },
-  {
-    name: "AnyRouter",
-    websiteUrl: "https://anyrouter.top",
-    apiKeyUrl: "https://anyrouter.top/register?aff=PCel",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://anyrouter.top",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    // 请求地址候选（用于地址管理/测速）
-    endpointCandidates: [
-      "https://q.quuvv.cn",
-      "https://pmpjfbhq.cn-nb1.rainapp.top",
-      "https://anyrouter.top",
-    ],
-    category: "third_party",
   },
 ];
