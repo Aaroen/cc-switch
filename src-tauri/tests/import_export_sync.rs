@@ -498,8 +498,8 @@ url = "https://example.com"
         .expect("unified servers should exist");
 
     let echo = servers.get("echo_server").expect("echo server");
-    assert_eq!(
-        echo.apps.codex, true,
+    assert!(
+        echo.apps.codex,
         "Codex app should be enabled for echo_server"
     );
     let server_spec = echo.server.as_object().expect("server spec");
@@ -512,8 +512,8 @@ url = "https://example.com"
     );
 
     let http = servers.get("http_server").expect("http server");
-    assert_eq!(
-        http.apps.codex, true,
+    assert!(
+        http.apps.codex,
         "Codex app should be enabled for http_server"
     );
     let http_spec = http.server.as_object().expect("http spec");
@@ -577,10 +577,7 @@ command = "echo"
         .expect("existing entry");
 
     // 验证 Codex 应用已启用
-    assert_eq!(
-        entry.apps.codex, true,
-        "Codex app should be enabled after import"
-    );
+    assert!(entry.apps.codex, "Codex app should be enabled after import");
 
     // 验证现有配置被保留（server 不应被覆盖）
     let spec = entry.server.as_object().expect("server spec");
@@ -702,8 +699,8 @@ fn import_from_claude_merges_into_config() {
         .expect("entry exists");
 
     // 验证 Claude 应用已启用
-    assert_eq!(
-        entry.apps.claude, true,
+    assert!(
+        entry.apps.claude,
         "Claude app should be enabled after import"
     );
 
