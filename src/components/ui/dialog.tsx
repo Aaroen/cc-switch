@@ -59,6 +59,10 @@ const DialogContent = React.forwardRef<
           zIndexMap[zIndex],
           className,
         )}
+        onInteractOutside={(e) => {
+          // 防止点击遮罩层关闭对话框
+          e.preventDefault();
+        }}
         {...props}
       >
         {children}
