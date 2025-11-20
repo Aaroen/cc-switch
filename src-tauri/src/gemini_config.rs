@@ -236,6 +236,17 @@ pub fn validate_gemini_settings(settings: &Value) -> Result<(), AppError> {
         }
     }
 
+    // 如果有 config 字段，验证它是对象或 null
+    if let Some(config) = settings.get("config") {
+        if !(config.is_object() || config.is_null()) {
+            return Err(AppError::localized(
+                "gemini.validation.invalid_config",
+                "Gemini 配置格式错误: config 必须是对象",
+                "Gemini config invalid: config must be an object",
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -244,6 +255,9 @@ pub fn validate_gemini_settings(settings: &Value) -> Result<(), AppError> {
 /// 此函数在切换供应商时使用，确保配置包含所有必需的字段。
 /// 对于需要 API Key 的供应商（如 PackyCode），会验证 GEMINI_API_KEY 字段。
 pub fn validate_gemini_settings_strict(settings: &Value) -> Result<(), AppError> {
+    // 先做基础格式验证（包含 env/config 类型）
+    validate_gemini_settings(settings)?;
+
     let env_map = json_to_env(settings)?;
 
     // 如果 env 为空，表示使用 OAuth（如 Google 官方），跳过验证

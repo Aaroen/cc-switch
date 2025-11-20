@@ -229,42 +229,22 @@ impl ConfigService {
         provider_id: &str,
         provider: &Provider,
     ) -> Result<(), AppError> {
-        use crate::gemini_config::{
-            env_to_json, json_to_env, read_gemini_env, write_gemini_env_atomic,
-        };
+        use crate::gemini_config::{env_to_json, read_gemini_env};
 
-        let env_path = crate::gemini_config::get_gemini_env_path();
-        if let Some(parent) = env_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
-        }
+        ProviderService::write_gemini_live(provider)?;
 
-        // 转换 JSON 配置为 .env 格式
-        let env_map = json_to_env(&provider.settings_config)?;
-
-        // Google 官方（OAuth）: env 为空，写入空文件并设置安全标志后返回
-        if env_map.is_empty() {
-            write_gemini_env_atomic(&env_map)?;
-            ProviderService::ensure_google_oauth_security_flag(provider)?;
-
-            let live_after_env = read_gemini_env()?;
-            let live_after = env_to_json(&live_after_env);
-
-            if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
-                if let Some(target) = manager.providers.get_mut(provider_id) {
-                    target.settings_config = live_after;
-                }
-            }
-
-            return Ok(());
-        }
-
-        // 非 OAuth：按常规写入，并在必要时设置 Packycode 安全标志
-        write_gemini_env_atomic(&env_map)?;
-        ProviderService::ensure_packycode_security_flag(provider)?;
-
-        // 读回实际写入的内容并更新到配置中
+        // 读回实际写入的内容并更新到配置中（包含 settings.json）
         let live_after_env = read_gemini_env()?;
-        let live_after = env_to_json(&live_after_env);
+        let settings_path = crate::gemini_config::get_gemini_settings_path();
+        let live_after_config = if settings_path.exists() {
+            crate::config::read_json_file(&settings_path)?
+        } else {
+            serde_json::json!({})
+        };
+        let mut live_after = env_to_json(&live_after_env);
+        if let Some(obj) = live_after.as_object_mut() {
+            obj.insert("config".to_string(), live_after_config);
+        }
 
         if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
             if let Some(target) = manager.providers.get_mut(provider_id) {

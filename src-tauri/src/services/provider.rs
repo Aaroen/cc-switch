@@ -30,6 +30,7 @@ enum LiveSnapshot {
     },
     Gemini {
         env: Option<HashMap<String, String>>, // 新增
+        config: Option<Value>,                // 新增：settings.json 内容
     },
 }
 
@@ -68,14 +69,29 @@ impl LiveSnapshot {
                     delete_file(&config_path)?;
                 }
             }
-            LiveSnapshot::Gemini { env } => {
+            LiveSnapshot::Gemini { env, .. } => {
                 // 新增
-                use crate::gemini_config::{get_gemini_env_path, write_gemini_env_atomic};
+                use crate::gemini_config::{
+                    get_gemini_env_path, get_gemini_settings_path, write_gemini_env_atomic,
+                };
                 let path = get_gemini_env_path();
                 if let Some(env_map) = env {
                     write_gemini_env_atomic(env_map)?;
                 } else if path.exists() {
                     delete_file(&path)?;
+                }
+
+                let settings_path = get_gemini_settings_path();
+                match self {
+                    LiveSnapshot::Gemini {
+                        config: Some(cfg), ..
+                    } => {
+                        write_json_file(&settings_path, cfg)?;
+                    }
+                    LiveSnapshot::Gemini { config: None, .. } if settings_path.exists() => {
+                        delete_file(&settings_path)?;
+                    }
+                    _ => {}
                 }
             }
         }
@@ -612,7 +628,9 @@ impl ProviderService {
                 state.save()?;
             }
             AppType::Gemini => {
-                use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+                use crate::gemini_config::{
+                    env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+                };
 
                 let env_path = get_gemini_env_path();
                 if !env_path.exists() {
@@ -623,7 +641,18 @@ impl ProviderService {
                     ));
                 }
                 let env_map = read_gemini_env()?;
-                let live_after = env_to_json(&env_map);
+                let mut live_after = env_to_json(&env_map);
+
+                let settings_path = get_gemini_settings_path();
+                let config_value = if settings_path.exists() {
+                    read_json_file(&settings_path)?
+                } else {
+                    json!({})
+                };
+
+                if let Some(obj) = live_after.as_object_mut() {
+                    obj.insert("config".to_string(), config_value);
+                }
 
                 {
                     let mut guard = state.config.write().map_err(AppError::from)?;
@@ -670,14 +699,22 @@ impl ProviderService {
             }
             AppType::Gemini => {
                 // 新增
-                use crate::gemini_config::{get_gemini_env_path, read_gemini_env};
+                use crate::gemini_config::{
+                    get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+                };
                 let path = get_gemini_env_path();
                 let env = if path.exists() {
                     Some(read_gemini_env()?)
                 } else {
                     None
                 };
-                Ok(LiveSnapshot::Gemini { env })
+                let settings_path = get_gemini_settings_path();
+                let config = if settings_path.exists() {
+                    Some(read_json_file(&settings_path)?)
+                } else {
+                    None
+                };
+                Ok(LiveSnapshot::Gemini { env, config })
             }
         }
     }
@@ -1461,7 +1498,9 @@ impl ProviderService {
         config: &mut MultiAppConfig,
         next_provider: &str,
     ) -> Result<(), AppError> {
-        use crate::gemini_config::{env_to_json, get_gemini_env_path, read_gemini_env};
+        use crate::gemini_config::{
+            env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+        };
 
         let env_path = get_gemini_env_path();
         if !env_path.exists() {
@@ -1477,7 +1516,18 @@ impl ProviderService {
         }
 
         let env_map = read_gemini_env()?;
-        let live = env_to_json(&env_map);
+        let mut live = env_to_json(&env_map);
+
+        let settings_path = get_gemini_settings_path();
+        let config_value = if settings_path.exists() {
+            read_json_file(&settings_path)?
+        } else {
+            json!({})
+        };
+        if let Some(obj) = live.as_object_mut() {
+            obj.insert("config".to_string(), config_value);
+        }
+
         if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
             if let Some(current) = manager.providers.get_mut(&current_id) {
                 current.settings_config = live;
@@ -1495,34 +1545,69 @@ impl ProviderService {
         Ok(())
     }
 
-    fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
+    pub(crate) fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
         use crate::gemini_config::{
-            json_to_env, validate_gemini_settings_strict, write_gemini_env_atomic,
+            get_gemini_settings_path, json_to_env, validate_gemini_settings_strict,
+            write_gemini_env_atomic,
         };
 
         // 一次性检测认证类型，避免重复检测
         let auth_type = Self::detect_gemini_auth_type(provider);
 
+        let mut env_map = json_to_env(&provider.settings_config)?;
+
+        // 准备要写入 ~/.gemini/settings.json 的配置（缺省时保留现有文件内容）
+        let mut config_to_write = if let Some(config_value) = provider.settings_config.get("config")
+        {
+            if config_value.is_null() {
+                Some(json!({}))
+            } else if config_value.is_object() {
+                Some(config_value.clone())
+            } else {
+                return Err(AppError::localized(
+                    "gemini.validation.invalid_config",
+                    "Gemini 配置格式错误: config 必须是对象或 null",
+                    "Gemini config invalid: config must be an object or null",
+                ));
+            }
+        } else {
+            None
+        };
+
+        if config_to_write.is_none() {
+            let settings_path = get_gemini_settings_path();
+            if settings_path.exists() {
+                config_to_write = Some(read_json_file(&settings_path)?);
+            }
+        }
+
         match auth_type {
             GeminiAuthType::GoogleOfficial => {
                 // Google 官方使用 OAuth，清空 env
-                let empty_env = std::collections::HashMap::new();
-                write_gemini_env_atomic(&empty_env)?;
-                Self::ensure_google_oauth_security_flag(provider)?;
+                env_map.clear();
+                write_gemini_env_atomic(&env_map)?;
             }
             GeminiAuthType::Packycode => {
                 // PackyCode 供应商，使用 API Key（切换时严格验证）
                 validate_gemini_settings_strict(&provider.settings_config)?;
-                let env_map = json_to_env(&provider.settings_config)?;
                 write_gemini_env_atomic(&env_map)?;
-                Self::ensure_packycode_security_flag(provider)?;
             }
             GeminiAuthType::Generic => {
                 // 通用供应商，使用 API Key（切换时严格验证）
                 validate_gemini_settings_strict(&provider.settings_config)?;
-                let env_map = json_to_env(&provider.settings_config)?;
                 write_gemini_env_atomic(&env_map)?;
             }
+        }
+
+        if let Some(config_value) = config_to_write {
+            let settings_path = get_gemini_settings_path();
+            write_json_file(&settings_path, &config_value)?;
+        }
+
+        match auth_type {
+            GeminiAuthType::GoogleOfficial => Self::ensure_google_oauth_security_flag(provider)?,
+            GeminiAuthType::Packycode => Self::ensure_packycode_security_flag(provider)?,
+            GeminiAuthType::Generic => {}
         }
 
         Ok(())
