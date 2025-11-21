@@ -50,14 +50,6 @@ pub enum AppError {
         zh: String,
         en: String,
     },
-    #[error("Failed to get application path for auto-launch: {0}")]
-    AutoLaunchPathError(#[source] std::io::Error),
-    #[error("Failed to enable auto-launch: {0}")]
-    AutoLaunchEnableError(String),
-    #[error("Failed to disable auto-launch: {0}")]
-    AutoLaunchDisableError(String),
-    #[error("Failed to check auto-launch status: {0}")]
-    AutoLaunchCheckError(String),
 }
 
 impl AppError {

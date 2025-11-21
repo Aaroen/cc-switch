@@ -20,13 +20,6 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
       </header>
 
       <ToggleRow
-        title={t("settings.launchOnStartup")}
-        description={t("settings.launchOnStartupDescription")}
-        checked={!!settings.launchOnStartup}
-        onCheckedChange={(value) => onChange({ launchOnStartup: value })}
-      />
-
-      <ToggleRow
         title={t("settings.minimizeToTray")}
         description={t("settings.minimizeToTrayDescription")}
         checked={settings.minimizeToTrayOnClose}

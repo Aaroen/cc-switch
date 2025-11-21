@@ -49,9 +49,6 @@ pub struct AppSettings {
     pub gemini_config_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// 是否开机自启
-    #[serde(default)]
-    pub launch_on_startup: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub security: Option<SecuritySettings>,
     /// Claude 自定义端点列表
@@ -80,7 +77,6 @@ impl Default for AppSettings {
             codex_config_dir: None,
             gemini_config_dir: None,
             language: None,
-            launch_on_startup: false,
             security: None,
             custom_endpoints_claude: HashMap::new(),
             custom_endpoints_codex: HashMap::new(),

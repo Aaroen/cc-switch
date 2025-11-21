@@ -37,20 +37,3 @@ pub async fn set_app_config_dir_override(
     crate::app_store::set_app_config_dir_to_store(&app, path.as_deref())?;
     Ok(true)
 }
-
-/// 设置开机自启
-#[tauri::command]
-pub async fn set_auto_launch(enabled: bool) -> Result<bool, String> {
-    if enabled {
-        crate::auto_launch::enable_auto_launch().map_err(|e| e.to_string())?;
-    } else {
-        crate::auto_launch::disable_auto_launch().map_err(|e| e.to_string())?;
-    }
-    Ok(true)
-}
-
-/// 获取开机自启状态
-#[tauri::command]
-pub async fn get_auto_launch_status() -> Result<bool, String> {
-    crate::auto_launch::is_auto_launch_enabled().map_err(|e| e.to_string())
-}

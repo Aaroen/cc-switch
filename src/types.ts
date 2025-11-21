@@ -101,8 +101,6 @@ export interface Settings {
   geminiConfigDir?: string;
   // 首选语言（可选，默认中文）
   language?: "en" | "zh";
-  // 是否开机自启
-  launchOnStartup?: boolean;
   // Claude 自定义端点列表
   customEndpointsClaude?: Record<string, CustomEndpoint>;
   // Codex 自定义端点列表

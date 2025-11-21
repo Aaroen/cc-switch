@@ -1,6 +1,5 @@
 mod app_config;
 mod app_store;
-mod auto_launch;
 mod claude_mcp;
 mod claude_plugin;
 mod codex_config;
@@ -560,30 +559,6 @@ pub fn run() {
 
             // 启动阶段不再无条件保存,避免意外覆盖用户配置。
 
-            // 同步开机自启状态：以 settings.json 为准，保持系统项一致
-            {
-                let settings = crate::settings::get_settings();
-                let system_enabled = crate::auto_launch::is_auto_launch_enabled().unwrap_or(false);
-
-                if settings.launch_on_startup != system_enabled {
-                    log::info!(
-                        "开机自启状态不一致：settings={}, system={}，以 settings 为准",
-                        settings.launch_on_startup,
-                        system_enabled
-                    );
-
-                    let sync_result = if settings.launch_on_startup {
-                        crate::auto_launch::enable_auto_launch()
-                    } else {
-                        crate::auto_launch::disable_auto_launch()
-                    };
-
-                    if let Err(e) = sync_result {
-                        log::warn!("同步开机自启状态失败: {}", e);
-                    }
-                }
-            }
-
             // 注册 deep-link URL 处理器（使用正确的 DeepLinkExt API）
             log::info!("=== Registering deep-link URL handler ===");
 
@@ -678,8 +653,6 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::restart_app,
-            commands::set_auto_launch,
-            commands::get_auto_launch_status,
             commands::check_for_updates,
             commands::is_portable_mode,
             commands::get_claude_plugin_status,
