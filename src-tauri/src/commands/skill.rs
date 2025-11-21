@@ -62,7 +62,7 @@ pub async fn install_skill(
                 .clone()
                 .unwrap_or_else(|| "main".to_string()),
             enabled: true,
-            skills_path: None, // 安装时使用默认路径
+            skills_path: skill.skills_path.clone(), // 使用技能记录的 skills_path
         };
 
         service

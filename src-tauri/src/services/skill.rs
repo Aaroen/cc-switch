@@ -32,6 +32,9 @@ pub struct Skill {
     /// 分支名称
     #[serde(rename = "repoBranch")]
     pub repo_branch: Option<String>,
+    /// 技能所在的子目录路径 (可选, 如 "skills")
+    #[serde(rename = "skillsPath")]
+    pub skills_path: Option<String>,
 }
 
 /// 仓库配置
@@ -234,6 +237,7 @@ impl SkillService {
                         repo_owner: Some(repo.owner.clone()),
                         repo_name: Some(repo.name.clone()),
                         repo_branch: Some(repo.branch.clone()),
+                        skills_path: repo.skills_path.clone(),
                     });
                 }
                 Err(e) => log::warn!("解析 {} 元数据失败: {}", skill_md.display(), e),
@@ -312,6 +316,7 @@ impl SkillService {
                             repo_owner: None,
                             repo_name: None,
                             repo_branch: None,
+                            skills_path: None,
                         });
                     }
                 }
@@ -442,12 +447,21 @@ impl SkillService {
         .await
         .map_err(|_| anyhow!("下载仓库 {}/{} 超时", repo.owner, repo.name))??;
 
-        // 复制到安装目录
-        let source = temp_dir.join(&directory);
+        // 根据 skills_path 确定源目录路径
+        let source = if let Some(ref skills_path) = repo.skills_path {
+            // 如果指定了 skills_path，源路径为: temp_dir/skills_path/directory
+            temp_dir.join(skills_path.trim_matches('/')).join(&directory)
+        } else {
+            // 否则源路径为: temp_dir/directory
+            temp_dir.join(&directory)
+        };
 
         if !source.exists() {
             let _ = fs::remove_dir_all(&temp_dir);
-            return Err(anyhow::anyhow!("技能目录不存在"));
+            return Err(anyhow::anyhow!(
+                "技能目录不存在: {}",
+                source.display()
+            ));
         }
 
         // 删除旧版本

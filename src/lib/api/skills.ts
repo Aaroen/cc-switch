@@ -10,6 +10,7 @@ export interface Skill {
   repoOwner?: string;
   repoName?: string;
   repoBranch?: string;
+  skillsPath?: string; // 技能所在的子目录路径，如 "skills"
 }
 
 export interface SkillRepo {
