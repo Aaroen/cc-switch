@@ -7,6 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::time::timeout;
 
+use crate::error::format_skill_error;
+
 /// 技能对象
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {
@@ -133,7 +135,11 @@ impl SkillService {
     }
 
     fn get_install_dir() -> Result<PathBuf> {
-        let home = dirs::home_dir().context("无法获取用户主目录")?;
+        let home = dirs::home_dir().context(format_skill_error(
+            "GET_HOME_DIR_FAILED",
+            &[],
+            Some("checkPermission"),
+        ))?;
         Ok(home.join(".claude").join("skills"))
     }
 }
@@ -173,9 +179,19 @@ impl SkillService {
     /// 从仓库获取技能列表
     async fn fetch_repo_skills(&self, repo: &SkillRepo) -> Result<Vec<Skill>> {
         // 为单个仓库加载增加整体超时，避免无效链接长时间阻塞
-        let temp_dir = timeout(std::time::Duration::from_secs(15), self.download_repo(repo))
+        let temp_dir = timeout(std::time::Duration::from_secs(60), self.download_repo(repo))
             .await
-            .map_err(|_| anyhow!("下载仓库 {}/{} 超时", repo.owner, repo.name))??;
+            .map_err(|_| {
+                anyhow!(format_skill_error(
+                    "DOWNLOAD_TIMEOUT",
+                    &[
+                        ("owner", &repo.owner),
+                        ("name", &repo.name),
+                        ("timeout", "60")
+                    ],
+                    Some("checkNetwork"),
+                ))
+            })??;
         let mut skills = Vec::new();
 
         // 确定要扫描的目录路径
@@ -379,7 +395,17 @@ impl SkillService {
         // 下载 ZIP
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            return Err(anyhow::anyhow!("下载失败: {}", response.status()));
+            let status = response.status().as_u16().to_string();
+            return Err(anyhow::anyhow!(format_skill_error(
+                "DOWNLOAD_FAILED",
+                &[("status", &status)],
+                match status.as_str() {
+                    "403" => Some("http403"),
+                    "404" => Some("http404"),
+                    "429" => Some("http429"),
+                    _ => Some("checkNetwork"),
+                },
+            )));
         }
 
         let bytes = response.bytes().await?;
@@ -394,7 +420,11 @@ impl SkillService {
             let name = first_file.name();
             name.split('/').next().unwrap_or("").to_string()
         } else {
-            return Err(anyhow::anyhow!("空的压缩包"));
+            return Err(anyhow::anyhow!(format_skill_error(
+                "EMPTY_ARCHIVE",
+                &[],
+                Some("checkRepoUrl"),
+            )));
         };
 
         // 解压所有文件
@@ -441,11 +471,21 @@ impl SkillService {
 
         // 下载仓库时增加总超时，防止无效链接导致长时间卡住安装过程
         let temp_dir = timeout(
-            std::time::Duration::from_secs(15),
+            std::time::Duration::from_secs(60),
             self.download_repo(&repo),
         )
         .await
-        .map_err(|_| anyhow!("下载仓库 {}/{} 超时", repo.owner, repo.name))??;
+        .map_err(|_| {
+            anyhow!(format_skill_error(
+                "DOWNLOAD_TIMEOUT",
+                &[
+                    ("owner", &repo.owner),
+                    ("name", &repo.name),
+                    ("timeout", "60")
+                ],
+                Some("checkNetwork"),
+            ))
+        })??;
 
         // 根据 skills_path 确定源目录路径
         let source = if let Some(ref skills_path) = repo.skills_path {
@@ -458,10 +498,11 @@ impl SkillService {
 
         if !source.exists() {
             let _ = fs::remove_dir_all(&temp_dir);
-            return Err(anyhow::anyhow!(
-                "技能目录不存在: {}",
-                source.display()
-            ));
+            return Err(anyhow::anyhow!(format_skill_error(
+                "SKILL_DIR_NOT_FOUND",
+                &[("path", &source.display().to_string())],
+                Some("checkRepoUrl"),
+            )));
         }
 
         // 删除旧版本

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { SkillCard } from "./SkillCard";
 import { RepoManager } from "./RepoManager";
 import { skillsApi, type Skill, type SkillRepo } from "@/lib/api/skills";
+import { formatSkillError } from "@/lib/errors/skillErrorParser";
 
 interface SkillsPageProps {
   onClose?: () => void;
@@ -27,9 +28,22 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
         afterLoad(data);
       }
     } catch (error) {
-      toast.error(t("skills.loadFailed"), {
-        description: error instanceof Error ? error.message : t("common.error"),
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // 传入 "skills.loadFailed" 作为标题
+      const { title, description } = formatSkillError(
+        errorMessage,
+        t,
+        "skills.loadFailed"
+      );
+
+      toast.error(title, {
+        description,
+        duration: 8000,
       });
+
+      console.error("Load skills failed:", error);
     } finally {
       setLoading(false);
     }
@@ -54,8 +68,26 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
       toast.success(t("skills.installSuccess", { name: directory }));
       await loadSkills();
     } catch (error) {
-      toast.error(t("skills.installFailed"), {
-        description: error instanceof Error ? error.message : t("common.error"),
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // 使用错误解析器格式化错误，传入 "skills.installFailed"
+      const { title, description } = formatSkillError(
+        errorMessage,
+        t,
+        "skills.installFailed"
+      );
+
+      toast.error(title, {
+        description,
+        duration: 10000, // 延长显示时间让用户看清
+      });
+
+      // 打印到控制台方便调试
+      console.error("Install skill failed:", {
+        directory,
+        error,
+        message: errorMessage,
       });
     }
   };
@@ -66,8 +98,25 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
       toast.success(t("skills.uninstallSuccess", { name: directory }));
       await loadSkills();
     } catch (error) {
-      toast.error(t("skills.uninstallFailed"), {
-        description: error instanceof Error ? error.message : t("common.error"),
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // 使用错误解析器格式化错误，传入 "skills.uninstallFailed"
+      const { title, description } = formatSkillError(
+        errorMessage,
+        t,
+        "skills.uninstallFailed"
+      );
+
+      toast.error(title, {
+        description,
+        duration: 10000,
+      });
+
+      console.error("Uninstall skill failed:", {
+        directory,
+        error,
+        message: errorMessage,
       });
     }
   };

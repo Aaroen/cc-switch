@@ -1,3 +1,4 @@
+use crate::error::format_skill_error;
 use crate::services::skill::SkillState;
 use crate::services::{Skill, SkillRepo, SkillService};
 use crate::store::AppState;
@@ -45,18 +46,36 @@ pub async fn install_skill(
     let skill = skills
         .iter()
         .find(|s| s.directory.eq_ignore_ascii_case(&directory))
-        .ok_or_else(|| "技能不存在".to_string())?;
+        .ok_or_else(|| {
+            format_skill_error(
+                "SKILL_NOT_FOUND",
+                &[("directory", &directory)],
+                Some("checkRepoUrl"),
+            )
+        })?;
 
     if !skill.installed {
         let repo = SkillRepo {
             owner: skill
                 .repo_owner
                 .clone()
-                .ok_or_else(|| "缺少仓库信息".to_string())?,
+                .ok_or_else(|| {
+                    format_skill_error(
+                        "MISSING_REPO_INFO",
+                        &[("directory", &directory), ("field", "owner")],
+                        None,
+                    )
+                })?,
             name: skill
                 .repo_name
                 .clone()
-                .ok_or_else(|| "缺少仓库信息".to_string())?,
+                .ok_or_else(|| {
+                    format_skill_error(
+                        "MISSING_REPO_INFO",
+                        &[("directory", &directory), ("field", "name")],
+                        None,
+                    )
+                })?,
             branch: skill
                 .repo_branch
                 .clone()
