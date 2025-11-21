@@ -126,6 +126,7 @@ export function useSettings(): UseSettingsResult {
       const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
       const previousCodexDir = sanitizeDir(data?.codexConfigDir);
       const previousGeminiDir = sanitizeDir(data?.geminiConfigDir);
+      const previousAutoLaunch = data?.launchOnStartup ?? false;
 
       const payload: Settings = {
         ...settings,
@@ -138,6 +139,20 @@ export function useSettings(): UseSettingsResult {
       await saveMutation.mutateAsync(payload);
 
       await settingsApi.setAppConfigDirOverride(sanitizedAppDir ?? null);
+
+      // 如果开机自启状态改变，调用系统 API
+      if (payload.launchOnStartup !== previousAutoLaunch) {
+        try {
+          await settingsApi.setAutoLaunch(payload.launchOnStartup);
+        } catch (error) {
+          console.error("Failed to update auto-launch:", error);
+          toast.error(
+            t("settings.autoLaunchFailed", {
+              defaultValue: "设置开机自启失败",
+            }),
+          );
+        }
+      }
 
       try {
         if (payload.enableClaudePluginIntegration) {
