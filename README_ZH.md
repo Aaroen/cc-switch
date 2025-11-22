@@ -10,9 +10,11 @@
 
 <a href="https://trendshift.io/repositories/15372" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15372" alt="farion1231%2Fcc-switch | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[English](README.md) | 中文 | [更新日志](CHANGELOG.md)
+[English](README.md) | 中文 | [更新日志](CHANGELOG.md) | [📋 v3.7.0 发布说明](docs/release-note-v3.7.0-zh.md)
 
-一个用于管理和切换 Claude Code 与 Codex 不同供应商配置、MCP的桌面应用。
+**从供应商切换器到 AI CLI 一体化管理平台**
+
+统一管理 Claude Code、Codex 与 Gemini CLI 的供应商配置、MCP 服务器、Skills 扩展和系统提示词。
 
 </div>
 
@@ -33,6 +35,12 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 <td width="180"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="150"></td>
 <td>感谢 PackyCode 赞助了本项目！PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode 为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.com/register?aff=cc-switch">此链接</a>注册并在充值时填写"cc-switch"优惠码，可以享受9折优惠。</td>
 </tr>
+
+<tr>
+<td width="180"><img src="assets/partners/logos/sds-zh.png" alt="ShanDianShuo" width="150"></td>
+<td>感谢闪电说赞助了本项目！闪电说是本地优先的 AI 语音输入法：毫秒级响应，数据不离设备；打字速度提升 4 倍，AI 智能纠错；绝对隐私安全，完全免费，配合 Claude Code 写代码效率翻倍！支持 Mac/Win 双平台，<a href="shandianshuo.cn">免费下载</a></td>
+</tr>
+
 </table>
 
 ## 界面预览
@@ -45,10 +53,47 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 
 ### 当前版本：v3.7.0 | [完整更新日志](CHANGELOG.md)
 
+**v3.7.0 重大更新（2025-11-19）**
+
+**六大核心功能，18,000+ 行新增代码**
+
+- **Gemini CLI 集成**
+  - 第三个支持的 AI CLI（Claude Code / Codex / Gemini）
+  - 双文件配置支持（`.env` + `settings.json`）
+  - 完整 MCP 服务器管理
+  - 预设：Google Official (OAuth) / PackyCode / 自定义
+
+- **Claude Skills 管理系统**
+  - 从 GitHub 仓库自动扫描技能（预配置 3 个精选仓库）
+  - 一键安装/卸载到 `~/.claude/skills/`
+  - 自定义仓库支持 + 子目录扫描
+  - 完整生命周期管理（发现/安装/更新）
+
+- **Prompts 管理系统**
+  - 多预设系统提示词管理（无限数量，快速切换）
+  - 跨应用支持（Claude: `CLAUDE.md` / Codex: `AGENTS.md` / Gemini: `GEMINI.md`）
+  - Markdown 编辑器（CodeMirror 6 + 实时预览）
+  - 智能回填保护，保留手动修改
+
+- **MCP v3.7.0 统一架构**
+  - 单一面板管理三个应用的 MCP 服务器
+  - 新增 SSE (Server-Sent Events) 传输类型
+  - 智能 JSON 解析器 + Codex TOML 格式自动修正
+  - 统一导入/导出 + 双向同步
+
+- **深度链接协议**
+  - `ccswitch://` 协议注册（全平台）
+  - 通过共享链接一键导入供应商配置
+  - 安全验证 + 生命周期集成
+
+- **环境变量冲突检测**
+  - 自动检测跨应用配置冲突（Claude/Codex/Gemini/MCP）
+  - 可视化冲突指示器 + 解决建议
+  - 覆盖警告 + 更改前备份
+
 **核心功能**
 
 - **供应商管理**：一键切换 Claude Code、Codex 与 Gemini 的 API 配置
-- **MCP 集成**：集中管理 MCP 服务器，支持 stdio/http 类型和实时同步
 - **速度测试**：测量 API 端点延迟，可视化连接质量指示器
 - **导入导出**：备份和恢复配置，自动轮换（保留最近 10 个）
 - **国际化支持**：完整的中英文本地化（UI、错误、托盘）
@@ -61,7 +106,6 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 - 细粒度模型配置（四层：Haiku/Sonnet/Opus/自定义）
 - WSL 环境支持，配置目录切换自动同步
 - 100% hooks 测试覆盖 & 完整架构重构
-- 新增预设：DMXAPI、Azure Codex、AnyRouter、AiHubMix、MiniMax
 
 **系统功能**
 
@@ -129,9 +173,36 @@ paru -S cc-switch-bin
 ### MCP 管理
 
 - **位置**：点击右上角"MCP"按钮
-- **添加服务器**：使用内置模板（mcp-fetch、mcp-filesystem）或自定义配置
+- **添加服务器**：
+  - 使用内置模板（mcp-fetch、mcp-filesystem 等）
+  - 支持 stdio / http / sse 三种传输类型
+  - 为不同应用配置独立的 MCP 服务器
 - **启用/禁用**：切换开关以控制哪些服务器同步到 live 配置
-- **同步**：启用的服务器自动同步到 `~/.claude.json`（Claude）或 `~/.codex/config.toml`（Codex）
+- **同步**：启用的服务器自动同步到各应用的 live 文件
+- **导入/导出**：支持从 Claude/Codex/Gemini 配置文件导入现有 MCP 服务器
+
+### Skills 管理（v3.7.0 新增）
+
+- **位置**：点击右上角"Skills"按钮
+- **发现技能**：
+  - 自动扫描预配置的 GitHub 仓库（Anthropic 官方、ComposioHQ、社区等）
+  - 添加自定义仓库（支持子目录扫描）
+- **安装技能**：点击"安装"一键安装到 `~/.claude/skills/`
+- **卸载技能**：点击"卸载"安全移除并清理状态
+- **管理仓库**：添加/删除自定义 GitHub 仓库
+
+### Prompts 管理（v3.7.0 新增）
+
+- **位置**：点击右上角"Prompts"按钮
+- **创建预设**：
+  - 创建无限数量的系统提示词预设
+  - 使用 Markdown 编辑器编写提示词（语法高亮 + 实时预览）
+- **切换预设**：选择预设 → 点击"激活"立即应用
+- **同步机制**：
+  - Claude: `~/.claude/CLAUDE.md`
+  - Codex: `~/.codex/AGENTS.md`
+  - Gemini: `~/.gemini/GEMINI.md`
+- **保护机制**：切换前自动保存当前提示词内容，保留手动修改
 
 ### 配置文件
 
@@ -149,13 +220,15 @@ paru -S cc-switch-bin
 
 **Gemini**
 
-- Live 配置：`~/.gemini/.env`（API Key）+ `~/.gemini/settings.json`（保存认证模式，支持托盘快速切换）
-- API key 字段：`.env` 文件中的 `GEMINI_API_KEY`
-- 托盘快速切换：每次切换供应商都会重写 `~/.gemini/.env`，Gemini CLI 无需额外操作即可使用新配置
+- Live 配置：`~/.gemini/.env`（API Key）+ `~/.gemini/settings.json`（保存认证模式）
+- API key 字段：`.env` 文件中的 `GEMINI_API_KEY` 或 `GOOGLE_GEMINI_API_KEY`
+- 环境变量：支持 `GOOGLE_GEMINI_BASE_URL`、`GEMINI_MODEL` 等自定义变量
+- MCP 服务器：`~/.gemini/settings.json` → `mcpServers`
+- 托盘快速切换：每次切换供应商都会重写 `~/.gemini/.env`，无需重启 Gemini CLI 即可生效
 
 **CC Switch 存储**
 
-- 主配置（SSOT）：`~/.cc-switch/config.json`
+- 主配置（SSOT）：`~/.cc-switch/config.json`（包含供应商、MCP、Prompts 预设等）
 - 设置：`~/.cc-switch/settings.json`
 - 备份：`~/.cc-switch/backups/`（自动轮换，保留 10 个）
 
