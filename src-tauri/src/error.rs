@@ -116,6 +116,6 @@ pub fn format_skill_error(
 
     serde_json::to_string(&error_obj).unwrap_or_else(|_| {
         // 如果 JSON 序列化失败，返回简单格式
-        format!("ERROR:{}", code)
+        format!("ERROR:{code}")
     })
 }

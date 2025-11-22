@@ -20,6 +20,9 @@ export interface Provider {
   isPartner?: boolean;
   // 可选：供应商元数据（仅存于 ~/.cc-switch/config.json，不写入 live 配置）
   meta?: ProviderMeta;
+  // 图标配置
+  icon?: string; // 图标名称（如 "openai", "anthropic"）
+  iconColor?: string; // 图标颜色（Hex 格式，如 "#00A67E"）
 }
 
 export interface AppConfig {
@@ -52,6 +55,14 @@ export interface UsageScript {
   accessToken?: string; // 访问令牌（NewAPI 模板使用）
   userId?: string; // 用户ID（NewAPI 模板使用）
   autoQueryInterval?: number; // 自动查询间隔（单位：分钟，0 表示禁用）
+  autoIntervalMinutes?: number; // 自动查询间隔（分钟）- 别名字段
+  request?: {
+    // 请求配置
+    url?: string; // 请求 URL
+    method?: string; // HTTP 方法
+    headers?: Record<string, string>; // 请求头
+    body?: any; // 请求体
+  };
 }
 
 // 单个套餐用量数据
@@ -101,6 +112,8 @@ export interface Settings {
   geminiConfigDir?: string;
   // 首选语言（可选，默认中文）
   language?: "en" | "zh";
+  // 是否开机自启
+  launchOnStartup?: boolean;
   // Claude 自定义端点列表
   customEndpointsClaude?: Record<string, CustomEndpoint>;
   // Codex 自定义端点列表

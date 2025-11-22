@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { MoveVertical, Copy } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   DraggableAttributes,
@@ -8,8 +8,8 @@ import type {
 import type { Provider } from "@/types";
 import type { AppId } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { ProviderActions } from "@/components/providers/ProviderActions";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import UsageFooter from "@/components/UsageFooter";
 
 interface DragHandleProps {
@@ -22,7 +22,6 @@ interface ProviderCardProps {
   provider: Provider;
   isCurrent: boolean;
   appId: AppId;
-  isEditMode?: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
   onDelete: (provider: Provider) => void;
@@ -71,7 +70,6 @@ export function ProviderCard({
   provider,
   isCurrent,
   appId,
-  isEditMode = false,
   onSwitch,
   onEdit,
   onDelete,
@@ -116,53 +114,40 @@ export function ProviderCard({
   return (
     <div
       className={cn(
-        "rounded-lg bg-card p-4 shadow-sm",
-        "transition-[border-color,background-color,box-shadow,ring] duration-200",
+        "glass-card relative overflow-hidden rounded-xl p-4 transition-all duration-300",
+        "group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] hover:border-primary/50",
         isCurrent
-          ? "border border-border-default bg-primary/5 ring-2 ring-blue-500/30 dark:ring-blue-400/30"
-          : "border border-border-default hover:border-border-hover",
+          ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+          : "hover:scale-[1.01]",
         dragHandleProps?.isDragging &&
-          "cursor-grabbing border-active border-border-dragging shadow-lg",
+          "cursor-grabbing border-primary shadow-lg scale-105 z-10",
       )}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
-          <div
+          <button
+            type="button"
             className={cn(
-              "flex items-center gap-1 overflow-hidden",
-              "transition-[max-width,opacity] duration-200 ease-in-out",
-              isEditMode ? "max-w-20 opacity-100" : "max-w-0 opacity-0",
+              "-ml-1.5 flex-shrink-0 cursor-grab active:cursor-grabbing p-1.5",
+              "text-muted-foreground/50 hover:text-muted-foreground transition-colors",
+              dragHandleProps?.isDragging && "cursor-grabbing",
             )}
-            aria-hidden={!isEditMode}
+            aria-label={t("provider.dragHandle")}
+            {...(dragHandleProps?.attributes ?? {})}
+            {...(dragHandleProps?.listeners ?? {})}
           >
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className={cn(
-                "flex-shrink-0 cursor-grab active:cursor-grabbing",
-                dragHandleProps?.isDragging && "cursor-grabbing",
-              )}
-              aria-label={t("provider.dragHandle")}
-              disabled={!isEditMode}
-              {...(dragHandleProps?.attributes ?? {})}
-              {...(dragHandleProps?.listeners ?? {})}
-            >
-              <MoveVertical className="h-4 w-4" />
-            </Button>
+            <GripVertical className="h-4 w-4" />
+          </button>
 
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => onDuplicate(provider)}
-              disabled={!isEditMode}
-              aria-label={t("provider.duplicate")}
-              title={t("provider.duplicate")}
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
+          {/* 供应商图标 */}
+          <div className="h-9 w-9 rounded-lg bg-white/5 flex items-center justify-center border border-gray-200 dark:border-white/10 group-hover:scale-105 transition-transform duration-300">
+            <ProviderIcon
+              icon={provider.icon}
+              name={provider.name}
+              color={provider.iconColor}
+              size={26}
+            />
           </div>
 
           <div className="space-y-1">
@@ -210,23 +195,28 @@ export function ProviderCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <UsageFooter
-            provider={provider}
-            providerId={provider.id}
-            appId={appId}
-            usageEnabled={usageEnabled}
-            isCurrent={isCurrent}
-            inline={true}
-          />
+        <div className="relative flex items-center ml-auto">
+          <div className="ml-auto transition-transform duration-200 group-hover:-translate-x-[12.25rem] group-focus-within:-translate-x-[12.25rem] sm:group-hover:-translate-x-[14.25rem] sm:group-focus-within:-translate-x-[14.25rem]">
+            <UsageFooter
+              provider={provider}
+              providerId={provider.id}
+              appId={appId}
+              usageEnabled={usageEnabled}
+              isCurrent={isCurrent}
+              inline={true}
+            />
+          </div>
 
-          <ProviderActions
-            isCurrent={isCurrent}
-            onSwitch={() => onSwitch(provider)}
-            onEdit={() => onEdit(provider)}
-            onConfigureUsage={() => onConfigureUsage(provider)}
-            onDelete={() => onDelete(provider)}
-          />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-all duration-200 translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
+            <ProviderActions
+              isCurrent={isCurrent}
+              onSwitch={() => onSwitch(provider)}
+              onEdit={() => onEdit(provider)}
+              onDuplicate={() => onDuplicate(provider)}
+              onConfigureUsage={() => onConfigureUsage(provider)}
+              onDelete={() => onDelete(provider)}
+            />
+          </div>
         </div>
       </div>
     </div>

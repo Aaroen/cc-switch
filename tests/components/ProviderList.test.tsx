@@ -58,9 +58,6 @@ vi.mock("@/components/providers/ProviderCard", () => ({
         <span data-testid={`is-current-${provider.id}`}>
           {props.isCurrent ? "current" : "inactive"}
         </span>
-        <span data-testid={`edit-mode-${provider.id}`}>
-          {props.isEditMode ? "edit-mode" : "view-mode"}
-        </span>
         <span data-testid={`drag-attr-${provider.id}`}>
           {props.dragHandleProps?.attributes?.["data-dnd-id"] ?? "none"}
         </span>
@@ -190,7 +187,6 @@ describe("ProviderList Component", () => {
         providers={{ a: providerA, b: providerB }}
         currentProviderId="b"
         appId="claude"
-        isEditMode
         onSwitch={handleSwitch}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -205,11 +201,8 @@ describe("ProviderList Component", () => {
     expect(providerCardRenderSpy.mock.calls[0][0].provider.id).toBe("b");
     expect(providerCardRenderSpy.mock.calls[1][0].provider.id).toBe("a");
 
-    // Verify current provider marker and edit mode pass-through
-    expect(
-      providerCardRenderSpy.mock.calls[0][0].isCurrent,
-    ).toBe(true);
-    expect(providerCardRenderSpy.mock.calls[0][0].isEditMode).toBe(true);
+    // Verify current provider marker
+    expect(providerCardRenderSpy.mock.calls[0][0].isCurrent).toBe(true);
 
     // Drag attributes from useSortable
     expect(

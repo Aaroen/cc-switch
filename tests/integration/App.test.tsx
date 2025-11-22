@@ -30,11 +30,19 @@ vi.mock("@/components/providers/ProviderList", () => ({
     <div>
       <div data-testid="provider-list">{JSON.stringify(providers)}</div>
       <div data-testid="current-provider">{currentProviderId}</div>
-      <button onClick={() => onSwitch(providers[currentProviderId])}>switch</button>
+      <button onClick={() => onSwitch(providers[currentProviderId])}>
+        switch
+      </button>
       <button onClick={() => onEdit(providers[currentProviderId])}>edit</button>
-      <button onClick={() => onDuplicate(providers[currentProviderId])}>duplicate</button>
-      <button onClick={() => onConfigureUsage(providers[currentProviderId])}>usage</button>
-      <button onClick={() => onOpenWebsite("https://example.com")}>open-website</button>
+      <button onClick={() => onDuplicate(providers[currentProviderId])}>
+        duplicate
+      </button>
+      <button onClick={() => onConfigureUsage(providers[currentProviderId])}>
+        usage
+      </button>
+      <button onClick={() => onOpenWebsite("https://example.com")}>
+        open-website
+      </button>
       <button onClick={() => onCreate?.()}>create</button>
     </div>
   ),
@@ -105,7 +113,9 @@ vi.mock("@/components/settings/SettingsDialog", () => ({
   SettingsDialog: ({ open, onOpenChange, onImportSuccess }: any) =>
     open ? (
       <div data-testid="settings-dialog">
-        <button onClick={() => onImportSuccess?.()}>trigger-import-success</button>
+        <button onClick={() => onImportSuccess?.()}>
+          trigger-import-success
+        </button>
         <button onClick={() => onOpenChange(false)}>close-settings</button>
       </div>
     ) : (
@@ -162,7 +172,9 @@ describe("App integration with MSW", () => {
     renderApp();
 
     await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain("claude-1"),
+      expect(screen.getByTestId("provider-list").textContent).toContain(
+        "claude-1",
+      ),
     );
 
     fireEvent.click(screen.getByText("update-badge"));
@@ -172,7 +184,9 @@ describe("App integration with MSW", () => {
 
     fireEvent.click(screen.getByText("switch-codex"));
     await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain("codex-1"),
+      expect(screen.getByTestId("provider-list").textContent).toContain(
+        "codex-1",
+      ),
     );
 
     fireEvent.click(screen.getByText("usage"));
@@ -184,14 +198,18 @@ describe("App integration with MSW", () => {
     expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByText("confirm-add"));
     await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(/New codex Provider/),
+      expect(screen.getByTestId("provider-list").textContent).toMatch(
+        /New codex Provider/,
+      ),
     );
 
     fireEvent.click(screen.getByText("edit"));
     expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByText("confirm-edit"));
     await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(/-edited/),
+      expect(screen.getByTestId("provider-list").textContent).toMatch(
+        /-edited/,
+      ),
     );
 
     fireEvent.click(screen.getByText("switch"));
@@ -202,7 +220,10 @@ describe("App integration with MSW", () => {
 
     fireEvent.click(screen.getByText("open-website"));
 
-    emitTauriEvent("provider-switched", { appType: "codex", providerId: "codex-2" });
+    emitTauriEvent("provider-switched", {
+      appType: "codex",
+      providerId: "codex-2",
+    });
 
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(toastSuccessMock).toHaveBeenCalled();

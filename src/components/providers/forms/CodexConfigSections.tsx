@@ -1,8 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Wand2 } from "lucide-react";
-import { toast } from "sonner";
-import { formatJSON } from "@/utils/formatters";
+import JsonEditor from "@/components/JsonEditor";
 
 interface CodexAuthSectionProps {
   value: string;
@@ -21,23 +19,27 @@ export const CodexAuthSection: React.FC<CodexAuthSectionProps> = ({
   error,
 }) => {
   const { t } = useTranslation();
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const handleFormat = () => {
-    if (!value.trim()) return;
+  useEffect(() => {
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
 
-    try {
-      const formatted = formatJSON(value);
-      onChange(formatted);
-      toast.success(t("common.formatSuccess", { defaultValue: "格式化成功" }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast.error(
-        t("common.formatError", {
-          defaultValue: "格式化失败：{{error}}",
-          error: errorMessage,
-        }),
-      );
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleChange = (newValue: string) => {
+    onChange(newValue);
+    if (onBlur) {
+      onBlur();
     }
   };
 
@@ -50,39 +52,19 @@ export const CodexAuthSection: React.FC<CodexAuthSectionProps> = ({
         {t("codexConfig.authJson")}
       </label>
 
-      <textarea
-        id="codexAuth"
+      <JsonEditor
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
+        onChange={handleChange}
         placeholder={t("codexConfig.authJsonPlaceholder")}
+        darkMode={isDarkMode}
         rows={6}
-        className="w-full px-3 py-2 border border-border-default  dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20  transition-colors resize-y min-h-[8rem]"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        lang="en"
-        inputMode="text"
-        data-gramm="false"
-        data-gramm_editor="false"
-        data-enable-grammarly="false"
+        showValidation={true}
+        language="json"
       />
 
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handleFormat}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-        >
-          <Wand2 className="w-3.5 h-3.5" />
-          {t("common.format", { defaultValue: "格式化" })}
-        </button>
-
-        {error && (
-          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-        )}
-      </div>
+      {error && (
+        <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+      )}
 
       {!error && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -116,6 +98,22 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
   configError,
 }) => {
   const { t } = useTranslation();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
+
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="space-y-2">
@@ -154,22 +152,14 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
         </p>
       )}
 
-      <textarea
-        id="codexConfig"
+      <JsonEditor
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         placeholder=""
+        darkMode={isDarkMode}
         rows={8}
-        className="w-full px-3 py-2 border border-border-default  dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20  transition-colors resize-y min-h-[10rem]"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        lang="en"
-        inputMode="text"
-        data-gramm="false"
-        data-gramm_editor="false"
-        data-enable-grammarly="false"
+        showValidation={false}
+        language="javascript"
       />
 
       {configError && (

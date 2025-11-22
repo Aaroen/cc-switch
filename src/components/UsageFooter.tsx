@@ -60,7 +60,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   if (!usage.success) {
     if (inline) {
       return (
-        <div className="flex items-center gap-2 text-xs">
+        <div className="inline-flex items-center gap-2 text-xs rounded-lg border border-border-default bg-card px-3 py-2 shadow-sm">
           <div className="flex items-center gap-1.5 text-red-500 dark:text-red-400">
             <AlertCircle size={12} />
             <span>{t("usage.queryFailed")}</span>
@@ -68,7 +68,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
           <button
             onClick={() => refetch()}
             disabled={loading}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-50 flex-shrink-0"
             title={t("usage.refreshUsage")}
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -78,7 +78,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
     }
 
     return (
-      <div className="mt-3 pt-3 border-t border-border-default ">
+      <div className="mt-3 rounded-xl border border-border-default bg-card px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
             <AlertCircle size={14} />
@@ -110,29 +110,32 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
     const isExpired = firstUsage.isValid === false;
 
     return (
-      <div className="flex flex-col gap-1 text-xs flex-shrink-0">
-        {/* 第一行：刷新时间 + 刷新按钮 */}
+      <div className="flex flex-col items-end gap-1 text-xs whitespace-nowrap flex-shrink-0">
+        {/* 第一行：更新时间和刷新按钮 */}
         <div className="flex items-center gap-2 justify-end">
           {/* 上次查询时间 */}
-          {lastQueriedAt && (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
-              <Clock size={10} />
-              {formatRelativeTime(lastQueriedAt, now, t)}
-            </span>
-          )}
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+            <Clock size={10} />
+            {lastQueriedAt
+              ? formatRelativeTime(lastQueriedAt, now, t)
+              : t("usage.never", { defaultValue: "从未更新" })}
+          </span>
 
           {/* 刷新按钮 */}
           <button
-            onClick={() => refetch()}
+            onClick={(e) => {
+              e.stopPropagation();
+              refetch();
+            }}
             disabled={loading}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex-shrink-0 text-gray-400 dark:text-gray-500"
             title={t("usage.refreshUsage")}
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* 第二行：已用 + 剩余 + 单位 */}
+        {/* 第二行：用量和剩余 */}
         <div className="flex items-center gap-2">
           {/* 已用 */}
           {firstUsage.used !== undefined && (
@@ -153,14 +156,13 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
                 {t("usage.remaining")}
               </span>
               <span
-                className={`font-semibold tabular-nums ${
-                  isExpired
+                className={`font-semibold tabular-nums ${isExpired
                     ? "text-red-500 dark:text-red-400"
                     : firstUsage.remaining <
-                        (firstUsage.total || firstUsage.remaining) * 0.1
+                      (firstUsage.total || firstUsage.remaining) * 0.1
                       ? "text-orange-500 dark:text-orange-400"
                       : "text-green-600 dark:text-green-400"
-                }`}
+                  }`}
               >
                 {firstUsage.remaining.toFixed(2)}
               </span>
@@ -179,7 +181,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-border-default ">
+    <div className="mt-3 rounded-xl border border-border-default bg-card px-4 py-3 shadow-sm">
       {/* 标题行：包含刷新按钮和自动查询时间 */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
@@ -196,7 +198,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
           <button
             onClick={() => refetch()}
             disabled={loading}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-50"
             title={t("usage.refreshUsage")}
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -308,13 +310,12 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
               {t("usage.remaining")}
             </span>
             <span
-              className={`font-semibold tabular-nums ${
-                isExpired
-                  ? "text-red-500 dark:text-red-400"
-                  : remaining < (total || remaining) * 0.1
-                    ? "text-orange-500 dark:text-orange-400"
-                    : "text-green-600 dark:text-green-400"
-              }`}
+              className={`font-semibold tabular-nums ${isExpired
+                ? "text-red-500 dark:text-red-400"
+                : remaining < (total || remaining) * 0.1
+                  ? "text-orange-500 dark:text-orange-400"
+                  : "text-green-600 dark:text-green-400"
+                }`}
             >
               {remaining.toFixed(2)}
             </span>

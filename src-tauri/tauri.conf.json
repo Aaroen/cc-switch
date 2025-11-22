@@ -14,6 +14,7 @@
       {
         "label": "main",
         "title": "",
+        "titleBarStyle": "Overlay",
         "width": 1000,
         "height": 650,
         "minWidth": 900,

@@ -44,66 +44,73 @@ export function ImportExportSection({
 
   return (
     <section className="space-y-4">
-      <header className="space-y-1">
-        <h3 className="text-sm font-medium">{t("settings.importExport")}</h3>
-        <p className="text-xs text-muted-foreground">
+      <header className="space-y-2">
+        <h3 className="text-base font-semibold text-foreground">
+          {t("settings.importExport")}
+        </h3>
+        <p className="text-sm text-muted-foreground">
           {t("settings.importExportHint")}
         </p>
       </header>
 
-      <div className="space-y-3 rounded-lg border border-border-default p-4">
-        <Button
-          type="button"
-          className="w-full"
-          variant="secondary"
-          onClick={onExport}
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {t("settings.exportConfig")}
-        </Button>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-4 rounded-xl glass-card p-6 border border-white/10">
+        {/* Import and Export Buttons Side by Side */}
+        <div className="grid grid-cols-2 gap-4 items-stretch">
+          {/* Import Button */}
+          <div className="relative">
             <Button
               type="button"
-              variant="outline"
-              className="flex-1 min-w-[180px]"
-              onClick={onSelectFile}
+              className={`w-full h-auto py-3 px-4 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white ${selectedFile && !isImporting ? "flex-col items-start" : "items-center"}`}
+              onClick={!selectedFile ? onSelectFile : onImport}
+              disabled={isImporting}
             >
-              <FolderOpen className="mr-2 h-4 w-4" />
-              {t("settings.selectConfigFile")}
-            </Button>
-            <Button
-              type="button"
-              disabled={!selectedFile || isImporting}
-              onClick={onImport}
-            >
-              {isImporting ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("settings.importing")}
+              <div className="flex items-center gap-2 w-full justify-center">
+                {isImporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                ) : selectedFile ? (
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                  <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span className="font-medium">
+                  {isImporting
+                    ? t("settings.importing")
+                    : selectedFile
+                      ? t("settings.import")
+                      : t("settings.selectConfigFile")}
                 </span>
-              ) : (
-                t("settings.import")
+              </div>
+              {selectedFile && !isImporting && (
+                <div className="mt-2 w-full text-left">
+                  <p className="text-xs font-mono text-white/80 truncate">
+                    📄 {selectedFileName}
+                  </p>
+                </div>
               )}
             </Button>
-            {selectedFile ? (
-              <Button type="button" variant="ghost" onClick={onClear}>
-                <XCircle className="mr-2 h-4 w-4" />
-                {t("common.clear")}
-              </Button>
-            ) : null}
+            {selectedFile && (
+              <button
+                type="button"
+                onClick={onClear}
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-colors z-10"
+                aria-label="Clear selection"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {selectedFile ? (
-            <p className="truncate rounded-md bg-muted/40 px-3 py-2 text-xs font-mono text-muted-foreground">
-              {selectedFileName}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {t("settings.noFileSelected")}
-            </p>
-          )}
+          {/* Export Button */}
+          <div>
+            <Button
+              type="button"
+              className="w-full h-full py-3 px-4 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white items-center"
+              onClick={onExport}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {t("settings.exportConfig")}
+            </Button>
+          </div>
         </div>
 
         <ImportStatusMessage
@@ -134,15 +141,19 @@ function ImportStatusMessage({
   }
 
   const baseClass =
-    "flex items-start gap-2 rounded-md border px-3 py-2 text-xs leading-relaxed";
+    "flex items-start gap-3 rounded-xl border p-4 text-sm leading-relaxed backdrop-blur-sm";
 
   if (status === "importing") {
     return (
-      <div className={`${baseClass} border-border-default bg-muted/40`}>
-        <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-muted-foreground" />
+      <div
+        className={`${baseClass} border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400`}
+      >
+        <Loader2 className="mt-0.5 h-5 w-5 flex-shrink-0 animate-spin" />
         <div>
-          <p className="font-medium">{t("settings.importing")}</p>
-          <p className="text-muted-foreground">{t("common.loading")}</p>
+          <p className="font-semibold">{t("settings.importing")}</p>
+          <p className="text-blue-600/80 dark:text-blue-400/80">
+            {t("common.loading")}
+          </p>
         </div>
       </div>
     );
@@ -151,17 +162,19 @@ function ImportStatusMessage({
   if (status === "success") {
     return (
       <div
-        className={`${baseClass} border-green-200 bg-green-100/70 text-green-700`}
+        className={`${baseClass} border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400`}
       >
-        <CheckCircle2 className="mt-0.5 h-4 w-4" />
-        <div className="space-y-1">
-          <p className="font-medium">{t("settings.importSuccess")}</p>
+        <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0" />
+        <div className="space-y-1.5">
+          <p className="font-semibold">{t("settings.importSuccess")}</p>
           {backupId ? (
-            <p className="text-xs">
+            <p className="text-xs text-green-600/80 dark:text-green-400/80">
               {t("settings.backupId")}: {backupId}
             </p>
           ) : null}
-          <p>{t("settings.autoReload")}</p>
+          <p className="text-green-600/80 dark:text-green-400/80">
+            {t("settings.autoReload")}
+          </p>
         </div>
       </div>
     );
@@ -170,12 +183,14 @@ function ImportStatusMessage({
   if (status === "partial-success") {
     return (
       <div
-        className={`${baseClass} border-yellow-200 bg-yellow-100/70 text-yellow-700`}
+        className={`${baseClass} border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400`}
       >
-        <AlertCircle className="mt-0.5 h-4 w-4" />
-        <div className="space-y-1">
-          <p className="font-medium">{t("settings.importPartialSuccess")}</p>
-          <p>{t("settings.importPartialHint")}</p>
+        <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+        <div className="space-y-1.5">
+          <p className="font-semibold">{t("settings.importPartialSuccess")}</p>
+          <p className="text-yellow-600/80 dark:text-yellow-400/80">
+            {t("settings.importPartialHint")}
+          </p>
         </div>
       </div>
     );
@@ -184,11 +199,13 @@ function ImportStatusMessage({
   const message = errorMessage || t("settings.importFailed");
 
   return (
-    <div className={`${baseClass} border-red-200 bg-red-100/70 text-red-600`}>
-      <AlertCircle className="mt-0.5 h-4 w-4" />
-      <div className="space-y-1">
-        <p className="font-medium">{t("settings.importFailed")}</p>
-        <p>{message}</p>
+    <div
+      className={`${baseClass} border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400`}
+    >
+      <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+      <div className="space-y-1.5">
+        <p className="font-semibold">{t("settings.importFailed")}</p>
+        <p className="text-red-600/80 dark:text-red-400/80">{message}</p>
       </div>
     </div>
   );

@@ -99,7 +99,7 @@ export function ProviderPresetSelector({
       return `${baseClass} bg-blue-500 text-white dark:bg-blue-600`;
     }
 
-    return `${baseClass} bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700`;
+    return `${baseClass} bg-accent text-muted-foreground hover:bg-accent/80`;
   };
 
   // 获取预设按钮的内联样式（用于自定义背景色）
@@ -128,7 +128,7 @@ export function ProviderPresetSelector({
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedPresetId === "custom"
               ? "bg-blue-500 text-white dark:bg-blue-600"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              : "bg-accent text-muted-foreground hover:bg-accent/80"
           }`}
         >
           {t("providerPreset.custom")}

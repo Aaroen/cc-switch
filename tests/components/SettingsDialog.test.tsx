@@ -1,7 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import "@testing-library/jest-dom";
 import { createContext, useContext } from "react";
-import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
@@ -122,12 +123,16 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-const TabsContext = createContext<{ value: string; onValueChange?: (value: string) => void }>({
+const TabsContext = createContext<{
+  value: string;
+  onValueChange?: (value: string) => void;
+}>({
   value: "general",
 });
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: any) => (open ? <div data-testid="dialog-root">{children}</div> : null),
+  Dialog: ({ open, children }: any) =>
+    open ? <div data-testid="dialog-root">{children}</div> : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogFooter: ({ children }: any) => <div>{children}</div>,
@@ -189,12 +194,20 @@ vi.mock("@/components/settings/DirectorySettings", () => ({
     onAppConfigChange,
   }: any) => (
     <div>
-      <button onClick={() => onBrowseDirectory("claude")}>browse-directory</button>
-      <button onClick={() => onResetDirectory("claude")}>reset-directory</button>
-      <button onClick={() => onDirectoryChange("codex", "/new/path")}>change-directory</button>
+      <button onClick={() => onBrowseDirectory("claude")}>
+        browse-directory
+      </button>
+      <button onClick={() => onResetDirectory("claude")}>
+        reset-directory
+      </button>
+      <button onClick={() => onDirectoryChange("codex", "/new/path")}>
+        change-directory
+      </button>
       <button onClick={() => onBrowseAppConfig()}>browse-app-config</button>
       <button onClick={() => onResetAppConfig()}>reset-app-config</button>
-      <button onClick={() => onAppConfigChange("/app/new")}>change-app-config</button>
+      <button onClick={() => onAppConfigChange("/app/new")}>
+        change-app-config
+      </button>
     </div>
   ),
 }));
@@ -205,16 +218,18 @@ vi.mock("@/components/settings/AboutSection", () => ({
 
 let settingsApi: any;
 
-describe("SettingsDialog Component", () => {
+describe("SettingsPage Component", () => {
   beforeEach(async () => {
     tMock.mockImplementation((key: string) => key);
     settingsMock = createSettingsMock();
     importExportMock = createImportExportMock();
     useImportExportSpy.mockReset();
-    useImportExportSpy.mockImplementation((options?: Record<string, unknown>) => {
-      lastUseImportExportOptions = options;
-      return importExportMock;
-    });
+    useImportExportSpy.mockImplementation(
+      (options?: Record<string, unknown>) => {
+        lastUseImportExportOptions = options;
+        return importExportMock;
+      },
+    );
     lastUseImportExportOptions = undefined;
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
@@ -229,7 +244,7 @@ describe("SettingsDialog Component", () => {
   it("should not render form content when loading", () => {
     settingsMock = createSettingsMock({ settings: null, isLoading: true });
 
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    render(<SettingsPage open={true} onOpenChange={vi.fn()} />);
 
     expect(screen.queryByText("language:zh")).not.toBeInTheDocument();
     expect(screen.getByText("settings.title")).toBeInTheDocument();
@@ -237,37 +252,47 @@ describe("SettingsDialog Component", () => {
 
   it("should reset import/export status when dialog transitions to open", () => {
     const { rerender } = render(
-      <SettingsDialog open={false} onOpenChange={vi.fn()} />,
+      <SettingsPage open={false} onOpenChange={vi.fn()} />,
     );
 
     importExportMock.resetStatus.mockClear();
 
-    rerender(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    rerender(<SettingsPage open={true} onOpenChange={vi.fn()} />);
 
     expect(importExportMock.resetStatus).toHaveBeenCalledTimes(1);
   });
 
   it("should render general and advanced tabs and trigger child callbacks", () => {
     const onOpenChange = vi.fn();
-    importExportMock = createImportExportMock({ selectedFile: "/tmp/config.json" });
+    importExportMock = createImportExportMock({
+      selectedFile: "/tmp/config.json",
+    });
 
-    render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
+    render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
 
     expect(screen.getByText("language:zh")).toBeInTheDocument();
     expect(screen.getByText("theme-settings")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("change-language"));
-    expect(settingsMock.updateSettings).toHaveBeenCalledWith({ language: "en" });
+    expect(settingsMock.updateSettings).toHaveBeenCalledWith({
+      language: "en",
+    });
 
     fireEvent.click(screen.getByText("window-settings"));
-    expect(settingsMock.updateSettings).toHaveBeenCalledWith({ minimizeToTrayOnClose: false });
+    expect(settingsMock.updateSettings).toHaveBeenCalledWith({
+      minimizeToTrayOnClose: false,
+    });
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
-    fireEvent.click(screen.getByRole("button", { name: "settings.selectConfigFile" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "settings.selectConfigFile" }),
+    );
 
     expect(importExportMock.selectImportFile).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "settings.exportConfig" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "settings.exportConfig" }),
+    );
     expect(importExportMock.exportConfig).toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "settings.import" }));
@@ -281,7 +306,7 @@ describe("SettingsDialog Component", () => {
     const onImportSuccess = vi.fn();
 
     render(
-      <SettingsDialog
+      <SettingsPage
         open={true}
         onOpenChange={vi.fn()}
         onImportSuccess={onImportSuccess}
@@ -303,7 +328,7 @@ describe("SettingsDialog Component", () => {
     const onOpenChange = vi.fn();
     importExportMock = createImportExportMock();
 
-    render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
+    render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
 
     fireEvent.click(screen.getByText("common.save"));
 
@@ -319,7 +344,7 @@ describe("SettingsDialog Component", () => {
   it("should reset settings and close dialog when clicking cancel", () => {
     const onOpenChange = vi.fn();
 
-    render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
+    render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
 
     fireEvent.click(screen.getByText("common.cancel"));
 
@@ -336,14 +361,18 @@ describe("SettingsDialog Component", () => {
       saveSettings: vi.fn().mockResolvedValue({ requiresRestart: true }),
     });
 
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    render(<SettingsPage open={true} onOpenChange={vi.fn()} />);
 
-    expect(await screen.findByText("settings.restartRequired")).toBeInTheDocument();
+    expect(
+      await screen.findByText("settings.restartRequired"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("settings.restartNow"));
 
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith("settings.devModeRestartHint");
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        "settings.devModeRestartHint",
+      );
     });
   });
 
@@ -351,9 +380,11 @@ describe("SettingsDialog Component", () => {
     const onOpenChange = vi.fn();
     settingsMock = createSettingsMock({ requiresRestart: true });
 
-    render(<SettingsDialog open={true} onOpenChange={onOpenChange} />);
+    render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
 
-    expect(await screen.findByText("settings.restartRequired")).toBeInTheDocument();
+    expect(
+      await screen.findByText("settings.restartRequired"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("settings.restartLater"));
 
@@ -368,7 +399,7 @@ describe("SettingsDialog Component", () => {
   });
 
   it("should trigger directory management callbacks inside advanced tab", () => {
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    render(<SettingsPage open={true} onOpenChange={vi.fn()} />);
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
 
@@ -379,7 +410,10 @@ describe("SettingsDialog Component", () => {
     expect(settingsMock.resetDirectory).toHaveBeenCalledWith("claude");
 
     fireEvent.click(screen.getByText("change-directory"));
-    expect(settingsMock.updateDirectory).toHaveBeenCalledWith("codex", "/new/path");
+    expect(settingsMock.updateDirectory).toHaveBeenCalledWith(
+      "codex",
+      "/new/path",
+    );
 
     fireEvent.click(screen.getByText("browse-app-config"));
     expect(settingsMock.browseAppConfigDir).toHaveBeenCalledTimes(1);

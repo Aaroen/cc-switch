@@ -1,15 +1,8 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import type { Provider, CustomEndpoint } from "@/types";
 import type { AppId } from "@/lib/api";
 import {
@@ -48,6 +41,8 @@ export function AddProviderDialog({
         notes: values.notes?.trim() || undefined,
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
+        icon: values.icon?.trim() || undefined,
+        iconColor: values.iconColor?.trim() || undefined,
         ...(values.presetCategory ? { category: values.presetCategory } : {}),
         ...(values.meta ? { meta: values.meta } : {}),
       };
@@ -58,8 +53,6 @@ export function AddProviderDialog({
 
       if (!hasCustomEndpoints) {
         // 收集端点候选（仅在缺少自定义端点时兜底）
-        // 1. 从预设配置中获取 endpointCandidates
-        // 2. 从当前配置中提取 baseUrl (ANTHROPIC_BASE_URL 或 Codex base_url)
         const urlSet = new Set<string>();
 
         const addUrl = (rawUrl?: string) => {
@@ -170,34 +163,40 @@ export function AddProviderDialog({
         ? t("provider.addCodexProvider")
         : t("provider.addGeminiProvider");
 
+  const footer = (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => onOpenChange(false)}
+        className="border-border/20 hover:bg-accent hover:text-accent-foreground"
+      >
+        {t("common.cancel")}
+      </Button>
+      <Button
+        type="submit"
+        form="provider-form"
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        {t("common.add")}
+      </Button>
+    </>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{submitLabel}</DialogTitle>
-          <DialogDescription>{t("provider.addProviderHint")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <ProviderForm
-            appId={appId}
-            submitLabel={t("common.add")}
-            onSubmit={handleSubmit}
-            onCancel={() => onOpenChange(false)}
-            showButtons={false}
-          />
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" form="provider-form">
-            <Plus className="h-4 w-4" />
-            {t("common.add")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FullScreenPanel
+      isOpen={open}
+      title={submitLabel}
+      onClose={() => onOpenChange(false)}
+      footer={footer}
+    >
+      <ProviderForm
+        appId={appId}
+        submitLabel={t("common.add")}
+        onSubmit={handleSubmit}
+        onCancel={() => onOpenChange(false)}
+        showButtons={false}
+      />
+    </FullScreenPanel>
   );
 }

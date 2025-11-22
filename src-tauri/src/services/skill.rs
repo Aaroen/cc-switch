@@ -490,7 +490,9 @@ impl SkillService {
         // 根据 skills_path 确定源目录路径
         let source = if let Some(ref skills_path) = repo.skills_path {
             // 如果指定了 skills_path，源路径为: temp_dir/skills_path/directory
-            temp_dir.join(skills_path.trim_matches('/')).join(&directory)
+            temp_dir
+                .join(skills_path.trim_matches('/'))
+                .join(&directory)
         } else {
             // 否则源路径为: temp_dir/directory
             temp_dir.join(&directory)

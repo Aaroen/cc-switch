@@ -27,7 +27,8 @@
     "formatSuccess": "Formatted successfully",
     "formatError": "Format failed: {{error}}",
     "copy": "Copy",
-    "view": "View"
+    "view": "View",
+    "back": "Back"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",
@@ -166,6 +167,9 @@
     "languageOptionEnglish": "English",
     "windowBehavior": "Window Behavior",
     "windowBehaviorHint": "Configure window minimize and Claude plugin integration policies.",
+    "launchOnStartup": "Launch on Startup",
+    "launchOnStartupDescription": "Automatically run CC Switch when system starts",
+    "autoLaunchFailed": "Failed to set auto-launch",
     "minimizeToTray": "Minimize to tray on close",
     "minimizeToTrayDescription": "When checked, clicking the close button will hide to system tray, otherwise the app will exit directly.",
     "enableClaudePluginIntegration": "Apply to Claude Code extension",
@@ -314,7 +318,8 @@
     "pleaseAddEndpoint": "Please add an endpoint first",
     "testUnavailable": "Speed test unavailable",
     "noResult": "No result returned",
-    "testFailed": "Speed test failed: {{error}}"
+    "testFailed": "Speed test failed: {{error}}",
+    "status": "Status: {{code}}"
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",
@@ -361,6 +366,9 @@
     "title": "Configure Usage Query",
     "enableUsageQuery": "Enable usage query",
     "presetTemplate": "Preset template",
+    "requestUrl": "Request URL",
+    "requestUrlPlaceholder": "e.g. https://api.example.com",
+    "method": "HTTP method",
     "templateCustom": "Custom",
     "templateGeneral": "General",
     "templateNewAPI": "NewAPI",
@@ -373,11 +381,14 @@
     "queryFailedMessage": "Query failed",
     "queryScript": "Query script (JavaScript)",
     "timeoutSeconds": "Timeout (seconds)",
+    "headers": "Headers",
+    "body": "Body",
     "timeoutHint": "Range: 2-30 seconds",
     "timeoutMustBeInteger": "Timeout must be an integer, decimal part ignored",
     "timeoutCannotBeNegative": "Timeout cannot be negative",
+    "autoIntervalMinutes": "Auto query interval (minutes)",
     "autoQueryInterval": "Auto Query Interval (minutes)",
-    "autoQueryIntervalHint": "0 to disable, recommend 5-60 minutes",
+    "autoQueryIntervalHint": "0 to disable; recommend 5-60 minutes",
     "intervalMustBeInteger": "Interval must be an integer, decimal part ignored",
     "intervalCannotBeNegative": "Interval cannot be negative",
     "intervalAdjusted": "Interval adjusted to {{value}} minutes",
@@ -398,6 +409,9 @@
     "formatSuccess": "Format successful",
     "formatFailed": "Format failed",
     "variablesHint": "Supported variables: {{apiKey}}, {{baseUrl}} | extractor function receives API response JSON object",
+    "scriptConfig": "Request configuration",
+    "extractorCode": "Extractor code",
+    "extractorHint": "Return object should include remaining quota fields",
     "fieldIsValid": "• isValid: Boolean, whether plan is valid",
     "fieldInvalidMessage": "• invalidMessage: String, reason for expiration (shown when isValid is false)",
     "fieldRemaining": "• remaining: Number, remaining quota",
@@ -739,6 +753,29 @@
     "parseError": "Failed to parse deep link",
     "importSuccess": "Import successful",
     "importSuccessDescription": "Provider \"{{name}}\" has been successfully imported",
-    "importError": "Failed to import"
+    "importError": "Failed to import",
+    "configSource": "Config Source",
+    "configEmbedded": "Embedded Config",
+    "configRemote": "Remote Config",
+    "configDetails": "Config Details",
+    "configUrl": "Config File URL",
+    "configMergeError": "Failed to merge configuration file"
+  },
+  "iconPicker": {
+    "search": "Search Icons",
+    "searchPlaceholder": "Enter icon name...",
+    "noResults": "No matching icons found",
+    "category": {
+      "aiProvider": "AI Providers",
+      "cloud": "Cloud Platforms",
+      "tool": "Dev Tools",
+      "other": "Other"
+    }
+  },
+  "providerIcon": {
+    "label": "Icon",
+    "colorLabel": "Icon Color",
+    "selectIcon": "Select Icon",
+    "preview": "Preview"
   }
 }

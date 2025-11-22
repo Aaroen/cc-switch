@@ -33,7 +33,13 @@ export interface UseSettingsResult {
   browseAppConfigDir: () => Promise<void>;
   resetDirectory: (app: AppId) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
-  saveSettings: () => Promise<SaveResult | null>;
+  saveSettings: (
+    overrides?: Partial<SettingsFormState>,
+    options?: { silent?: boolean },
+  ) => Promise<SaveResult | null>;
+  autoSaveSettings: (
+    updates: Partial<SettingsFormState>,
+  ) => Promise<SaveResult | null>;
   resetSettings: () => void;
   acknowledgeRestart: () => void;
 }
@@ -114,97 +120,220 @@ export function useSettings(): UseSettingsResult {
     setRequiresRestart,
   ]);
 
-  // 保存设置
-  const saveSettings = useCallback(async (): Promise<SaveResult | null> => {
-    if (!settings) return null;
-    try {
-      const sanitizedAppDir = sanitizeDir(appConfigDir);
-      const sanitizedClaudeDir = sanitizeDir(settings.claudeConfigDir);
-      const sanitizedCodexDir = sanitizeDir(settings.codexConfigDir);
-      const sanitizedGeminiDir = sanitizeDir(settings.geminiConfigDir);
-      const previousAppDir = initialAppConfigDir;
-      const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
-      const previousCodexDir = sanitizeDir(data?.codexConfigDir);
-      const previousGeminiDir = sanitizeDir(data?.geminiConfigDir);
-
-      const payload: Settings = {
-        ...settings,
-        claudeConfigDir: sanitizedClaudeDir,
-        codexConfigDir: sanitizedCodexDir,
-        geminiConfigDir: sanitizedGeminiDir,
-        language: settings.language,
-      };
-
-      await saveMutation.mutateAsync(payload);
-
-      await settingsApi.setAppConfigDirOverride(sanitizedAppDir ?? null);
+  // 即时保存设置（用于 General 标签页的实时更新）
+  // 保存基础配置 + 独立的系统 API 调用（开机自启）
+  const autoSaveSettings = useCallback(
+    async (updates: Partial<SettingsFormState>): Promise<SaveResult | null> => {
+      const mergedSettings = settings ? { ...settings, ...updates } : null;
+      if (!mergedSettings) return null;
 
       try {
-        if (payload.enableClaudePluginIntegration) {
-          await settingsApi.applyClaudePluginConfig({ official: false });
-        } else {
-          await settingsApi.applyClaudePluginConfig({ official: true });
+        const sanitizedClaudeDir = sanitizeDir(mergedSettings.claudeConfigDir);
+        const sanitizedCodexDir = sanitizeDir(mergedSettings.codexConfigDir);
+        const sanitizedGeminiDir = sanitizeDir(mergedSettings.geminiConfigDir);
+
+        const payload: Settings = {
+          ...mergedSettings,
+          claudeConfigDir: sanitizedClaudeDir,
+          codexConfigDir: sanitizedCodexDir,
+          geminiConfigDir: sanitizedGeminiDir,
+          language: mergedSettings.language,
+        };
+
+        // 保存到配置文件
+        await saveMutation.mutateAsync(payload);
+
+        // 如果开机自启状态改变，调用系统 API
+        if (
+          payload.launchOnStartup !== undefined &&
+          payload.launchOnStartup !== data?.launchOnStartup
+        ) {
+          try {
+            await settingsApi.setAutoLaunch(payload.launchOnStartup);
+          } catch (error) {
+            console.error("Failed to update auto-launch:", error);
+            toast.error(
+              t("settings.autoLaunchFailed", {
+                defaultValue: "设置开机自启失败",
+              }),
+            );
+          }
         }
-      } catch (error) {
-        console.warn(
-          "[useSettings] Failed to sync Claude plugin config",
-          error,
-        );
-        toast.error(
-          t("notifications.syncClaudePluginFailed", {
-            defaultValue: "同步 Claude 插件失败",
-          }),
-        );
-      }
 
-      try {
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("language", payload.language as Language);
-        }
-      } catch (error) {
-        console.warn(
-          "[useSettings] Failed to persist language preference",
-          error,
-        );
-      }
-
-      try {
-        await providersApi.updateTrayMenu();
-      } catch (error) {
-        console.warn("[useSettings] Failed to refresh tray menu", error);
-      }
-
-      // 如果 Claude/Codex/Gemini 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
-      const claudeDirChanged = sanitizedClaudeDir !== previousClaudeDir;
-      const codexDirChanged = sanitizedCodexDir !== previousCodexDir;
-      const geminiDirChanged = sanitizedGeminiDir !== previousGeminiDir;
-      if (claudeDirChanged || codexDirChanged || geminiDirChanged) {
-        const syncResult = await syncCurrentProvidersLiveSafe();
-        if (!syncResult.ok) {
+        // 持久化语言偏好
+        try {
+          if (typeof window !== "undefined" && updates.language) {
+            window.localStorage.setItem("language", updates.language);
+          }
+        } catch (error) {
           console.warn(
-            "[useSettings] Failed to sync current providers after directory change",
-            syncResult.error,
+            "[useSettings] Failed to persist language preference",
+            error,
           );
         }
+
+        // 更新托盘菜单
+        try {
+          await providersApi.updateTrayMenu();
+        } catch (error) {
+          console.warn("[useSettings] Failed to refresh tray menu", error);
+        }
+
+        return { requiresRestart: false };
+      } catch (error) {
+        console.error("[useSettings] Failed to auto-save settings", error);
+        toast.error(
+          t("notifications.settingsSaveFailed", {
+            defaultValue: "保存设置失败: {{error}}",
+            error: (error as Error)?.message ?? String(error),
+          }),
+        );
+        throw error;
       }
+    },
+    [data, saveMutation, settings, t],
+  );
 
-      const appDirChanged = sanitizedAppDir !== (previousAppDir ?? undefined);
-      setRequiresRestart(appDirChanged);
+  // 完整保存设置（用于 Advanced 标签页的手动保存）
+  // 包含所有系统 API 调用和完整的验证流程
+  const saveSettings = useCallback(
+    async (
+      overrides?: Partial<SettingsFormState>,
+      options?: { silent?: boolean },
+    ): Promise<SaveResult | null> => {
+      const mergedSettings = settings ? { ...settings, ...overrides } : null;
+      if (!mergedSettings) return null;
+      try {
+        const sanitizedAppDir = sanitizeDir(appConfigDir);
+        const sanitizedClaudeDir = sanitizeDir(mergedSettings.claudeConfigDir);
+        const sanitizedCodexDir = sanitizeDir(mergedSettings.codexConfigDir);
+        const sanitizedGeminiDir = sanitizeDir(mergedSettings.geminiConfigDir);
+        const previousAppDir = initialAppConfigDir;
+        const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
+        const previousCodexDir = sanitizeDir(data?.codexConfigDir);
+        const previousGeminiDir = sanitizeDir(data?.geminiConfigDir);
 
-      return { requiresRestart: appDirChanged };
-    } catch (error) {
-      console.error("[useSettings] Failed to save settings", error);
-      throw error;
-    }
-  }, [
-    appConfigDir,
-    data,
-    initialAppConfigDir,
-    saveMutation,
-    settings,
-    setRequiresRestart,
-    t,
-  ]);
+        const payload: Settings = {
+          ...mergedSettings,
+          claudeConfigDir: sanitizedClaudeDir,
+          codexConfigDir: sanitizedCodexDir,
+          geminiConfigDir: sanitizedGeminiDir,
+          language: mergedSettings.language,
+        };
+
+        await saveMutation.mutateAsync(payload);
+
+        await settingsApi.setAppConfigDirOverride(sanitizedAppDir ?? null);
+
+        // 只在开机自启状态真正改变时调用系统 API
+        if (
+          payload.launchOnStartup !== undefined &&
+          payload.launchOnStartup !== data?.launchOnStartup
+        ) {
+          try {
+            await settingsApi.setAutoLaunch(payload.launchOnStartup);
+          } catch (error) {
+            console.error("Failed to update auto-launch:", error);
+            toast.error(
+              t("settings.autoLaunchFailed", {
+                defaultValue: "设置开机自启失败",
+              }),
+            );
+          }
+        }
+
+        // 只在 Claude 插件集成状态真正改变时调用系统 API
+        if (
+          payload.enableClaudePluginIntegration !== undefined &&
+          payload.enableClaudePluginIntegration !==
+            data?.enableClaudePluginIntegration
+        ) {
+          try {
+            if (payload.enableClaudePluginIntegration) {
+              await settingsApi.applyClaudePluginConfig({ official: false });
+            } else {
+              await settingsApi.applyClaudePluginConfig({ official: true });
+            }
+          } catch (error) {
+            console.warn(
+              "[useSettings] Failed to sync Claude plugin config",
+              error,
+            );
+            toast.error(
+              t("notifications.syncClaudePluginFailed", {
+                defaultValue: "同步 Claude 插件失败",
+              }),
+            );
+          }
+        }
+
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(
+              "language",
+              payload.language as Language,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "[useSettings] Failed to persist language preference",
+            error,
+          );
+        }
+
+        try {
+          await providersApi.updateTrayMenu();
+        } catch (error) {
+          console.warn("[useSettings] Failed to refresh tray menu", error);
+        }
+
+        // 如果 Claude/Codex/Gemini 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
+        const claudeDirChanged = sanitizedClaudeDir !== previousClaudeDir;
+        const codexDirChanged = sanitizedCodexDir !== previousCodexDir;
+        const geminiDirChanged = sanitizedGeminiDir !== previousGeminiDir;
+        if (claudeDirChanged || codexDirChanged || geminiDirChanged) {
+          const syncResult = await syncCurrentProvidersLiveSafe();
+          if (!syncResult.ok) {
+            console.warn(
+              "[useSettings] Failed to sync current providers after directory change",
+              syncResult.error,
+            );
+          }
+        }
+
+        const appDirChanged = sanitizedAppDir !== (previousAppDir ?? undefined);
+        setRequiresRestart(appDirChanged);
+
+        if (!options?.silent) {
+          toast.success(
+            t("notifications.settingsSaved", {
+              defaultValue: "设置已保存",
+            }),
+          );
+        }
+
+        return { requiresRestart: appDirChanged };
+      } catch (error) {
+        console.error("[useSettings] Failed to save settings", error);
+        toast.error(
+          t("notifications.settingsSaveFailed", {
+            defaultValue: "保存设置失败: {{error}}",
+            error: (error as Error)?.message ?? String(error),
+          }),
+        );
+        throw error;
+      }
+    },
+    [
+      appConfigDir,
+      data,
+      initialAppConfigDir,
+      saveMutation,
+      settings,
+      setRequiresRestart,
+      t,
+    ],
+  );
 
   const isLoading = useMemo(
     () => isFormLoading || isDirectoryLoading || isMetadataLoading,
@@ -227,6 +356,7 @@ export function useSettings(): UseSettingsResult {
     resetDirectory,
     resetAppConfigDir,
     saveSettings,
+    autoSaveSettings,
     resetSettings,
     acknowledgeRestart,
   };

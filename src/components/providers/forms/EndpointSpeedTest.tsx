@@ -5,13 +5,7 @@ import type { AppId } from "@/lib/api";
 import { vscodeApi } from "@/lib/api/vscode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import type { CustomEndpoint, EndpointCandidate } from "@/types";
 
 // 端点测速超时配置（秒）
@@ -431,211 +425,218 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     onClose();
   }, [isEditMode, providerId, entries, initialCustomUrls, appId, onClose, t]);
 
-  return (
-    <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        zIndex="nested"
-        className="max-w-2xl max-h-[80vh] flex flex-col p-0"
+  if (!visible) return null;
+
+  const footer = (
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+        disabled={isSaving}
       >
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle>{t("endpointTest.title")}</DialogTitle>
-        </DialogHeader>
+        {t("common.cancel")}
+      </Button>
+      <Button
+        type="button"
+        onClick={handleSave}
+        disabled={isSaving}
+        className="gap-2"
+      >
+        {isSaving ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            {t("common.saving")}
+          </>
+        ) : (
+          <>
+            <Save className="w-4 h-4" />
+            {t("common.save")}
+          </>
+        )}
+      </Button>
+    </div>
+  );
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
-          {/* 测速控制栏 */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {entries.length} {t("endpointTest.endpoints")}
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                <input
-                  type="checkbox"
-                  checked={autoSelect}
-                  onChange={(event) => setAutoSelect(event.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-border-default "
-                />
-                {t("endpointTest.autoSelect")}
-              </label>
-              <Button
-                type="button"
-                onClick={runSpeedTest}
-                disabled={isTesting || !hasEndpoints}
-                size="sm"
-                className="h-7 w-20 gap-1.5 text-xs"
-              >
-                {isTesting ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {t("endpointTest.testing")}
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-3.5 w-3.5" />
-                    {t("endpointTest.testSpeed")}
-                  </>
-                )}
-              </Button>
-            </div>
+  return (
+    <FullScreenPanel
+      isOpen={visible}
+      title={t("endpointTest.title")}
+      onClose={onClose}
+      footer={footer}
+    >
+      <div className="glass rounded-xl p-6 border border-white/10 flex flex-col gap-6">
+        {/* 测速控制栏 */}
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            {entries.length} {t("endpointTest.endpoints")}
           </div>
-
-          {/* 添加输入 */}
-          <div className="space-y-1.5">
-            <div className="flex gap-2">
-              <Input
-                type="url"
-                value={customUrl}
-                placeholder={t("endpointTest.addEndpointPlaceholder")}
-                onChange={(event) => setCustomUrl(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleAddEndpoint();
-                  }
-                }}
-                className="flex-1"
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+              <input
+                type="checkbox"
+                checked={autoSelect}
+                onChange={(event) => setAutoSelect(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border-default bg-background text-primary focus:ring-2 focus:ring-primary/20"
               />
-              <Button
-                type="button"
-                onClick={handleAddEndpoint}
-                variant="outline"
-                size="icon"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {addError && (
-              <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
-                <AlertCircle className="h-3 w-3" />
-                {addError}
-              </div>
-            )}
+              {t("endpointTest.autoSelect")}
+            </label>
+            <Button
+              type="button"
+              onClick={runSpeedTest}
+              disabled={isTesting || !hasEndpoints}
+              size="sm"
+              className="h-7 w-24 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("endpointTest.testing")}
+                </>
+              ) : (
+                <>
+                  <Zap className="h-3.5 w-3.5" />
+                  {t("endpointTest.testSpeed")}
+                </>
+              )}
+            </Button>
           </div>
+        </div>
 
-          {/* 端点列表 */}
-          {hasEndpoints ? (
-            <div className="space-y-2">
-              {sortedEntries.map((entry) => {
-                const isSelected = normalizedSelected === entry.url;
-                const latency = entry.latency;
-
-                return (
-                  <div
-                    key={entry.id}
-                    onClick={() => handleSelect(entry.url)}
-                    className={`group flex cursor-pointer items-center justify-between px-3 py-2.5 rounded-lg border transition ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
-                        : "border-border-default bg-white hover:border-border-default hover:bg-gray-50  dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      {/* 选择指示器 */}
-                      <div
-                        className={`h-1.5 w-1.5 flex-shrink-0 rounded-full transition ${
-                          isSelected
-                            ? "bg-blue-500 dark:bg-blue-400"
-                            : "bg-gray-300 dark:bg-gray-700"
-                        }`}
-                      />
-
-                      {/* 内容 */}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-gray-900 dark:text-gray-100">
-                          {entry.url}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 右侧信息 */}
-                    <div className="flex items-center gap-2">
-                      {latency !== null ? (
-                        <div className="text-right">
-                          <div
-                            className={`font-mono text-sm font-medium ${
-                              latency < 300
-                                ? "text-green-600 dark:text-green-400"
-                                : latency < 500
-                                  ? "text-yellow-600 dark:text-yellow-400"
-                                  : latency < 800
-                                    ? "text-orange-600 dark:text-orange-400"
-                                    : "text-red-600 dark:text-red-400"
-                            }`}
-                          >
-                            {latency}ms
-                          </div>
-                        </div>
-                      ) : isTesting ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                      ) : entry.error ? (
-                        <div className="text-xs text-gray-400">
-                          {t("endpointTest.failed")}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-400">—</div>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveEndpoint(entry);
-                        }}
-                        className="opacity-0 transition hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed border-border-default bg-gray-50 py-8 text-center text-xs text-gray-500  dark:bg-gray-900 dark:text-gray-400">
-              {t("endpointTest.noEndpoints")}
-            </div>
-          )}
-
-          {/* 错误提示 */}
-          {lastError && (
+        {/* 添加输入 */}
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Input
+              type="url"
+              value={customUrl}
+              placeholder={t("endpointTest.addEndpointPlaceholder")}
+              onChange={(event) => setCustomUrl(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleAddEndpoint();
+                }
+              }}
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              onClick={handleAddEndpoint}
+              variant="outline"
+              size="icon"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          {addError && (
             <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
               <AlertCircle className="h-3 w-3" />
-              {lastError}
+              {addError}
             </div>
           )}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSaving}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="gap-2"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t("common.saving")}
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                {t("common.save")}
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {/* 端点列表 */}
+        {hasEndpoints ? (
+          <div className="space-y-2">
+            {sortedEntries.map((entry) => {
+              const isSelected = normalizedSelected === entry.url;
+              const latency = entry.latency;
+
+              return (
+                <div
+                  key={entry.id}
+                  onClick={() => handleSelect(entry.url)}
+                  className={`group flex cursor-pointer items-center justify-between px-3 py-2.5 rounded-lg border transition ${
+                    isSelected
+                      ? "border-primary/70 bg-primary/5 shadow-sm"
+                      : "border-border-default bg-background hover:bg-muted"
+                  }`}
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    {/* 选择指示器 */}
+                    <div
+                      className={`h-1.5 w-1.5 flex-shrink-0 rounded-full transition ${
+                        isSelected
+                          ? "bg-blue-500 dark:bg-blue-400"
+                          : "bg-gray-300 dark:bg-gray-700"
+                      }`}
+                    />
+
+                    {/* 内容 */}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-gray-900 dark:text-gray-100">
+                        {entry.url}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右侧信息 */}
+                  <div className="flex items-center gap-2">
+                    {latency !== null ? (
+                      <div className="text-right">
+                        <div
+                          className={`font-mono text-sm font-medium ${
+                            latency < 300
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : latency < 500
+                                ? "text-yellow-600 dark:text-yellow-400"
+                                : latency < 800
+                                  ? "text-orange-600 dark:text-orange-400"
+                                  : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {latency}ms
+                        </div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                          {entry.status
+                            ? t("endpointTest.status", { code: entry.status })
+                            : t("endpointTest.notTested")}
+                        </div>
+                      </div>
+                    ) : isTesting ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    ) : entry.error ? (
+                      <div className="text-xs text-gray-400">
+                        {t("endpointTest.failed")}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400">—</div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleRemoveEndpoint(entry);
+                      }}
+                      className="opacity-0 transition hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-border-default bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
+            {t("endpointTest.empty")}
+          </div>
+        )}
+
+        {/* 错误提示 */}
+        {lastError && (
+          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+            <AlertCircle className="h-3 w-3" />
+            {lastError}
+          </div>
+        )}
+      </div>
+    </FullScreenPanel>
   );
 };
 

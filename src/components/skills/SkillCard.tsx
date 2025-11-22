@@ -57,7 +57,8 @@ export function SkillCard({ skill, onInstall, onUninstall }: SkillCardProps) {
     skill.directory.trim().toLowerCase() !== skill.name.trim().toLowerCase();
 
   return (
-    <Card className="flex flex-col h-full border-border-default bg-card transition-[border-color,box-shadow] duration-200 hover:border-border-hover hover:shadow-md">
+    <Card className="glass flex flex-col h-full border border-white/10 bg-gray-900/40 transition-all duration-300 hover:bg-gray-900/60 hover:border-white/20 hover:shadow-lg group relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -95,7 +96,7 @@ export function SkillCard({ skill, onInstall, onUninstall }: SkillCardProps) {
           {skill.description || t("skills.noDescription")}
         </p>
       </CardContent>
-      <CardFooter className="flex gap-2 pt-3 border-t border-border-default">
+      <CardFooter className="flex gap-2 pt-3 border-t border-white/5 relative z-10">
         {skill.readmeUrl && (
           <Button
             variant="ghost"

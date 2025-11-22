@@ -46,14 +46,17 @@ export const handlers = [
     return success(getCurrentProviderId(app));
   }),
 
-  http.post(`${TAURI_ENDPOINT}/update_providers_sort_order`, async ({ request }) => {
-    const { updates = [], app } = await withJson<{
-      updates: { id: string; sortIndex: number }[];
-      app: AppId;
-    }>(request);
-    updateSortOrder(app, updates);
-    return success(true);
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/update_providers_sort_order`,
+    async ({ request }) => {
+      const { updates = [], app } = await withJson<{
+        updates: { id: string; sortIndex: number }[];
+        app: AppId;
+      }>(request);
+      updateSortOrder(app, updates);
+      return success(true);
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/update_tray_menu`, () => success(true)),
 
@@ -119,21 +122,27 @@ export const handlers = [
     return success(true);
   }),
 
-  http.post(`${TAURI_ENDPOINT}/upsert_mcp_server_in_config`, async ({ request }) => {
-    const { app, id, spec } = await withJson<{
-      app: AppId;
-      id: string;
-      spec: McpServer;
-    }>(request);
-    upsertMcpServer(app, id, spec);
-    return success(true);
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/upsert_mcp_server_in_config`,
+    async ({ request }) => {
+      const { app, id, spec } = await withJson<{
+        app: AppId;
+        id: string;
+        spec: McpServer;
+      }>(request);
+      upsertMcpServer(app, id, spec);
+      return success(true);
+    },
+  ),
 
-  http.post(`${TAURI_ENDPOINT}/delete_mcp_server_in_config`, async ({ request }) => {
-    const { app, id } = await withJson<{ app: AppId; id: string }>(request);
-    deleteMcpServer(app, id);
-    return success(true);
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/delete_mcp_server_in_config`,
+    async ({ request }) => {
+      const { app, id } = await withJson<{ app: AppId; id: string }>(request);
+      deleteMcpServer(app, id);
+      return success(true);
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/restart_app`, () => success(true)),
 
@@ -145,21 +154,27 @@ export const handlers = [
     return success(true);
   }),
 
-  http.post(`${TAURI_ENDPOINT}/set_app_config_dir_override`, async ({ request }) => {
-    const { path } = await withJson<{ path: string | null }>(request);
-    setAppConfigDirOverrideState(path ?? null);
-    return success(true);
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/set_app_config_dir_override`,
+    async ({ request }) => {
+      const { path } = await withJson<{ path: string | null }>(request);
+      setAppConfigDirOverrideState(path ?? null);
+      return success(true);
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/get_app_config_dir_override`, () =>
     success(getAppConfigDirOverride()),
   ),
 
-  http.post(`${TAURI_ENDPOINT}/apply_claude_plugin_config`, async ({ request }) => {
-    const { official } = await withJson<{ official: boolean }>(request);
-    setSettings({ enableClaudePluginIntegration: !official });
-    return success(true);
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/apply_claude_plugin_config`,
+    async ({ request }) => {
+      const { official } = await withJson<{ official: boolean }>(request);
+      setSettings({ enableClaudePluginIntegration: !official });
+      return success(true);
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/get_config_dir`, async ({ request }) => {
     const { app } = await withJson<{ app: AppId }>(request);
@@ -168,14 +183,17 @@ export const handlers = [
 
   http.post(`${TAURI_ENDPOINT}/is_portable_mode`, () => success(false)),
 
-  http.post(`${TAURI_ENDPOINT}/select_config_directory`, async ({ request }) => {
-    const { defaultPath, default_path } = await withJson<{
-      defaultPath?: string;
-      default_path?: string;
-    }>(request);
-    const initial = defaultPath ?? default_path;
-    return success(initial ? `${initial}/picked` : "/mock/selected-dir");
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/select_config_directory`,
+    async ({ request }) => {
+      const { defaultPath, default_path } = await withJson<{
+        defaultPath?: string;
+        default_path?: string;
+      }>(request);
+      const initial = defaultPath ?? default_path;
+      return success(initial ? `${initial}/picked` : "/mock/selected-dir");
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/pick_directory`, async ({ request }) => {
     const { defaultPath, default_path } = await withJson<{
@@ -190,14 +208,17 @@ export const handlers = [
     success("/mock/import-settings.json"),
   ),
 
-  http.post(`${TAURI_ENDPOINT}/import_config_from_file`, async ({ request }) => {
-    const { filePath } = await withJson<{ filePath: string }>(request);
-    if (!filePath) {
-      return success({ success: false, message: "Missing file" });
-    }
-    setSettings({ language: "en" });
-    return success({ success: true, backupId: "backup-123" });
-  }),
+  http.post(
+    `${TAURI_ENDPOINT}/import_config_from_file`,
+    async ({ request }) => {
+      const { filePath } = await withJson<{ filePath: string }>(request);
+      if (!filePath) {
+        return success({ success: false, message: "Missing file" });
+      }
+      setSettings({ language: "en" });
+      return success({ success: true, backupId: "backup-123" });
+    },
+  ),
 
   http.post(`${TAURI_ENDPOINT}/export_config_to_file`, async ({ request }) => {
     const { filePath } = await withJson<{ filePath: string }>(request);

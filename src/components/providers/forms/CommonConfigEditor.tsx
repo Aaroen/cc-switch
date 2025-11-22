@@ -1,16 +1,10 @@
 import { useTranslation } from "react-i18next";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Save, Wand2 } from "lucide-react";
-import { toast } from "sonner";
-import { formatJSON } from "@/utils/formatters";
+import { Save } from "lucide-react";
+import JsonEditor from "@/components/JsonEditor";
 
 interface CommonConfigEditorProps {
   value: string;
@@ -38,44 +32,22 @@ export function CommonConfigEditor({
   onModalClose,
 }: CommonConfigEditorProps) {
   const { t } = useTranslation();
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const handleFormatMain = () => {
-    if (!value.trim()) return;
+  useEffect(() => {
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
 
-    try {
-      const formatted = formatJSON(value);
-      onChange(formatted);
-      toast.success(t("common.formatSuccess", { defaultValue: "格式化成功" }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast.error(
-        t("common.formatError", {
-          defaultValue: "格式化失败：{{error}}",
-          error: errorMessage,
-        }),
-      );
-    }
-  };
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
 
-  const handleFormatModal = () => {
-    if (!commonConfigSnippet.trim()) return;
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
 
-    try {
-      const formatted = formatJSON(commonConfigSnippet);
-      onCommonConfigSnippetChange(formatted);
-      toast.success(t("common.formatSuccess", { defaultValue: "格式化成功" }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast.error(
-        t("common.formatError", {
-          defaultValue: "格式化失败：{{error}}",
-          error: errorMessage,
-        }),
-      );
-    }
-  };
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <>
@@ -115,90 +87,30 @@ export function CommonConfigEditor({
             {commonConfigError}
           </p>
         )}
-        <textarea
-          id="settingsConfig"
+        <JsonEditor
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           placeholder={`{
   "env": {
     "ANTHROPIC_BASE_URL": "https://your-api-endpoint.com",
     "ANTHROPIC_AUTH_TOKEN": "your-api-key-here"
   }
 }`}
+          darkMode={isDarkMode}
           rows={14}
-          className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-colors resize-y min-h-[16rem]"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          lang="en"
-          inputMode="text"
-          data-gramm="false"
-          data-gramm_editor="false"
-          data-enable-grammarly="false"
+          showValidation={true}
+          language="json"
         />
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleFormatMain}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            {t("common.format", { defaultValue: "格式化" })}
-          </button>
-        </div>
       </div>
 
-      <Dialog
-        open={isModalOpen}
-        onOpenChange={(open) => !open && onModalClose()}
-      >
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-0">
-            <DialogTitle>
-              {t("claudeConfig.editCommonConfigTitle", {
-                defaultValue: "编辑通用配置片段",
-              })}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {t("claudeConfig.commonConfigHint", {
-                defaultValue: "通用配置片段将合并到所有启用它的供应商配置中",
-              })}
-            </p>
-            <textarea
-              value={commonConfigSnippet}
-              onChange={(e) => onCommonConfigSnippetChange(e.target.value)}
-              rows={12}
-              className="w-full px-3 py-2 border border-border-default dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-colors resize-y min-h-[14rem]"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              lang="en"
-              inputMode="text"
-              data-gramm="false"
-              data-gramm_editor="false"
-              data-enable-grammarly="false"
-            />
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={handleFormatModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                <Wand2 className="w-3.5 h-3.5" />
-                {t("common.format", { defaultValue: "格式化" })}
-              </button>
-              {commonConfigError && (
-                <p className="text-sm text-red-500 dark:text-red-400">
-                  {commonConfigError}
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
+      <FullScreenPanel
+        isOpen={isModalOpen}
+        title={t("claudeConfig.editCommonConfigTitle", {
+          defaultValue: "编辑通用配置片段",
+        })}
+        onClose={onModalClose}
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={onModalClose}>
               {t("common.cancel")}
             </Button>
@@ -206,9 +118,35 @@ export function CommonConfigEditor({
               <Save className="w-4 h-4" />
               {t("common.save")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t("claudeConfig.commonConfigHint", {
+              defaultValue: "通用配置片段将合并到所有启用它的供应商配置中",
+            })}
+          </p>
+          <JsonEditor
+            value={commonConfigSnippet}
+            onChange={onCommonConfigSnippetChange}
+            placeholder={`{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://your-api-endpoint.com"
+  }
+}`}
+            darkMode={isDarkMode}
+            rows={16}
+            showValidation={true}
+            language="json"
+          />
+          {commonConfigError && (
+            <p className="text-sm text-red-500 dark:text-red-400">
+              {commonConfigError}
+            </p>
+          )}
+        </div>
+      </FullScreenPanel>
     </>
   );
 }

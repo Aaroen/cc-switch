@@ -3,8 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { SettingsDialog } from "@/components/settings/SettingsDialog";
-import { resetProviderState, getSettings, getAppConfigDirOverride } from "../msw/state";
+import { SettingsPage } from "@/components/settings/SettingsPage";
+import {
+  resetProviderState,
+  getSettings,
+  getAppConfigDirOverride,
+} from "../msw/state";
 import { server } from "../msw/server";
 
 const toastSuccessMock = vi.fn();
@@ -18,23 +22,27 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: any) => (open ? <div data-testid="dialog-root">{children}</div> : null),
+  Dialog: ({ open, children }: any) =>
+    open ? <div data-testid="dialog-root">{children}</div> : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogFooter: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
 }));
 
-const TabsContext = React.createContext<{ value: string; onValueChange?: (value: string) => void }>(
-  {
-    value: "general",
-  },
-);
+const TabsContext = React.createContext<{
+  value: string;
+  onValueChange?: (value: string) => void;
+}>({
+  value: "general",
+});
 
 vi.mock("@/components/ui/tabs", () => {
   return {
     Tabs: ({ value, onValueChange, children }: any) => (
-      <TabsContext.Provider value={{ value, onValueChange }}>{children}</TabsContext.Provider>
+      <TabsContext.Provider value={{ value, onValueChange }}>
+        {children}
+      </TabsContext.Provider>
     ),
     TabsList: ({ children }: any) => <div>{children}</div>,
     TabsTrigger: ({ value, children }: any) => {
@@ -47,7 +55,9 @@ vi.mock("@/components/ui/tabs", () => {
     },
     TabsContent: ({ value, children }: any) => {
       const ctx = React.useContext(TabsContext);
-      return ctx.value === value ? <div data-testid={`tab-${value}`}>{children}</div> : null;
+      return ctx.value === value ? (
+        <div data-testid={`tab-${value}`}>{children}</div>
+      ) : null;
     },
   };
 });
@@ -67,14 +77,16 @@ vi.mock("@/components/settings/ThemeSettings", () => ({
 
 vi.mock("@/components/settings/WindowSettings", () => ({
   WindowSettings: ({ onChange }: any) => (
-    <button onClick={() => onChange({ minimizeToTrayOnClose: false })}>window-settings</button>
+    <button onClick={() => onChange({ minimizeToTrayOnClose: false })}>
+      window-settings
+    </button>
   ),
 }));
 
 vi.mock("@/components/settings/DirectorySettings", async () => {
-  const actual = await vi.importActual<typeof import("@/components/settings/DirectorySettings")>(
-    "@/components/settings/DirectorySettings",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/components/settings/DirectorySettings")
+  >("@/components/settings/DirectorySettings");
   return actual;
 });
 
@@ -107,12 +119,14 @@ vi.mock("@/components/settings/AboutSection", () => ({
   AboutSection: ({ isPortable }: any) => <div>about:{String(isPortable)}</div>,
 }));
 
-const renderDialog = (props?: Partial<React.ComponentProps<typeof SettingsDialog>>) => {
+const renderDialog = (
+  props?: Partial<React.ComponentProps<typeof SettingsPage>>,
+) => {
   const client = new QueryClient();
   return render(
     <QueryClientProvider client={client}>
       <Suspense fallback={<div data-testid="loading">loading</div>}>
-        <SettingsDialog open onOpenChange={() => {}} {...props} />
+        <SettingsPage open onOpenChange={() => {}} {...props} />
       </Suspense>
     </QueryClientProvider>,
   );
@@ -128,13 +142,17 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("SettingsDialog integration", () => {
+describe("SettingsPage integration", () => {
   it("loads default settings from MSW", async () => {
     renderDialog();
 
-    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("language:zh")).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
-    const appInput = await screen.findByPlaceholderText("settings.browsePlaceholderApp");
+    const appInput = await screen.findByPlaceholderText(
+      "settings.browsePlaceholderApp",
+    );
     expect((appInput as HTMLInputElement).value).toBe("/home/mock/.cc-switch");
   });
 
@@ -142,12 +160,16 @@ describe("SettingsDialog integration", () => {
     const onImportSuccess = vi.fn();
     renderDialog({ onImportSuccess });
 
-    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("language:zh")).toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
     fireEvent.click(screen.getByText("settings.selectConfigFile"));
     await waitFor(() =>
-      expect(screen.getByTestId("selected-file").textContent).toContain("/mock/import-settings.json"),
+      expect(screen.getByTestId("selected-file").textContent).toContain(
+        "/mock/import-settings.json",
+      ),
     );
 
     fireEvent.click(screen.getByText("settings.import"));
@@ -161,10 +183,14 @@ describe("SettingsDialog integration", () => {
   it("saves settings and handles restart prompt", async () => {
     renderDialog();
 
-    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("language:zh")).toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
-    const appInput = await screen.findByPlaceholderText("settings.browsePlaceholderApp");
+    const appInput = await screen.findByPlaceholderText(
+      "settings.browsePlaceholderApp",
+    );
     fireEvent.change(appInput, { target: { value: "/custom/app" } });
     fireEvent.click(screen.getByText("common.save"));
 
@@ -172,7 +198,9 @@ describe("SettingsDialog integration", () => {
     await screen.findByText("settings.restartRequired");
     fireEvent.click(screen.getByText("settings.restartLater"));
     await waitFor(() =>
-      expect(screen.queryByText("settings.restartRequired")).not.toBeInTheDocument(),
+      expect(
+        screen.queryByText("settings.restartRequired"),
+      ).not.toBeInTheDocument(),
     );
 
     expect(getAppConfigDirOverride()).toBe("/custom/app");
@@ -181,7 +209,9 @@ describe("SettingsDialog integration", () => {
   it("allows browsing and resetting directories", async () => {
     renderDialog();
 
-    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("language:zh")).toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
 
@@ -219,7 +249,9 @@ describe("SettingsDialog integration", () => {
   it("notifies when export fails", async () => {
     renderDialog();
 
-    await waitFor(() => expect(screen.getByText("language:zh")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("language:zh")).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
 
     server.use(
@@ -231,7 +263,9 @@ describe("SettingsDialog integration", () => {
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
     const cancelMessage = toastErrorMock.mock.calls.at(-1)?.[0] as string;
-    expect(cancelMessage).toMatch(/settings\.selectFileFailed|选择保存位置失败/);
+    expect(cancelMessage).toMatch(
+      /settings\.selectFileFailed|选择保存位置失败/,
+    );
 
     toastErrorMock.mockClear();
 

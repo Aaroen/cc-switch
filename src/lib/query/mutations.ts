@@ -169,7 +169,6 @@ export const useSwitchProviderMutation = (appId: AppId) => {
 
 export const useSaveSettingsMutation = () => {
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
 
   return useMutation({
     mutationFn: async (settings: Settings) => {
@@ -177,19 +176,6 @@ export const useSaveSettingsMutation = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast.success(
-        t("notifications.settingsSaved", {
-          defaultValue: "设置已保存",
-        }),
-      );
-    },
-    onError: (error: Error) => {
-      toast.error(
-        t("notifications.settingsSaveFailed", {
-          defaultValue: "保存设置失败: {{error}}",
-          error: error.message,
-        }),
-      );
     },
   });
 };

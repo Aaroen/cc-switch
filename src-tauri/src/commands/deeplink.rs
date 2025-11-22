@@ -9,6 +9,16 @@ pub fn parse_deeplink(url: String) -> Result<DeepLinkImportRequest, String> {
     parse_deeplink_url(&url).map_err(|e| e.to_string())
 }
 
+/// Merge configuration from Base64/URL into a deep link request
+/// This is used by the frontend to show the complete configuration in the confirmation dialog
+#[tauri::command]
+pub fn merge_deeplink_config(
+    request: DeepLinkImportRequest,
+) -> Result<DeepLinkImportRequest, String> {
+    log::info!("Merging config for deep link request: {}", request.name);
+    crate::deeplink::parse_and_merge_config(&request).map_err(|e| e.to_string())
+}
+
 /// Import a provider from a deep link request (after user confirmation)
 #[tauri::command]
 pub fn import_from_deeplink(

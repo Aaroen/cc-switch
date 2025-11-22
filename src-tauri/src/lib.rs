@@ -1,5 +1,6 @@
 mod app_config;
 mod app_store;
+mod auto_launch;
 mod claude_mcp;
 mod claude_plugin;
 mod codex_config;
@@ -14,6 +15,7 @@ mod mcp;
 mod prompt;
 mod prompt_files;
 mod provider;
+mod provider_defaults;
 mod services;
 mod settings;
 mod store;
@@ -704,6 +706,7 @@ pub fn run() {
             commands::sync_current_providers_live,
             // Deep link import
             commands::parse_deeplink,
+            commands::merge_deeplink_config,
             commands::import_from_deeplink,
             update_tray_menu,
             // Environment variable management
@@ -717,6 +720,9 @@ pub fn run() {
             commands::get_skill_repos,
             commands::add_skill_repo,
             commands::remove_skill_repo,
+            // Auto launch
+            commands::set_auto_launch,
+            commands::get_auto_launch_status,
         ]);
 
     let app = builder

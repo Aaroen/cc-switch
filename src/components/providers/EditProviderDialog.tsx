@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Save } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import type { Provider } from "@/types";
 import {
   ProviderForm,
@@ -34,7 +27,7 @@ export function EditProviderDialog({
 }: EditProviderDialogProps) {
   const { t } = useTranslation();
 
-  // 默认使用传入的 provider.settingsConfig，若当前编辑对象是“当前生效供应商”，则尝试读取实时配置替换初始值
+  // 默认使用传入的 provider.settingsConfig，若当前编辑对象是"当前生效供应商"，则尝试读取实时配置替换初始值
   const [liveSettings, setLiveSettings] = useState<Record<
     string,
     unknown
@@ -96,6 +89,8 @@ export function EditProviderDialog({
         notes: values.notes?.trim() || undefined,
         websiteUrl: values.websiteUrl?.trim() || undefined,
         settingsConfig: parsedConfig,
+        icon: values.icon?.trim() || undefined,
+        iconColor: values.iconColor?.trim() || undefined,
         ...(values.presetCategory ? { category: values.presetCategory } : {}),
         // 保留或更新 meta 字段
         ...(values.meta ? { meta: values.meta } : {}),
@@ -112,45 +107,40 @@ export function EditProviderDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{t("provider.editProvider")}</DialogTitle>
-          <DialogDescription>
-            {t("provider.editProviderHint")}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <ProviderForm
-            appId={appId}
-            providerId={provider.id}
-            submitLabel={t("common.save")}
-            onSubmit={handleSubmit}
-            onCancel={() => onOpenChange(false)}
-            initialData={{
-              name: provider.name,
-              notes: provider.notes,
-              websiteUrl: provider.websiteUrl,
-              // 若读取到实时配置则优先使用
-              settingsConfig: initialSettingsConfig,
-              category: provider.category,
-              meta: provider.meta,
-            }}
-            showButtons={false}
-          />
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" form="provider-form">
-            <Save className="h-4 w-4" />
-            {t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FullScreenPanel
+      isOpen={open}
+      title={t("provider.editProvider")}
+      onClose={() => onOpenChange(false)}
+      footer={
+        <Button
+          type="submit"
+          form="provider-form"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          {t("common.save")}
+        </Button>
+      }
+    >
+      <ProviderForm
+        appId={appId}
+        providerId={provider.id}
+        submitLabel={t("common.save")}
+        onSubmit={handleSubmit}
+        onCancel={() => onOpenChange(false)}
+        initialData={{
+          name: provider.name,
+          notes: provider.notes,
+          websiteUrl: provider.websiteUrl,
+          // 若读取到实时配置则优先使用
+          settingsConfig: initialSettingsConfig,
+          category: provider.category,
+          meta: provider.meta,
+          icon: provider.icon,
+          iconColor: provider.iconColor,
+        }}
+        showButtons={false}
+      />
+    </FullScreenPanel>
   );
 }

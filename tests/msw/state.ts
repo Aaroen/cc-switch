@@ -157,12 +157,23 @@ export const setCurrentProviderId = (appType: AppId, providerId: string) => {
   current[appType] = providerId;
 };
 
-export const updateProviders = (appType: AppId, data: Record<string, Provider>) => {
-  providers[appType] = cloneProviders({ [appType]: data } as ProvidersByApp)[appType];
+export const updateProviders = (
+  appType: AppId,
+  data: Record<string, Provider>,
+) => {
+  providers[appType] = cloneProviders({ [appType]: data } as ProvidersByApp)[
+    appType
+  ];
 };
 
-export const setProviders = (appType: AppId, data: Record<string, Provider>) => {
-  providers[appType] = JSON.parse(JSON.stringify(data)) as Record<string, Provider>;
+export const setProviders = (
+  appType: AppId,
+  data: Record<string, Provider>,
+) => {
+  providers[appType] = JSON.parse(JSON.stringify(data)) as Record<
+    string,
+    Provider
+  >;
 };
 
 export const addProvider = (appType: AppId, provider: Provider) => {
@@ -201,9 +212,13 @@ export const updateSortOrder = (
 };
 
 export const listProviders = (appType: AppId) =>
-  JSON.parse(JSON.stringify(providers[appType] ?? {})) as Record<string, Provider>;
+  JSON.parse(JSON.stringify(providers[appType] ?? {})) as Record<
+    string,
+    Provider
+  >;
 
-export const getSettings = () => JSON.parse(JSON.stringify(settingsState)) as Settings;
+export const getSettings = () =>
+  JSON.parse(JSON.stringify(settingsState)) as Settings;
 
 export const setSettings = (data: Partial<Settings>) => {
   settingsState = { ...settingsState, ...data };
@@ -225,8 +240,14 @@ export const getMcpConfig = (appType: AppId) => {
   };
 };
 
-export const setMcpConfig = (appType: AppId, value: Record<string, McpServer>) => {
-  mcpConfigs[appType] = JSON.parse(JSON.stringify(value)) as Record<string, McpServer>;
+export const setMcpConfig = (
+  appType: AppId,
+  value: Record<string, McpServer>,
+) => {
+  mcpConfigs[appType] = JSON.parse(JSON.stringify(value)) as Record<
+    string,
+    McpServer
+  >;
 };
 
 export const setMcpServerEnabled = (

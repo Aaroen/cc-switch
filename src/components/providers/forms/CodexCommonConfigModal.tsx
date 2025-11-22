@@ -1,14 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { Button } from "@/components/ui/button";
+import JsonEditor from "@/components/JsonEditor";
 
 interface CodexCommonConfigModalProps {
   isOpen: boolean;
@@ -30,47 +25,30 @@ export const CodexCommonConfigModal: React.FC<CodexCommonConfigModalProps> = ({
   error,
 }) => {
   const { t } = useTranslation();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
+
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        zIndex="nested"
-        className="max-w-2xl max-h-[90vh] flex flex-col p-0"
-      >
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle>{t("codexConfig.editCommonConfigTitle")}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t("codexConfig.commonConfigHint")}
-          </p>
-
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={`# Common Codex config
-
-# Add your common TOML configuration here`}
-            rows={12}
-            className="w-full px-3 py-2 border border-border-default  dark:bg-gray-800 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:border-border-active  transition-colors resize-y"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            lang="en"
-            inputMode="text"
-            data-gramm="false"
-            data-gramm_editor="false"
-            data-enable-grammarly="false"
-          />
-
-          {error && (
-            <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
-          )}
-        </div>
-
-        <DialogFooter>
+    <FullScreenPanel
+      isOpen={isOpen}
+      title={t("codexConfig.editCommonConfigTitle")}
+      onClose={onClose}
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={onClose}>
             {t("common.cancel")}
           </Button>
@@ -78,8 +56,30 @@ export const CodexCommonConfigModal: React.FC<CodexCommonConfigModalProps> = ({
             <Save className="w-4 h-4" />
             {t("common.save")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {t("codexConfig.commonConfigHint")}
+        </p>
+
+        <JsonEditor
+          value={value}
+          onChange={onChange}
+          placeholder={`# Common Codex config
+
+# Add your common TOML configuration here`}
+          darkMode={isDarkMode}
+          rows={16}
+          showValidation={false}
+          language="javascript"
+        />
+
+        {error && (
+          <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+        )}
+      </div>
+    </FullScreenPanel>
   );
 };

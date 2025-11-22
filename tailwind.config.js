@@ -6,27 +6,27 @@ export default {
   ],
   theme: {
     extend: {
-	      colors: {
-	        // macOS 风格系统蓝
-	        blue: {
-	          400: '#409CFF',
-	          500: '#0A84FF',
-	          600: '#0060DF',
-	        },
-	        // 自定义灰色系列（对齐 macOS 深色 System Gray）
-	        gray: {
-	          50: '#fafafa',   // bg-primary
-	          100: '#f4f4f5',  // bg-tertiary
-	          200: '#e4e4e7',  // border
-	          300: '#d4d4d8',  // border-hover
-	          400: '#a1a1aa',  // text-tertiary
-	          500: '#71717a',  // text-secondary
-	          600: '#636366',  // text-secondary-dark / systemGray2
-	          700: '#48484A',  // bg-tertiary-dark / separators
-	          800: '#3A3A3C',  // bg-secondary-dark
-	          900: '#2C2C2E',  // header / modal bg
-	          950: '#1C1C1E',  // app main bg
-	        },
+      colors: {
+        // macOS 风格系统蓝
+        blue: {
+          400: '#409CFF',
+          500: '#0A84FF',
+          600: '#0060DF',
+        },
+        // 自定义灰色系列（对齐 macOS 深色 System Gray）
+        gray: {
+          50: '#fafafa',   // bg-primary
+          100: '#f4f4f5',  // bg-tertiary
+          200: '#e4e4e7',  // border
+          300: '#d4d4d8',  // border-hover
+          400: '#a1a1aa',  // text-tertiary
+          500: '#71717a',  // text-secondary
+          600: '#636366',  // text-secondary-dark / systemGray2
+          700: '#48484A',  // bg-tertiary-dark / separators
+          800: '#3A3A3C',  // bg-secondary-dark
+          900: '#2C2C2E',  // header / modal bg
+          950: '#1C1C1E',  // app main bg
+        },
         // 状态颜色
         green: {
           500: '#10b981',
@@ -56,6 +56,31 @@ export default {
         sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Consolas', '"Liberation Mono"', 'Menlo', 'monospace'],
       },
+      animation: {
+        'fade-in': 'fadeIn 0.5s ease-out',
+        'slide-up': 'slideUp 0.5s ease-out',
+        'slide-down': 'slideDown 0.3s ease-out',
+        'slide-in-right': 'slideInRight 0.3s ease-out',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(20px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        slideDown: {
+          '0%': { transform: 'translateY(-100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        slideInRight: {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        }
+      }
     },
   },
   plugins: [],

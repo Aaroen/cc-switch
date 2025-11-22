@@ -71,7 +71,9 @@ const createSettingsFormMock = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const createDirectorySettingsMock = (overrides: Record<string, unknown> = {}) => ({
+const createDirectorySettingsMock = (
+  overrides: Record<string, unknown> = {},
+) => ({
   appConfigDir: undefined,
   resolvedDirs: {
     appConfig: "/home/mock/.cc-switch",
@@ -141,7 +143,7 @@ describe("useSettings hook", () => {
   it("saves settings and flags restart when app config directory changes", async () => {
     serverSettings = {
       ...serverSettings,
-      enableClaudePluginIntegration: true,
+      enableClaudePluginIntegration: false,
       claudeConfigDir: "/server/claude",
       codexConfigDir: undefined,
       language: "en",
@@ -157,7 +159,7 @@ describe("useSettings hook", () => {
         claudeConfigDir: "  /custom/claude  ",
         codexConfigDir: "   ",
         language: "en",
-        enableClaudePluginIntegration: true,
+        enableClaudePluginIntegration: true, // 状态从 false 变为 true
       },
       initialLanguage: "en",
     });
@@ -181,7 +183,10 @@ describe("useSettings hook", () => {
     expect(payload.codexConfigDir).toBeUndefined();
     expect(payload.language).toBe("en");
     expect(setAppConfigDirOverrideMock).toHaveBeenCalledWith("/override/app");
-    expect(applyClaudePluginConfigMock).toHaveBeenCalledWith({ official: false });
+    // 状态改变，应该调用 API
+    expect(applyClaudePluginConfigMock).toHaveBeenCalledWith({
+      official: false,
+    });
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(true);
     expect(window.localStorage.getItem("language")).toBe("en");
     expect(toastErrorMock).not.toHaveBeenCalled();
@@ -190,10 +195,22 @@ describe("useSettings hook", () => {
   });
 
   it("saves settings without restart when directory unchanged", async () => {
+    // 确保服务器和本地状态一致，不触发 API 调用
+    serverSettings = {
+      ...serverSettings,
+      enableClaudePluginIntegration: false,
+      launchOnStartup: false,
+    };
+    useSettingsQueryMock.mockReturnValue({
+      data: serverSettings,
+      isLoading: false,
+    });
+
     settingsFormMock = createSettingsFormMock({
       settings: {
         ...serverSettings,
-        enableClaudePluginIntegration: false,
+        enableClaudePluginIntegration: false, // 状态未变
+        launchOnStartup: false, // 状态未变
         language: "zh",
       },
       initialLanguage: "zh",
@@ -213,17 +230,28 @@ describe("useSettings hook", () => {
 
     expect(saveResult).toEqual({ requiresRestart: false });
     expect(setAppConfigDirOverrideMock).toHaveBeenCalledWith(null);
-    expect(applyClaudePluginConfigMock).toHaveBeenCalledWith({ official: true });
+    // 状态未改变，不应调用 API
+    expect(applyClaudePluginConfigMock).not.toHaveBeenCalled();
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(false);
     // 目录未变化，不应触发同步
     expect(syncCurrentProvidersLiveMock).not.toHaveBeenCalled();
   });
 
   it("shows toast when Claude plugin sync fails but continues flow", async () => {
+    // 设置服务器状态为 false,本地状态为 true,触发状态变化
+    serverSettings = {
+      ...serverSettings,
+      enableClaudePluginIntegration: false,
+    };
+    useSettingsQueryMock.mockReturnValue({
+      data: serverSettings,
+      isLoading: false,
+    });
+
     settingsFormMock = createSettingsFormMock({
       settings: {
         ...serverSettings,
-        enableClaudePluginIntegration: true,
+        enableClaudePluginIntegration: true, // 状态改变
         language: "zh",
       },
     });
@@ -280,6 +308,7 @@ describe("useSettings hook", () => {
     expect(directorySettingsMock.resetAllDirectories).toHaveBeenCalledWith(
       "/server/claude",
       undefined,
+      undefined, // geminiConfigDir
     );
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(false);
   });

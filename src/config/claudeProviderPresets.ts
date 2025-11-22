@@ -40,6 +40,9 @@ export interface ProviderPreset {
   endpointCandidates?: string[];
   // 新增：视觉主题配置
   theme?: PresetTheme;
+  // 图标配置
+  icon?: string; // 图标名称
+  iconColor?: string; // 图标颜色
 }
 
 export const providerPresets: ProviderPreset[] = [
@@ -56,6 +59,8 @@ export const providerPresets: ProviderPreset[] = [
       backgroundColor: "#D97757",
       textColor: "#FFFFFF",
     },
+    icon: "anthropic",
+    iconColor: "#D4915D",
   },
   {
     name: "DeepSeek",

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { formatJSON } from "@/utils/formatters";
 
 interface JsonEditorProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -19,7 +20,8 @@ interface JsonEditorProps {
   rows?: number;
   showValidation?: boolean;
   language?: "json" | "javascript";
-  height?: string;
+  height?: string | number;
+  showMinimap?: boolean; // 添加此属性以防未来使用
 }
 
 const JsonEditor: React.FC<JsonEditorProps> = ({
@@ -84,19 +86,47 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
 
     // 使用 baseTheme 定义基础样式，优先级低于 oneDark，但可以正确响应主题
     const baseTheme = EditorView.baseTheme({
-      "&light .cm-editor, &dark .cm-editor": {
+      ".cm-editor": {
         border: "1px solid hsl(var(--border))",
         borderRadius: "0.5rem",
+        background: "transparent",
       },
-      "&light .cm-editor.cm-focused, &dark .cm-editor.cm-focused": {
+      ".cm-editor.cm-focused": {
         outline: "none",
         borderColor: "hsl(var(--primary))",
+      },
+      ".cm-scroller": {
+        background: "transparent",
+      },
+      ".cm-gutters": {
+        background: "transparent",
+        borderRight: "1px solid hsl(var(--border))",
+        color: "hsl(var(--muted-foreground))",
+      },
+      ".cm-selectionBackground, .cm-content ::selection": {
+        background: "hsl(var(--primary) / 0.18)",
+      },
+      ".cm-selectionMatch": {
+        background: "hsl(var(--primary) / 0.12)",
+      },
+      ".cm-activeLine": {
+        background: "hsl(var(--primary) / 0.08)",
+      },
+      ".cm-activeLineGutter": {
+        background: "hsl(var(--primary) / 0.08)",
       },
     });
 
     // 使用 theme 定义尺寸和字体样式
+    const heightValue = height
+      ? typeof height === "number"
+        ? `${height}px`
+        : height
+      : undefined;
     const sizingTheme = EditorView.theme({
-      "&": height ? { height } : { minHeight: `${minHeightPx}px` },
+      "&": heightValue
+        ? { height: heightValue }
+        : { minHeight: `${minHeightPx}px` },
       ".cm-scroller": { overflow: "auto" },
       ".cm-content": {
         fontFamily:
@@ -129,10 +159,31 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
           ".cm-editor": {
             border: "1px solid hsl(var(--border))",
             borderRadius: "0.5rem",
+            background: "transparent",
           },
           ".cm-editor.cm-focused": {
             outline: "none",
             borderColor: "hsl(var(--primary))",
+          },
+          ".cm-scroller": {
+            background: "transparent",
+          },
+          ".cm-gutters": {
+            background: "transparent",
+            borderRight: "1px solid hsl(var(--border))",
+            color: "hsl(var(--muted-foreground))",
+          },
+          ".cm-selectionBackground, .cm-content ::selection": {
+            background: "hsl(var(--primary) / 0.18)",
+          },
+          ".cm-selectionMatch": {
+            background: "hsl(var(--primary) / 0.12)",
+          },
+          ".cm-activeLine": {
+            background: "hsl(var(--primary) / 0.08)",
+          },
+          ".cm-activeLineGutter": {
+            background: "hsl(var(--primary) / 0.08)",
           },
         }),
       );
@@ -196,14 +247,23 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
     }
   };
 
+  const isFullHeight = height === "100%";
+
   return (
-    <div style={{ width: "100%" }}>
-      <div ref={editorRef} style={{ width: "100%" }} />
+    <div
+      style={{ width: "100%", height: isFullHeight ? "100%" : "auto" }}
+      className={isFullHeight ? "flex flex-col" : ""}
+    >
+      <div
+        ref={editorRef}
+        style={{ width: "100%", height: isFullHeight ? undefined : "auto" }}
+        className={isFullHeight ? "flex-1 min-h-0" : ""}
+      />
       {language === "json" && (
         <button
           type="button"
           onClick={handleFormat}
-          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          className={`${isFullHeight ? "mt-2 flex-shrink-0" : "mt-2"} inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors`}
         >
           <Wand2 className="w-3.5 h-3.5" />
           {t("common.format", { defaultValue: "格式化" })}

@@ -28,6 +28,13 @@ pub struct Provider {
     /// 供应商元数据（不写入 live 配置，仅存于 ~/.cc-switch/config.json）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<ProviderMeta>,
+    /// 图标名称（如 "openai", "anthropic"）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    /// 图标颜色（Hex 格式，如 "#00A67E"）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "iconColor")]
+    pub icon_color: Option<String>,
 }
 
 impl Provider {
@@ -48,6 +55,8 @@ impl Provider {
             sort_index: None,
             notes: None,
             meta: None,
+            icon: None,
+            icon_color: None,
         }
     }
 }

@@ -1,14 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Server, Check } from "lucide-react";
+import { Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useAllMcpServers, useToggleMcpApp } from "@/hooks/useMcp";
 import type { McpServer } from "@/types";
@@ -22,7 +15,6 @@ import { mcpPresets } from "@/config/mcpPresets";
 import { toast } from "sonner";
 
 interface UnifiedMcpPanelProps {
-  open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -30,10 +22,14 @@ interface UnifiedMcpPanelProps {
  * 统一 MCP 管理面板
  * v3.7.0 新架构：所有 MCP 服务器统一管理，每个服务器通过复选框控制应用到哪些客户端
  */
-const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
-  open,
-  onOpenChange,
-}) => {
+export interface UnifiedMcpPanelHandle {
+  openAdd: () => void;
+}
+
+const UnifiedMcpPanel = React.forwardRef<
+  UnifiedMcpPanelHandle,
+  UnifiedMcpPanelProps
+>(({ onOpenChange: _onOpenChange }, ref) => {
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,6 +86,10 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
     setIsFormOpen(true);
   };
 
+  React.useImperativeHandle(ref, () => ({
+    openAdd: handleAdd,
+  }));
+
   const handleDelete = (id: string) => {
     setConfirmDialog({
       isOpen: true,
@@ -115,78 +115,50 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
   };
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[85vh] min-h-[600px] flex flex-col">
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-8">
-              <DialogTitle>{t("mcp.unifiedPanel.title")}</DialogTitle>
-              <Button type="button" variant="mcp" onClick={handleAdd}>
-                <Plus size={16} />
-                {t("mcp.unifiedPanel.addServer")}
-              </Button>
-            </div>
-          </DialogHeader>
+    <div className="mx-auto max-w-[56rem] px-6 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
+      {/* Info Section */}
+      <div className="flex-shrink-0 py-4 glass rounded-xl border border-white/10 mb-4 px-6">
+        <div className="text-sm text-muted-foreground">
+          {t("mcp.serverCount", { count: serverEntries.length })} ·{" "}
+          {t("mcp.unifiedPanel.apps.claude")}: {enabledCounts.claude} ·{" "}
+          {t("mcp.unifiedPanel.apps.codex")}: {enabledCounts.codex} ·{" "}
+          {t("mcp.unifiedPanel.apps.gemini")}: {enabledCounts.gemini}
+        </div>
+      </div>
 
-          {/* Info Section */}
-          <div className="flex-shrink-0 px-6 py-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {t("mcp.serverCount", { count: serverEntries.length })} ·{" "}
-              {t("mcp.unifiedPanel.apps.claude")}: {enabledCounts.claude} ·{" "}
-              {t("mcp.unifiedPanel.apps.codex")}: {enabledCounts.codex} ·{" "}
-              {t("mcp.unifiedPanel.apps.gemini")}: {enabledCounts.gemini}
-            </div>
+      {/* Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
+        {isLoading ? (
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            {t("mcp.loading")}
           </div>
-
-          {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-6 pb-4">
-            {isLoading ? (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                {t("mcp.loading")}
-              </div>
-            ) : serverEntries.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                  <Server
-                    size={24}
-                    className="text-gray-400 dark:text-gray-500"
-                  />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  {t("mcp.unifiedPanel.noServers")}
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  {t("mcp.emptyDescription")}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {serverEntries.map(([id, server]) => (
-                  <UnifiedMcpListItem
-                    key={id}
-                    id={id}
-                    server={server}
-                    onToggleApp={handleToggleApp}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
-            )}
+        ) : serverEntries.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+              <Server size={24} className="text-gray-400 dark:text-gray-500" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {t("mcp.unifiedPanel.noServers")}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              {t("mcp.emptyDescription")}
+            </p>
           </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="mcp"
-              onClick={() => onOpenChange(false)}
-            >
-              <Check size={16} />
-              {t("common.done")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : (
+          <div className="space-y-3">
+            {serverEntries.map(([id, server]) => (
+              <UnifiedMcpListItem
+                key={id}
+                id={id}
+                server={server}
+                onToggleApp={handleToggleApp}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Form Modal */}
       {isFormOpen && (
@@ -215,9 +187,11 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
           onCancel={() => setConfirmDialog(null)}
         />
       )}
-    </>
+    </div>
   );
-};
+});
+
+UnifiedMcpPanel.displayName = "UnifiedMcpPanel";
 
 /**
  * 统一 MCP 列表项组件
@@ -259,112 +233,110 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
   };
 
   return (
-    <div className="min-h-16 rounded-lg border border-border-default bg-card p-4 transition-[border-color,box-shadow] duration-200 hover:border-border-hover hover:shadow-sm">
-      <div className="flex items-center gap-4">
-        {/* 左侧：服务器信息 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100">
-              {name}
-            </h3>
-            {docsUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={openDocs}
-                title={t("mcp.presets.docs")}
-              >
-                {t("mcp.presets.docs")}
-              </Button>
-            )}
-          </div>
-          {description && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-              {description}
-            </p>
-          )}
-          {!description && tags && tags.length > 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-              {tags.join(", ")}
-            </p>
+    <div className="group relative flex items-center gap-4 p-4 rounded-xl border border-border-default bg-muted/50 hover:bg-muted hover:border-border-default/80 hover:shadow-sm transition-all duration-300">
+      {/* 左侧：服务器信息 */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="font-medium text-gray-900 dark:text-gray-100">
+            {name}
+          </h3>
+          {docsUrl && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={openDocs}
+              title={t("mcp.presets.docs")}
+            >
+              {t("mcp.presets.docs")}
+            </Button>
           )}
         </div>
+        {description && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+            {description}
+          </p>
+        )}
+        {!description && tags && tags.length > 0 && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+            {tags.join(", ")}
+          </p>
+        )}
+      </div>
 
-        {/* 中间：应用开关 */}
-        <div className="flex flex-col gap-2 flex-shrink-0 min-w-[120px]">
-          <div className="flex items-center justify-between gap-3">
-            <label
-              htmlFor={`${id}-claude`}
-              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-            >
-              {t("mcp.unifiedPanel.apps.claude")}
-            </label>
-            <Switch
-              id={`${id}-claude`}
-              checked={server.apps.claude}
-              onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "claude", checked)
-              }
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <label
-              htmlFor={`${id}-codex`}
-              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-            >
-              {t("mcp.unifiedPanel.apps.codex")}
-            </label>
-            <Switch
-              id={`${id}-codex`}
-              checked={server.apps.codex}
-              onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "codex", checked)
-              }
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <label
-              htmlFor={`${id}-gemini`}
-              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-            >
-              {t("mcp.unifiedPanel.apps.gemini")}
-            </label>
-            <Switch
-              id={`${id}-gemini`}
-              checked={server.apps.gemini}
-              onCheckedChange={(checked: boolean) =>
-                onToggleApp(id, "gemini", checked)
-              }
-            />
-          </div>
+      {/* 中间：应用开关 */}
+      <div className="flex flex-col gap-2 flex-shrink-0 min-w-[120px]">
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={`${id}-claude`}
+            className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+          >
+            {t("mcp.unifiedPanel.apps.claude")}
+          </label>
+          <Switch
+            id={`${id}-claude`}
+            checked={server.apps.claude}
+            onCheckedChange={(checked: boolean) =>
+              onToggleApp(id, "claude", checked)
+            }
+          />
         </div>
 
-        {/* 右侧：操作按钮 */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => onEdit(id)}
-            title={t("common.edit")}
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={`${id}-codex`}
+            className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
           >
-            <Edit3 size={16} />
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => onDelete(id)}
-            className="hover:text-red-500 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-red-500/10"
-            title={t("common.delete")}
-          >
-            <Trash2 size={16} />
-          </Button>
+            {t("mcp.unifiedPanel.apps.codex")}
+          </label>
+          <Switch
+            id={`${id}-codex`}
+            checked={server.apps.codex}
+            onCheckedChange={(checked: boolean) =>
+              onToggleApp(id, "codex", checked)
+            }
+          />
         </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={`${id}-gemini`}
+            className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+          >
+            {t("mcp.unifiedPanel.apps.gemini")}
+          </label>
+          <Switch
+            id={`${id}-gemini`}
+            checked={server.apps.gemini}
+            onCheckedChange={(checked: boolean) =>
+              onToggleApp(id, "gemini", checked)
+            }
+          />
+        </div>
+      </div>
+
+      {/* 右侧：操作按钮 */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(id)}
+          title={t("common.edit")}
+        >
+          <Edit3 size={16} />
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(id)}
+          className="hover:text-red-500 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-red-500/10"
+          title={t("common.delete")}
+        >
+          <Trash2 size={16} />
+        </Button>
       </div>
     </div>
   );

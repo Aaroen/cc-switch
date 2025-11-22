@@ -37,6 +37,24 @@ pub struct DeepLinkImportRequest {
     /// Optional notes/description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Optional Haiku model (Claude only, v3.7.1+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub haiku_model: Option<String>,
+    /// Optional Sonnet model (Claude only, v3.7.1+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sonnet_model: Option<String>,
+    /// Optional Opus model (Claude only, v3.7.1+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opus_model: Option<String>,
+    /// Optional Base64 encoded config content (v3.8+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<String>,
+    /// Optional config format (json/toml, v3.8+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_format: Option<String>,
+    /// Optional remote config URL (v3.8+)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_url: Option<String>,
 }
 
 /// Parse a ccswitch:// URL into a DeepLinkImportRequest
@@ -110,28 +128,32 @@ pub fn parse_deeplink_url(url_str: &str) -> Result<DeepLinkImportRequest, AppErr
         .ok_or_else(|| AppError::InvalidInput("Missing 'name' parameter".to_string()))?
         .clone();
 
-    let homepage = params
-        .get("homepage")
-        .ok_or_else(|| AppError::InvalidInput("Missing 'homepage' parameter".to_string()))?
-        .clone();
+    // Make these optional for config file auto-fill (v3.8+)
+    let homepage = params.get("homepage").cloned().unwrap_or_default();
+    let endpoint = params.get("endpoint").cloned().unwrap_or_default();
+    let api_key = params.get("apiKey").cloned().unwrap_or_default();
 
-    let endpoint = params
-        .get("endpoint")
-        .ok_or_else(|| AppError::InvalidInput("Missing 'endpoint' parameter".to_string()))?
-        .clone();
-
-    let api_key = params
-        .get("apiKey")
-        .ok_or_else(|| AppError::InvalidInput("Missing 'apiKey' parameter".to_string()))?
-        .clone();
-
-    // Validate URLs
-    validate_url(&homepage, "homepage")?;
-    validate_url(&endpoint, "endpoint")?;
+    // Validate URLs only if provided
+    if !homepage.is_empty() {
+        validate_url(&homepage, "homepage")?;
+    }
+    if !endpoint.is_empty() {
+        validate_url(&endpoint, "endpoint")?;
+    }
 
     // Extract optional fields
     let model = params.get("model").cloned();
     let notes = params.get("notes").cloned();
+
+    // Extract Claude-specific optional model fields (v3.7.1+)
+    let haiku_model = params.get("haikuModel").cloned();
+    let sonnet_model = params.get("sonnetModel").cloned();
+    let opus_model = params.get("opusModel").cloned();
+
+    // Extract optional config fields (v3.8+)
+    let config = params.get("config").cloned();
+    let config_format = params.get("configFormat").cloned();
+    let config_url = params.get("configUrl").cloned();
 
     Ok(DeepLinkImportRequest {
         version,
@@ -143,6 +165,12 @@ pub fn parse_deeplink_url(url_str: &str) -> Result<DeepLinkImportRequest, AppErr
         api_key,
         model,
         notes,
+        haiku_model,
+        sonnet_model,
+        opus_model,
+        config,
+        config_format,
+        config_url,
     })
 }
 
@@ -165,23 +193,44 @@ fn validate_url(url_str: &str, field_name: &str) -> Result<(), AppError> {
 ///
 /// This function:
 /// 1. Validates the request
-/// 2. Converts it to a Provider structure
-/// 3. Delegates to ProviderService for actual import
+/// 2. Merges config file if provided (v3.8+)
+/// 3. Converts it to a Provider structure
+/// 4. Delegates to ProviderService for actual import
 pub fn import_provider_from_deeplink(
     state: &AppState,
     request: DeepLinkImportRequest,
 ) -> Result<String, AppError> {
+    // Step 1: Merge config file if provided (v3.8+)
+    let merged_request = parse_and_merge_config(&request)?;
+
+    // Step 2: Validate required fields after merge
+    if merged_request.api_key.is_empty() {
+        return Err(AppError::InvalidInput(
+            "API key is required (either in URL or config file)".to_string(),
+        ));
+    }
+    if merged_request.endpoint.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Endpoint is required (either in URL or config file)".to_string(),
+        ));
+    }
+    if merged_request.homepage.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Homepage is required (either in URL or config file)".to_string(),
+        ));
+    }
+
     // Parse app type
-    let app_type = AppType::from_str(&request.app)
-        .map_err(|_| AppError::InvalidInput(format!("Invalid app type: {}", request.app)))?;
+    let app_type = AppType::from_str(&merged_request.app)
+        .map_err(|_| AppError::InvalidInput(format!("Invalid app type: {}", merged_request.app)))?;
 
     // Build provider configuration based on app type
-    let mut provider = build_provider_from_request(&app_type, &request)?;
+    let mut provider = build_provider_from_request(&app_type, &merged_request)?;
 
     // Generate a unique ID for the provider using timestamp + sanitized name
     // This is similar to how frontend generates IDs
     let timestamp = chrono::Utc::now().timestamp_millis();
-    let sanitized_name = request
+    let sanitized_name = merged_request
         .name
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
@@ -211,9 +260,29 @@ fn build_provider_from_request(
             env.insert("ANTHROPIC_AUTH_TOKEN".to_string(), json!(request.api_key));
             env.insert("ANTHROPIC_BASE_URL".to_string(), json!(request.endpoint));
 
-            // Add model if provided (use as default model)
+            // Add default model if provided
             if let Some(model) = &request.model {
                 env.insert("ANTHROPIC_MODEL".to_string(), json!(model));
+            }
+
+            // Add Claude-specific model fields (v3.7.1+)
+            if let Some(haiku_model) = &request.haiku_model {
+                env.insert(
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL".to_string(),
+                    json!(haiku_model),
+                );
+            }
+            if let Some(sonnet_model) = &request.sonnet_model {
+                env.insert(
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL".to_string(),
+                    json!(sonnet_model),
+                );
+            }
+            if let Some(opus_model) = &request.opus_model {
+                env.insert(
+                    "ANTHROPIC_DEFAULT_OPUS_MODEL".to_string(),
+                    json!(opus_model),
+                );
             }
 
             json!({ "env": env })
@@ -319,9 +388,252 @@ requires_openai_auth = true
         sort_index: None,
         notes: request.notes.clone(),
         meta: None,
+        icon: None,
+        icon_color: None,
     };
 
     Ok(provider)
+}
+
+/// Parse and merge configuration from Base64 encoded config or remote URL
+///
+/// Priority: URL params > inline config > remote config
+pub fn parse_and_merge_config(
+    request: &DeepLinkImportRequest,
+) -> Result<DeepLinkImportRequest, AppError> {
+    use base64::prelude::*;
+
+    // If no config provided, return original request
+    if request.config.is_none() && request.config_url.is_none() {
+        return Ok(request.clone());
+    }
+
+    // Step 1: Get config content
+    let config_content = if let Some(config_b64) = &request.config {
+        // Decode Base64 inline config
+        let decoded = BASE64_STANDARD
+            .decode(config_b64)
+            .map_err(|e| AppError::InvalidInput(format!("Invalid Base64 encoding: {e}")))?;
+        String::from_utf8(decoded)
+            .map_err(|e| AppError::InvalidInput(format!("Invalid UTF-8 in config: {e}")))?
+    } else if let Some(_config_url) = &request.config_url {
+        // Fetch remote config (TODO: implement remote fetching in next phase)
+        return Err(AppError::InvalidInput(
+            "Remote config URL is not yet supported. Use inline config instead.".to_string(),
+        ));
+    } else {
+        return Ok(request.clone());
+    };
+
+    // Step 2: Parse config based on format
+    let format = request.config_format.as_deref().unwrap_or("json");
+    let config_value: serde_json::Value = match format {
+        "json" => serde_json::from_str(&config_content)
+            .map_err(|e| AppError::InvalidInput(format!("Invalid JSON config: {e}")))?,
+        "toml" => {
+            let toml_value: toml::Value = toml::from_str(&config_content)
+                .map_err(|e| AppError::InvalidInput(format!("Invalid TOML config: {e}")))?;
+            // Convert TOML to JSON for uniform processing
+            serde_json::to_value(toml_value)
+                .map_err(|e| AppError::Message(format!("Failed to convert TOML to JSON: {e}")))?
+        }
+        _ => {
+            return Err(AppError::InvalidInput(format!(
+                "Unsupported config format: {format}"
+            )))
+        }
+    };
+
+    // Step 3: Extract values from config based on app type and merge with URL params
+    let mut merged = request.clone();
+
+    match request.app.as_str() {
+        "claude" => merge_claude_config(&mut merged, &config_value)?,
+        "codex" => merge_codex_config(&mut merged, &config_value)?,
+        "gemini" => merge_gemini_config(&mut merged, &config_value)?,
+        _ => {
+            return Err(AppError::InvalidInput(format!(
+                "Invalid app type: {}",
+                request.app
+            )))
+        }
+    }
+
+    Ok(merged)
+}
+
+/// Merge Claude configuration from config file
+///
+/// Priority: URL params override config file values
+fn merge_claude_config(
+    request: &mut DeepLinkImportRequest,
+    config: &serde_json::Value,
+) -> Result<(), AppError> {
+    let env = config
+        .get("env")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| {
+            AppError::InvalidInput("Claude config must have 'env' object".to_string())
+        })?;
+
+    // Auto-fill API key if not provided in URL
+    if request.api_key.is_empty() {
+        if let Some(token) = env.get("ANTHROPIC_AUTH_TOKEN").and_then(|v| v.as_str()) {
+            request.api_key = token.to_string();
+        }
+    }
+
+    // Auto-fill endpoint if not provided in URL
+    if request.endpoint.is_empty() {
+        if let Some(base_url) = env.get("ANTHROPIC_BASE_URL").and_then(|v| v.as_str()) {
+            request.endpoint = base_url.to_string();
+        }
+    }
+
+    // Auto-fill homepage from endpoint if not provided
+    if request.homepage.is_empty() && !request.endpoint.is_empty() {
+        request.homepage = infer_homepage_from_endpoint(&request.endpoint)
+            .unwrap_or_else(|| "https://anthropic.com".to_string());
+    }
+
+    // Auto-fill model fields (URL params take priority)
+    if request.model.is_none() {
+        request.model = env
+            .get("ANTHROPIC_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+    if request.haiku_model.is_none() {
+        request.haiku_model = env
+            .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+    if request.sonnet_model.is_none() {
+        request.sonnet_model = env
+            .get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+    if request.opus_model.is_none() {
+        request.opus_model = env
+            .get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+
+    Ok(())
+}
+
+/// Merge Codex configuration from config file
+fn merge_codex_config(
+    request: &mut DeepLinkImportRequest,
+    config: &serde_json::Value,
+) -> Result<(), AppError> {
+    // Auto-fill API key from auth.OPENAI_API_KEY
+    if request.api_key.is_empty() {
+        if let Some(api_key) = config
+            .get("auth")
+            .and_then(|v| v.get("OPENAI_API_KEY"))
+            .and_then(|v| v.as_str())
+        {
+            request.api_key = api_key.to_string();
+        }
+    }
+
+    // Auto-fill endpoint and model from config string
+    if let Some(config_str) = config.get("config").and_then(|v| v.as_str()) {
+        // Parse TOML config string to extract base_url and model
+        if let Ok(toml_value) = toml::from_str::<toml::Value>(config_str) {
+            // Extract base_url from model_providers section
+            if request.endpoint.is_empty() {
+                if let Some(base_url) = extract_codex_base_url(&toml_value) {
+                    request.endpoint = base_url;
+                }
+            }
+
+            // Extract model
+            if request.model.is_none() {
+                if let Some(model) = toml_value.get("model").and_then(|v| v.as_str()) {
+                    request.model = Some(model.to_string());
+                }
+            }
+        }
+    }
+
+    // Auto-fill homepage from endpoint
+    if request.homepage.is_empty() && !request.endpoint.is_empty() {
+        request.homepage = infer_homepage_from_endpoint(&request.endpoint)
+            .unwrap_or_else(|| "https://openai.com".to_string());
+    }
+
+    Ok(())
+}
+
+/// Merge Gemini configuration from config file
+fn merge_gemini_config(
+    request: &mut DeepLinkImportRequest,
+    config: &serde_json::Value,
+) -> Result<(), AppError> {
+    // Gemini uses flat env structure
+    if request.api_key.is_empty() {
+        if let Some(api_key) = config.get("GEMINI_API_KEY").and_then(|v| v.as_str()) {
+            request.api_key = api_key.to_string();
+        }
+    }
+
+    if request.endpoint.is_empty() {
+        if let Some(base_url) = config.get("GEMINI_BASE_URL").and_then(|v| v.as_str()) {
+            request.endpoint = base_url.to_string();
+        }
+    }
+
+    if request.model.is_none() {
+        request.model = config
+            .get("GEMINI_MODEL")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+
+    // Auto-fill homepage from endpoint
+    if request.homepage.is_empty() && !request.endpoint.is_empty() {
+        request.homepage = infer_homepage_from_endpoint(&request.endpoint)
+            .unwrap_or_else(|| "https://ai.google.dev".to_string());
+    }
+
+    Ok(())
+}
+
+/// Extract base_url from Codex TOML config
+fn extract_codex_base_url(toml_value: &toml::Value) -> Option<String> {
+    // Try to find base_url in model_providers section
+    if let Some(providers) = toml_value.get("model_providers").and_then(|v| v.as_table()) {
+        for (_key, provider) in providers.iter() {
+            if let Some(base_url) = provider.get("base_url").and_then(|v| v.as_str()) {
+                return Some(base_url.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Infer homepage URL from API endpoint
+///
+/// Examples:
+/// - https://api.anthropic.com/v1 → https://anthropic.com
+/// - https://api.openai.com/v1 → https://openai.com
+/// - https://api-test.company.com/v1 → https://company.com
+fn infer_homepage_from_endpoint(endpoint: &str) -> Option<String> {
+    let url = Url::parse(endpoint).ok()?;
+    let host = url.host_str()?;
+
+    // Remove common API prefixes
+    let clean_host = host
+        .strip_prefix("api.")
+        .or_else(|| host.strip_prefix("api-"))
+        .unwrap_or(host);
+
+    Some(format!("https://{clean_host}"))
 }
 
 #[cfg(test)]
@@ -375,14 +687,15 @@ mod tests {
 
     #[test]
     fn test_parse_missing_required_field() {
-        let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test";
+        // Name is still required even in v3.8+ (only homepage/endpoint/apiKey are optional)
+        let url = "ccswitch://v1/import?resource=provider&app=claude";
 
         let result = parse_deeplink_url(url);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("Missing 'homepage' parameter"));
+            .contains("Missing 'name' parameter"));
     }
 
     #[test]
@@ -413,6 +726,12 @@ mod tests {
             api_key: "test-api-key".to_string(),
             model: Some("gemini-2.0-flash".to_string()),
             notes: None,
+            haiku_model: None,
+            sonnet_model: None,
+            opus_model: None,
+            config: None,
+            config_format: None,
+            config_url: None,
         };
 
         let provider = build_provider_from_request(&AppType::Gemini, &request).unwrap();
@@ -443,6 +762,12 @@ mod tests {
             api_key: "test-api-key".to_string(),
             model: None,
             notes: None,
+            haiku_model: None,
+            sonnet_model: None,
+            opus_model: None,
+            config: None,
+            config_format: None,
+            config_url: None,
         };
 
         let provider = build_provider_from_request(&AppType::Gemini, &request).unwrap();
@@ -453,5 +778,89 @@ mod tests {
         assert_eq!(env["GOOGLE_GEMINI_BASE_URL"], "https://api.example.com");
         // Model should not be present
         assert!(env.get("GEMINI_MODEL").is_none());
+    }
+
+    #[test]
+    fn test_infer_homepage() {
+        assert_eq!(
+            infer_homepage_from_endpoint("https://api.anthropic.com/v1"),
+            Some("https://anthropic.com".to_string())
+        );
+        assert_eq!(
+            infer_homepage_from_endpoint("https://api-test.company.com/v1"),
+            Some("https://test.company.com".to_string())
+        );
+        assert_eq!(
+            infer_homepage_from_endpoint("https://example.com"),
+            Some("https://example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_and_merge_config_claude() {
+        use base64::prelude::*;
+
+        // Prepare Base64 encoded Claude config
+        let config_json = r#"{"env":{"ANTHROPIC_AUTH_TOKEN":"sk-ant-xxx","ANTHROPIC_BASE_URL":"https://api.anthropic.com/v1","ANTHROPIC_MODEL":"claude-sonnet-4.5"}}"#;
+        let config_b64 = BASE64_STANDARD.encode(config_json.as_bytes());
+
+        let request = DeepLinkImportRequest {
+            version: "v1".to_string(),
+            resource: "provider".to_string(),
+            app: "claude".to_string(),
+            name: "Test".to_string(),
+            homepage: String::new(),
+            endpoint: String::new(),
+            api_key: String::new(),
+            model: None,
+            notes: None,
+            haiku_model: None,
+            sonnet_model: None,
+            opus_model: None,
+            config: Some(config_b64),
+            config_format: Some("json".to_string()),
+            config_url: None,
+        };
+
+        let merged = parse_and_merge_config(&request).unwrap();
+
+        // Should auto-fill from config
+        assert_eq!(merged.api_key, "sk-ant-xxx");
+        assert_eq!(merged.endpoint, "https://api.anthropic.com/v1");
+        assert_eq!(merged.homepage, "https://anthropic.com");
+        assert_eq!(merged.model, Some("claude-sonnet-4.5".to_string()));
+    }
+
+    #[test]
+    fn test_parse_and_merge_config_url_override() {
+        use base64::prelude::*;
+
+        let config_json = r#"{"env":{"ANTHROPIC_AUTH_TOKEN":"sk-old","ANTHROPIC_BASE_URL":"https://api.anthropic.com/v1"}}"#;
+        let config_b64 = BASE64_STANDARD.encode(config_json.as_bytes());
+
+        let request = DeepLinkImportRequest {
+            version: "v1".to_string(),
+            resource: "provider".to_string(),
+            app: "claude".to_string(),
+            name: "Test".to_string(),
+            homepage: String::new(),
+            endpoint: String::new(),
+            api_key: "sk-new".to_string(), // URL param should override
+            model: None,
+            notes: None,
+            haiku_model: None,
+            sonnet_model: None,
+            opus_model: None,
+            config: Some(config_b64),
+            config_format: Some("json".to_string()),
+            config_url: None,
+        };
+
+        let merged = parse_and_merge_config(&request).unwrap();
+
+        // URL param should take priority
+        assert_eq!(merged.api_key, "sk-new");
+        // Config file value should be used
+        assert_eq!(merged.endpoint, "https://api.anthropic.com/v1");
     }
 }

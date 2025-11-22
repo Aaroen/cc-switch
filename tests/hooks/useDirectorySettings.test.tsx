@@ -8,7 +8,9 @@ const getConfigDirMock = vi.hoisted(() => vi.fn());
 const selectConfigDirectoryMock = vi.hoisted(() => vi.fn());
 const setAppConfigDirOverrideMock = vi.hoisted(() => vi.fn());
 const homeDirMock = vi.hoisted(() => vi.fn<() => Promise<string>>());
-const joinMock = vi.hoisted(() => vi.fn(async (...segments: string[]) => segments.join("/")));
+const joinMock = vi.hoisted(() =>
+  vi.fn(async (...segments: string[]) => segments.join("/")),
+);
 const toastErrorMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api", () => ({
@@ -38,7 +40,9 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-const createSettings = (overrides: Partial<SettingsFormState> = {}): SettingsFormState => ({
+const createSettings = (
+  overrides: Partial<SettingsFormState> = {},
+): SettingsFormState => ({
   showInTray: true,
   minimizeToTrayOnClose: true,
   enableClaudePluginIntegration: false,
@@ -55,7 +59,9 @@ describe("useDirectorySettings", () => {
     vi.clearAllMocks();
 
     homeDirMock.mockResolvedValue("/home/mock");
-    joinMock.mockImplementation(async (...segments: string[]) => segments.join("/"));
+    joinMock.mockImplementation(async (...segments: string[]) =>
+      segments.join("/"),
+    );
 
     getAppConfigDirOverrideMock.mockResolvedValue(null);
     getConfigDirMock.mockImplementation(async (app: string) =>
@@ -78,6 +84,7 @@ describe("useDirectorySettings", () => {
       appConfig: "/override/app",
       claude: "/remote/claude",
       codex: "/remote/codex",
+      gemini: "/remote/codex", // Gemini 使用 codex 作为默认
     });
   });
 
@@ -98,7 +105,9 @@ describe("useDirectorySettings", () => {
     });
 
     expect(selectConfigDirectoryMock).toHaveBeenCalledWith("/remote/claude");
-    expect(onUpdateSettings).toHaveBeenCalledWith({ claudeConfigDir: "/picked/claude" });
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      claudeConfigDir: "/picked/claude",
+    });
     expect(result.current.resolvedDirs.claude).toBe("/picked/claude");
   });
 
@@ -143,7 +152,9 @@ describe("useDirectorySettings", () => {
     });
 
     expect(toastErrorMock).toHaveBeenCalled();
-    expect(onUpdateSettings).not.toHaveBeenCalledWith({ codexConfigDir: expect.anything() });
+    expect(onUpdateSettings).not.toHaveBeenCalledWith({
+      codexConfigDir: expect.anything(),
+    });
   });
 
   it("updates app config directory via browseAppConfigDir", async () => {
@@ -162,7 +173,9 @@ describe("useDirectorySettings", () => {
     });
 
     expect(result.current.appConfigDir).toBe("/new/app");
-    expect(selectConfigDirectoryMock).toHaveBeenCalledWith("/home/mock/.cc-switch");
+    expect(selectConfigDirectoryMock).toHaveBeenCalledWith(
+      "/home/mock/.cc-switch",
+    );
   });
 
   it("resets directories to computed defaults", async () => {
@@ -183,8 +196,12 @@ describe("useDirectorySettings", () => {
       await result.current.resetAppConfigDir();
     });
 
-    expect(onUpdateSettings).toHaveBeenCalledWith({ claudeConfigDir: undefined });
-    expect(onUpdateSettings).toHaveBeenCalledWith({ codexConfigDir: undefined });
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      claudeConfigDir: undefined,
+    });
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      codexConfigDir: undefined,
+    });
     expect(result.current.resolvedDirs.claude).toBe("/home/mock/.claude");
     expect(result.current.resolvedDirs.codex).toBe("/home/mock/.codex");
     expect(result.current.resolvedDirs.appConfig).toBe("/home/mock/.cc-switch");

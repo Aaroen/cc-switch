@@ -16,7 +16,6 @@ interface ProviderListProps {
   providers: Record<string, Provider>;
   currentProviderId: string;
   appId: AppId;
-  isEditMode?: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
   onDelete: (provider: Provider) => void;
@@ -31,7 +30,6 @@ export function ProviderList({
   providers,
   currentProviderId,
   appId,
-  isEditMode = false,
   onSwitch,
   onEdit,
   onDelete,
@@ -73,14 +71,16 @@ export function ProviderList({
         items={sortedProviders.map((provider) => provider.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-3">
+        <div
+          className="space-y-3 animate-slide-up"
+          style={{ animationDelay: "0.1s" }}
+        >
           {sortedProviders.map((provider) => (
             <SortableProviderCard
               key={provider.id}
               provider={provider}
               isCurrent={provider.id === currentProviderId}
               appId={appId}
-              isEditMode={isEditMode}
               onSwitch={onSwitch}
               onEdit={onEdit}
               onDelete={onDelete}
@@ -99,7 +99,6 @@ interface SortableProviderCardProps {
   provider: Provider;
   isCurrent: boolean;
   appId: AppId;
-  isEditMode: boolean;
   onSwitch: (provider: Provider) => void;
   onEdit: (provider: Provider) => void;
   onDelete: (provider: Provider) => void;
@@ -112,7 +111,6 @@ function SortableProviderCard({
   provider,
   isCurrent,
   appId,
-  isEditMode,
   onSwitch,
   onEdit,
   onDelete,
@@ -140,7 +138,6 @@ function SortableProviderCard({
         provider={provider}
         isCurrent={isCurrent}
         appId={appId}
-        isEditMode={isEditMode}
         onSwitch={onSwitch}
         onEdit={onEdit}
         onDelete={onDelete}

@@ -78,6 +78,8 @@ interface ProviderFormProps {
     settingsConfig?: Record<string, unknown>;
     category?: ProviderCategory;
     meta?: ProviderMeta;
+    icon?: string;
+    iconColor?: string;
   };
   showButtons?: boolean;
 }
@@ -147,6 +149,8 @@ export function ProviderForm({
           : appId === "gemini"
             ? GEMINI_DEFAULT_CONFIG
             : CLAUDE_DEFAULT_CONFIG,
+      icon: initialData?.icon ?? "",
+      iconColor: initialData?.iconColor ?? "",
     }),
     [initialData, appId],
   );
@@ -651,7 +655,7 @@ export function ProviderForm({
       <form
         id="provider-form"
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6"
+        className="space-y-6 glass rounded-xl p-6 border border-white/10"
       >
         {/* 预设供应商选择（仅新增模式显示） */}
         {!initialData && (

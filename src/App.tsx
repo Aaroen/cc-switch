@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Settings, Edit3 } from "lucide-react";
+import {
+  Plus,
+  Settings,
+  ArrowLeft,
+  Bot,
+  Book,
+  Wrench,
+  Server,
+  RefreshCw,
+} from "lucide-react";
 import type { Provider } from "@/types";
 import type { EnvConflict } from "@/types/env";
 import { useProvidersQuery } from "@/lib/query";
@@ -19,7 +28,7 @@ import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import { UpdateBadge } from "@/components/UpdateBadge";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import UsageScriptModal from "@/components/UsageScriptModal";
@@ -27,34 +36,34 @@ import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
 import { SkillsPage } from "@/components/skills/SkillsPage";
 import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
+import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+
+type View = "providers" | "settings" | "prompts" | "skills" | "mcp" | "agents";
 
 function App() {
   const { t } = useTranslation();
 
   const [activeApp, setActiveApp] = useState<AppId>("claude");
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<View>("providers");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isMcpOpen, setIsMcpOpen] = useState(false);
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
-  const [isSkillsOpen, setIsSkillsOpen] = useState(false);
+
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Provider | null>(null);
   const [envConflicts, setEnvConflicts] = useState<EnvConflict[]>([]);
   const [showEnvBanner, setShowEnvBanner] = useState(false);
 
+  const promptPanelRef = useRef<any>(null);
+  const mcpPanelRef = useRef<any>(null);
+  const skillsPageRef = useRef<any>(null);
+  const addActionButtonClass =
+    "bg-orange-500 hover:bg-orange-600 dark:bg-orange-500 dark:hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 dark:shadow-orange-500/40 rounded-full w-8 h-8";
+
   const { data, isLoading, refetch } = useProvidersQuery(activeApp);
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
+  const isClaudeApp = activeApp === "claude";
 
   // 🎯 使用 useProviderActions Hook 统一管理所有 Provider 操作
   const {
@@ -98,7 +107,10 @@ function App() {
 
         if (flatConflicts.length > 0) {
           setEnvConflicts(flatConflicts);
-          setShowEnvBanner(true);
+          const dismissed = sessionStorage.getItem("env_banner_dismissed");
+          if (!dismissed) {
+            setShowEnvBanner(true);
+          }
         }
       } catch (error) {
         console.error(
@@ -128,7 +140,10 @@ function App() {
             );
             return [...prev, ...newConflicts];
           });
-          setShowEnvBanner(true);
+          const dismissed = sessionStorage.getItem("env_banner_dismissed");
+          if (!dismissed) {
+            setShowEnvBanner(true);
+          }
         }
       } catch (error) {
         console.error(
@@ -229,13 +244,81 @@ function App() {
     }
   };
 
+  const renderContent = () => {
+    switch (currentView) {
+      case "settings":
+        return (
+          <SettingsPage
+            open={true}
+            onOpenChange={() => setCurrentView("providers")}
+            onImportSuccess={handleImportSuccess}
+          />
+        );
+      case "prompts":
+        return (
+          <PromptPanel
+            ref={promptPanelRef}
+            open={true}
+            onOpenChange={() => setCurrentView("providers")}
+            appId={activeApp}
+          />
+        );
+      case "skills":
+        return (
+          <SkillsPage
+            ref={skillsPageRef}
+            onClose={() => setCurrentView("providers")}
+          />
+        );
+      case "mcp":
+        return (
+          <UnifiedMcpPanel
+            ref={mcpPanelRef}
+            onOpenChange={() => setCurrentView("providers")}
+          />
+        );
+      case "agents":
+        return <AgentsPanel onOpenChange={() => setCurrentView("providers")} />;
+      default:
+        return (
+          <div className="mx-auto max-w-[56rem] px-6 space-y-4">
+            <ProviderList
+              providers={providers}
+              currentProviderId={currentProviderId}
+              appId={activeApp}
+              isLoading={isLoading}
+              onSwitch={switchProvider}
+              onEdit={setEditingProvider}
+              onDelete={setConfirmDelete}
+              onDuplicate={handleDuplicateProvider}
+              onConfigureUsage={setUsageProvider}
+              onOpenWebsite={handleOpenWebsite}
+              onCreate={() => setIsAddOpen(true)}
+            />
+          </div>
+        );
+    }
+  };
+
   return (
-    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
+    <div
+      className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/30"
+      style={{ overflowX: "hidden" }}
+    >
+      {/* 全局拖拽区域（顶部 4px），避免上边框无法拖动 */}
+      <div
+        className="fixed top-0 left-0 right-0 h-4 z-[60]"
+        data-tauri-drag-region
+        style={{ WebkitAppRegion: "drag" } as any}
+      />
       {/* 环境变量警告横幅 */}
       {showEnvBanner && envConflicts.length > 0 && (
         <EnvWarningBanner
           conflicts={envConflicts}
-          onDismiss={() => setShowEnvBanner(false)}
+          onDismiss={() => {
+            setShowEnvBanner(false);
+            sessionStorage.setItem("env_banner_dismissed", "true");
+          }}
           onDeleted={async () => {
             // 删除后重新检测
             try {
@@ -255,92 +338,182 @@ function App() {
         />
       )}
 
-      <header className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            <a
-              href="https://github.com/farion1231/cc-switch"
-              target="_blank"
-              rel="noreferrer"
-              className="text-xl font-semibold text-blue-500 transition-colors hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              CC Switch
-            </a>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSettingsOpen(true)}
-              title={t("common.settings")}
-              className="ml-2"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsEditMode(!isEditMode)}
-              title={t(
-                isEditMode ? "header.exitEditMode" : "header.enterEditMode",
-              )}
-              className={
-                isEditMode
-                  ? "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
-                  : ""
-              }
-            >
-              <Edit3 className="h-4 w-4" />
-            </Button>
-            <UpdateBadge onClick={() => setIsSettingsOpen(true)} />
+      <header
+        className="glass-header fixed top-0 z-50 w-full py-3 transition-all duration-300"
+        data-tauri-drag-region
+        style={{ WebkitAppRegion: "drag" } as any}
+      >
+        <div className="h-4 w-full" aria-hidden data-tauri-drag-region />
+        <div
+          className="mx-auto max-w-[56rem] px-6 flex flex-wrap items-center justify-between gap-2"
+          data-tauri-drag-region
+          style={{ WebkitAppRegion: "drag" } as any}
+        >
+          <div
+            className="flex items-center gap-1"
+            style={{ WebkitAppRegion: "no-drag" } as any}
+          >
+            {currentView !== "providers" ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentView("providers")}
+                  className="mr-2 rounded-lg"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <h1 className="text-lg font-semibold">
+                  {currentView === "settings" && t("settings.title")}
+                  {currentView === "prompts" &&
+                    t("prompts.title", { appName: t(`apps.${activeApp}`) })}
+                  {currentView === "skills" && t("skills.title")}
+                  {currentView === "mcp" && t("mcp.unifiedPanel.title")}
+                  {currentView === "agents" && "Agents"}
+                </h1>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://github.com/farion1231/cc-switch"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xl font-semibold text-blue-500 transition-colors hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    CC Switch
+                  </a>
+                  <div className="h-5 w-[1px] bg-black/10 dark:bg-white/15" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCurrentView("settings")}
+                    title={t("common.settings")}
+                    className="hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </div>
+                <UpdateBadge onClick={() => setCurrentView("settings")} />
+              </>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
-            <Button
-              variant="mcp"
-              onClick={() => setIsPromptOpen(true)}
-              className="min-w-[80px]"
-            >
-              {t("prompts.manage")}
-            </Button>
-            <Button
-              variant="mcp"
-              onClick={() => setIsMcpOpen(true)}
-              className="min-w-[80px]"
-            >
-              MCP
-            </Button>
-            <Button
-              variant="mcp"
-              onClick={() => setIsSkillsOpen(true)}
-              className="min-w-[80px]"
-            >
-              {t("skills.manage")}
-            </Button>
-            <Button onClick={() => setIsAddOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("header.addProvider")}
-            </Button>
+          <div
+            className="flex items-center gap-2"
+            style={{ WebkitAppRegion: "no-drag" } as any}
+          >
+            {currentView === "prompts" && (
+              <Button
+                size="icon"
+                onClick={() => promptPanelRef.current?.openAdd()}
+                className={addActionButtonClass}
+                title={t("prompts.add")}
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            )}
+            {currentView === "mcp" && (
+              <Button
+                size="icon"
+                onClick={() => mcpPanelRef.current?.openAdd()}
+                className={addActionButtonClass}
+                title={t("mcp.unifiedPanel.addServer")}
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            )}
+            {currentView === "skills" && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => skillsPageRef.current?.refresh()}
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  {t("skills.refresh")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => skillsPageRef.current?.openRepoManager()}
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  {t("skills.repoManager")}
+                </Button>
+              </>
+            )}
+            {currentView === "providers" && (
+              <>
+                <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
+
+                <div className="h-8 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
+
+                <div className="glass p-1 rounded-xl flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentView("prompts")}
+                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                    title={t("prompts.manage")}
+                  >
+                    <Book className="h-4 w-4" />
+                  </Button>
+                  {isClaudeApp && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("skills")}
+                      className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                      title={t("skills.manage")}
+                    >
+                      <Wrench className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentView("mcp")}
+                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                    title="MCP"
+                  >
+                    <Server className="h-4 w-4" />
+                  </Button>
+                  {isClaudeApp && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("agents")}
+                      className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                      title="Agents"
+                    >
+                      <Bot className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => setIsAddOpen(true)}
+                  size="icon"
+                  className={`ml-2 ${addActionButtonClass}`}
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-scroll">
-        <div className="mx-auto max-w-4xl px-6 py-6">
-          <ProviderList
-            providers={providers}
-            currentProviderId={currentProviderId}
-            appId={activeApp}
-            isLoading={isLoading}
-            isEditMode={isEditMode}
-            onSwitch={switchProvider}
-            onEdit={setEditingProvider}
-            onDelete={setConfirmDelete}
-            onDuplicate={handleDuplicateProvider}
-            onConfigureUsage={setUsageProvider}
-            onOpenWebsite={handleOpenWebsite}
-            onCreate={() => setIsAddOpen(true)}
-          />
-        </div>
+      <main
+        className={`flex-1 overflow-y-auto pb-12 animate-fade-in scroll-overlay ${
+          currentView === "providers" ? "pt-24" : "pt-20"
+        }`}
+        style={{ overflowX: "hidden" }}
+      >
+        {renderContent()}
       </main>
 
       <AddProviderDialog
@@ -388,30 +561,6 @@ function App() {
         onCancel={() => setConfirmDelete(null)}
       />
 
-      <SettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        onImportSuccess={handleImportSuccess}
-      />
-
-      <PromptPanel
-        open={isPromptOpen}
-        onOpenChange={setIsPromptOpen}
-        appId={activeApp}
-      />
-
-      <UnifiedMcpPanel open={isMcpOpen} onOpenChange={setIsMcpOpen} />
-
-      <Dialog open={isSkillsOpen} onOpenChange={setIsSkillsOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] min-h-[600px] flex flex-col p-0">
-          <DialogHeader className="sr-only">
-            <VisuallyHidden>
-              <DialogTitle>{t("skills.title")}</DialogTitle>
-            </VisuallyHidden>
-          </DialogHeader>
-          <SkillsPage onClose={() => setIsSkillsOpen(false)} />
-        </DialogContent>
-      </Dialog>
       <DeepLinkImportDialog />
     </div>
   );

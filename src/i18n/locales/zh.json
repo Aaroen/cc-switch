@@ -27,7 +27,8 @@
     "formatSuccess": "格式化成功",
     "formatError": "格式化失败：{{error}}",
     "copy": "复制",
-    "view": "查看"
+    "view": "查看",
+    "back": "返回"
   },
   "apiKeyInput": {
     "placeholder": "请输入API Key",
@@ -166,6 +167,9 @@
     "languageOptionEnglish": "English",
     "windowBehavior": "窗口行为",
     "windowBehaviorHint": "配置窗口最小化与 Claude 插件联动策略。",
+    "launchOnStartup": "开机自启",
+    "launchOnStartupDescription": "随系统启动自动运行 CC Switch",
+    "autoLaunchFailed": "设置开机自启失败",
     "minimizeToTray": "关闭时最小化到托盘",
     "minimizeToTrayDescription": "勾选后点击关闭按钮会隐藏到系统托盘，取消则直接退出应用。",
     "enableClaudePluginIntegration": "应用到 Claude Code 插件",
@@ -314,7 +318,8 @@
     "pleaseAddEndpoint": "请先添加端点",
     "testUnavailable": "测速功能不可用",
     "noResult": "未返回结果",
-    "testFailed": "测速失败: {{error}}"
+    "testFailed": "测速失败: {{error}}",
+    "status": "状态码：{{code}}"
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",
@@ -361,6 +366,9 @@
     "title": "配置用量查询",
     "enableUsageQuery": "启用用量查询",
     "presetTemplate": "预设模板",
+    "requestUrl": "请求地址",
+    "requestUrlPlaceholder": "例如：https://api.example.com",
+    "method": "HTTP 方法",
     "templateCustom": "自定义",
     "templateGeneral": "通用模板",
     "templateNewAPI": "NewAPI",
@@ -373,11 +381,14 @@
     "queryFailedMessage": "查询失败",
     "queryScript": "查询脚本（JavaScript）",
     "timeoutSeconds": "超时时间（秒）",
+    "headers": "请求头",
+    "body": "请求 Body",
     "timeoutHint": "范围: 2-30 秒",
     "timeoutMustBeInteger": "超时时间必须为整数，小数部分已忽略",
     "timeoutCannotBeNegative": "超时时间不能为负数",
+    "autoIntervalMinutes": "自动查询间隔（分钟）",
     "autoQueryInterval": "自动查询间隔（分钟）",
-    "autoQueryIntervalHint": "0 表示不自动查询，建议设置 5-60 分钟",
+    "autoQueryIntervalHint": "0 表示不自动查询，建议 5-60 分钟",
     "intervalMustBeInteger": "自动查询间隔必须为整数，小数部分已忽略",
     "intervalCannotBeNegative": "自动查询间隔不能为负数",
     "intervalAdjusted": "自动查询间隔已调整为 {{value}} 分钟",
@@ -398,6 +409,9 @@
     "formatSuccess": "格式化成功",
     "formatFailed": "格式化失败",
     "variablesHint": "支持变量: {{apiKey}}, {{baseUrl}} | extractor 函数接收 API 响应的 JSON 对象",
+    "scriptConfig": "请求配置",
+    "extractorCode": "提取器代码",
+    "extractorHint": "返回对象需包含剩余额度等字段",
     "fieldIsValid": "• isValid: 布尔值，套餐是否有效",
     "fieldInvalidMessage": "• invalidMessage: 字符串，失效原因说明（当 isValid 为 false 时显示）",
     "fieldRemaining": "• remaining: 数字，剩余额度",
@@ -739,6 +753,29 @@
     "parseError": "深链接解析失败",
     "importSuccess": "导入成功",
     "importSuccessDescription": "供应商 \"{{name}}\" 已成功导入",
-    "importError": "导入失败"
+    "importError": "导入失败",
+    "configSource": "配置来源",
+    "configEmbedded": "内嵌配置",
+    "configRemote": "远程配置",
+    "configDetails": "配置详情",
+    "configUrl": "配置文件 URL",
+    "configMergeError": "合并配置文件失败"
+  },
+  "iconPicker": {
+    "search": "搜索图标",
+    "searchPlaceholder": "输入图标名称...",
+    "noResults": "未找到匹配的图标",
+    "category": {
+      "aiProvider": "AI 服务商",
+      "cloud": "云平台",
+      "tool": "开发工具",
+      "other": "其他"
+    }
+  },
+  "providerIcon": {
+    "label": "图标",
+    "colorLabel": "图标颜色",
+    "selectIcon": "选择图标",
+    "preview": "预览"
   }
 }

@@ -1,25 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  Save,
-  Plus,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Wand2,
-} from "lucide-react";
+import { Save, Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import JsonEditor from "@/components/JsonEditor";
 import type { AppId } from "@/lib/api/types";
 import { McpServer, McpServerSpec } from "@/types";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
@@ -34,25 +20,21 @@ import {
   mcpServerToToml,
 } from "@/utils/tomlUtils";
 import { normalizeTomlText } from "@/utils/textNormalization";
-import { formatJSON, parseSmartMcpJson } from "@/utils/formatters";
+import { parseSmartMcpJson } from "@/utils/formatters";
 import { useMcpValidation } from "./useMcpValidation";
 import { useUpsertMcpServer } from "@/hooks/useMcp";
+import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 
 interface McpFormModalProps {
   editingId?: string;
   initialData?: McpServer;
-  onSave: () => Promise<void>; // v3.7.0: 简化为仅用于关闭表单的回调
+  onSave: () => Promise<void>;
   onClose: () => void;
   existingIds?: string[];
-  defaultFormat?: "json" | "toml"; // 默认配置格式（可选，默认为 JSON）
-  defaultEnabledApps?: AppId[]; // 默认启用到哪些应用（可选，默认为全部应用）
+  defaultFormat?: "json" | "toml";
+  defaultEnabledApps?: AppId[];
 }
 
-/**
- * MCP 表单模态框组件（v3.7.0 完整重构版）
- * - 支持 JSON 和 TOML 两种格式
- * - 统一管理，通过复选框选择启用到哪些应用
- */
 const McpFormModal: React.FC<McpFormModalProps> = ({
   editingId,
   initialData,
@@ -79,7 +61,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [formDocs, setFormDocs] = useState(initialData?.docs || "");
   const [formTags, setFormTags] = useState(initialData?.tags?.join(", ") || "");
 
-  // 启用状态：编辑模式使用现有值，新增模式使用默认值
   const [enabledApps, setEnabledApps] = useState<{
     claude: boolean;
     codex: boolean;
@@ -88,7 +69,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     if (initialData?.apps) {
       return { ...initialData.apps };
     }
-    // 新增模式：根据 defaultEnabledApps 设置初始值
     return {
       claude: defaultEnabledApps.includes("claude"),
       codex: defaultEnabledApps.includes("codex"),
@@ -96,10 +76,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     };
   });
 
-  // 编辑模式下禁止修改 ID
   const isEditing = !!editingId;
 
-  // 判断是否在编辑模式下有附加信息
   const hasAdditionalInfo = !!(
     initialData?.description ||
     initialData?.tags?.length ||
@@ -107,21 +85,17 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     initialData?.docs
   );
 
-  // 附加信息展开状态（编辑模式下有值时默认展开）
   const [showMetadata, setShowMetadata] = useState(
     isEditing ? hasAdditionalInfo : false,
   );
 
-  // 配置格式：优先使用 defaultFormat，编辑模式下可从现有数据推断
   const useTomlFormat = useMemo(() => {
     if (initialData?.server) {
-      // 编辑模式：尝试从现有数据推断格式（这里简化处理，默认 JSON）
       return defaultFormat === "toml";
     }
     return defaultFormat === "toml";
   }, [defaultFormat, initialData]);
 
-  // 根据格式决定初始配置
   const [formConfig, setFormConfig] = useState(() => {
     const spec = initialData?.server;
     if (!spec) return "";
@@ -135,8 +109,23 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [idError, setIdError] = useState("");
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // 判断是否使用 TOML 格式（向后兼容，后续可扩展为格式切换按钮）
+  useEffect(() => {
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
+
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const useToml = useTomlFormat;
 
   const wizardInitialSpec = useMemo(() => {
@@ -164,7 +153,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     }
   }, [formConfig, initialData, useToml]);
 
-  // 预设选择状态（仅新增模式显示；-1 表示自定义）
   const [selectedPreset, setSelectedPreset] = useState<number | null>(
     isEditing ? null : -1,
   );
@@ -186,7 +174,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     return `${candidate}-${i}`;
   };
 
-  // 应用预设（写入表单但不落库）
   const applyPreset = (index: number) => {
     if (index < 0 || index >= mcpPresets.length) return;
     const preset = mcpPresets[index];
@@ -200,7 +187,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     setFormDocs(presetWithDesc.docs || "");
     setFormTags(presetWithDesc.tags?.join(", ") || "");
 
-    // 根据格式转换配置
     if (useToml) {
       const toml = mcpServerToToml(presetWithDesc.server);
       setFormConfig(toml);
@@ -213,10 +199,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     setSelectedPreset(index);
   };
 
-  // 切回自定义
   const applyCustom = () => {
     setSelectedPreset(-1);
-    // 恢复到空白模板
     setFormId("");
     setFormName("");
     setFormDescription("");
@@ -228,19 +212,16 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   };
 
   const handleConfigChange = (value: string) => {
-    // 若为 TOML 模式，先做引号归一化，避免中文输入法导致的格式错误
     const nextValue = useToml ? normalizeTomlText(value) : value;
     setFormConfig(nextValue);
 
     if (useToml) {
-      // TOML validation (use hook's complete validation)
       const err = validateTomlConfig(nextValue);
       if (err) {
         setConfigError(err);
         return;
       }
 
-      // Try to extract ID (if user hasn't filled it yet)
       if (nextValue.trim() && !formId.trim()) {
         const extractedId = extractIdFromToml(nextValue);
         if (extractedId) {
@@ -248,11 +229,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         }
       }
     } else {
-      // JSON validation with smart parsing
       try {
         const result = parseSmartMcpJson(value);
-
-        // 验证解析后的配置对象
         const configJson = JSON.stringify(result.config);
         const validationErr = validateJsonConfig(configJson);
 
@@ -261,19 +239,14 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
           return;
         }
 
-        // 自动填充提取的 id（仅当表单 id 为空且不在编辑模式时）
         if (result.id && !formId.trim() && !isEditing) {
           const uniqueId = ensureUniqueId(result.id);
           setFormId(uniqueId);
 
-          // 如果 name 也为空，同时填充 name
           if (!formName.trim()) {
             setFormName(result.id);
           }
         }
-
-        // 不在输入时自动格式化，保持用户输入的原样
-        // 格式清理将在提交时进行
 
         setConfigError("");
       } catch (err: any) {
@@ -283,30 +256,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     }
   };
 
-  const handleFormatJson = () => {
-    if (!formConfig.trim()) return;
-
-    try {
-      const formatted = formatJSON(formConfig);
-      setFormConfig(formatted);
-      toast.success(t("common.formatSuccess"));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast.error(
-        t("common.formatError", {
-          error: errorMessage,
-        }),
-      );
-    }
-  };
-
   const handleWizardApply = (title: string, json: string) => {
     setFormId(title);
     if (!formName.trim()) {
       setFormName(title);
     }
-    // Wizard returns JSON, convert based on format if needed
     if (useToml) {
       try {
         const server = JSON.parse(json) as McpServerSpec;
@@ -329,17 +283,14 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       return;
     }
 
-    // 新增模式：阻止提交重名 ID
     if (!isEditing && existingIds.includes(trimmedId)) {
       setIdError(t("mcp.error.idExists"));
       return;
     }
 
-    // Validate configuration format
     let serverSpec: McpServerSpec;
 
     if (useToml) {
-      // TOML mode
       const tomlError = validateTomlConfig(formConfig);
       setConfigError(tomlError);
       if (tomlError) {
@@ -348,7 +299,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
 
       if (!formConfig.trim()) {
-        // Empty configuration
         serverSpec = {
           type: "stdio",
           command: "",
@@ -365,9 +315,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         }
       }
     } else {
-      // JSON mode
       if (!formConfig.trim()) {
-        // Empty configuration
         serverSpec = {
           type: "stdio",
           command: "",
@@ -375,7 +323,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         };
       } else {
         try {
-          // 使用智能解析器，支持带外层键的格式
           const result = parseSmartMcpJson(formConfig);
           serverSpec = result.config as McpServerSpec;
         } catch (e: any) {
@@ -387,7 +334,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
     }
 
-    // 前置必填校验
     if (serverSpec?.type === "stdio" && !serverSpec?.command?.trim()) {
       toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
       return;
@@ -402,7 +348,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
     setSaving(true);
     try {
-      // 先处理 name 字段（必填）
       const nameTrimmed = (formName || trimmedId).trim();
       const finalName = nameTrimmed || trimmedId;
 
@@ -411,7 +356,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         id: trimmedId,
         name: finalName,
         server: serverSpec,
-        // 使用表单中的启用状态（v3.7.0 完整重构）
         apps: enabledApps,
       };
 
@@ -446,10 +390,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         delete entry.tags;
       }
 
-      // 保存到统一配置
       await upsertMutation.mutateAsync(entry);
       toast.success(t("common.success"));
-      await onSave(); // 通知父组件关闭表单
+      await onSave();
     } catch (error: any) {
       const detail = extractErrorMessage(error);
       const mapped = translateMcpBackendError(detail, t);
@@ -466,18 +409,33 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
   return (
     <>
-      <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{getFormTitle()}</DialogTitle>
-          </DialogHeader>
-
-          {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <FullScreenPanel
+        isOpen={true}
+        title={getFormTitle()}
+        onClose={onClose}
+        footer={
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving || (!isEditing && !!idError)}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isEditing ? <Save size={16} /> : <Plus size={16} />}
+            {saving
+              ? t("common.saving")
+              : isEditing
+                ? t("common.save")
+                : t("common.add")}
+          </Button>
+        }
+      >
+        <div className="flex flex-col h-full gap-6">
+          {/* 上半部分：表单字段 */}
+          <div className="glass rounded-xl p-6 border border-white/10 space-y-6 flex-shrink-0">
             {/* 预设选择（仅新增时展示） */}
             {!isEditing && (
               <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                <label className="block text-sm font-medium text-foreground mb-3">
                   {t("mcp.presets.title")}
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -487,7 +445,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       selectedPreset === -1
                         ? "bg-emerald-500 text-white dark:bg-emerald-600"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        : "bg-accent text-muted-foreground hover:bg-accent/80"
                     }`}
                   >
                     {t("presetSelector.custom")}
@@ -502,7 +460,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                           selectedPreset === idx
                             ? "bg-emerald-500 text-white dark:bg-emerald-600"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            : "bg-accent text-muted-foreground hover:bg-accent/80"
                         }`}
                         title={t(descriptionKey)}
                       >
@@ -513,10 +471,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 </div>
               </div>
             )}
+
             {/* ID (标题) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-medium text-foreground">
                   {t("mcp.form.title")} <span className="text-red-500">*</span>
                 </label>
                 {!isEditing && idError && (
@@ -536,7 +495,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 {t("mcp.form.name")}
               </label>
               <Input
@@ -547,9 +506,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
               />
             </div>
 
-            {/* 启用到哪些应用（v3.7.0 新增） */}
+            {/* 启用到哪些应用 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              <label className="block text-sm font-medium text-foreground mb-3">
                 {t("mcp.form.enabledApps")}
               </label>
               <div className="flex flex-wrap gap-4">
@@ -563,7 +522,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                   <label
                     htmlFor="enable-claude"
-                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                    className="text-sm text-foreground cursor-pointer select-none"
                   >
                     {t("mcp.unifiedPanel.apps.claude")}
                   </label>
@@ -579,7 +538,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                   <label
                     htmlFor="enable-codex"
-                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                    className="text-sm text-foreground cursor-pointer select-none"
                   >
                     {t("mcp.unifiedPanel.apps.codex")}
                   </label>
@@ -595,7 +554,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                   <label
                     htmlFor="enable-gemini"
-                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                    className="text-sm text-foreground cursor-pointer select-none"
                   >
                     {t("mcp.unifiedPanel.apps.gemini")}
                   </label>
@@ -608,7 +567,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowMetadata(!showMetadata)}
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showMetadata ? (
                   <ChevronUp size={16} />
@@ -622,9 +581,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
             {/* 附加信息区域（可折叠） */}
             {showMetadata && (
               <>
-                {/* Description (描述) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     {t("mcp.form.description")}
                   </label>
                   <Input
@@ -635,9 +593,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                 </div>
 
-                {/* Tags */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     {t("mcp.form.tags")}
                   </label>
                   <Input
@@ -648,9 +605,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                 </div>
 
-                {/* Homepage */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     {t("mcp.form.homepage")}
                   </label>
                   <Input
@@ -661,9 +617,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   />
                 </div>
 
-                {/* Docs */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     {t("mcp.form.docs")}
                   </label>
                   <Input
@@ -675,79 +630,51 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 </div>
               </>
             )}
+          </div>
 
-            {/* 配置输入框（根据格式显示 JSON 或 TOML） */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {useToml
-                    ? t("mcp.form.tomlConfig")
-                    : t("mcp.form.jsonConfig")}
-                </label>
-                {(isEditing || selectedPreset === -1) && (
-                  <button
-                    type="button"
-                    onClick={() => setIsWizardOpen(true)}
-                    className="text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
-                  >
-                    {t("mcp.form.useWizard")}
-                  </button>
-                )}
-              </div>
-              <Textarea
-                className="h-48 resize-none font-mono text-xs"
-                placeholder={
-                  useToml
-                    ? t("mcp.form.tomlPlaceholder")
-                    : t("mcp.form.jsonPlaceholder")
-                }
-                value={formConfig}
-                onChange={(e) => handleConfigChange(e.target.value)}
-              />
-              {/* 格式化按钮（仅 JSON 模式） */}
-              {!useToml && (
-                <div className="flex items-center justify-between mt-2">
-                  <button
-                    type="button"
-                    onClick={handleFormatJson}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" />
-                    {t("common.format")}
-                  </button>
-                </div>
+          {/* 下半部分：JSON 配置编辑器 - 自适应剩余高度 */}
+          <div className="glass rounded-xl p-6 border border-white/10 flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <label className="text-sm font-medium text-foreground">
+                {useToml ? t("mcp.form.tomlConfig") : t("mcp.form.jsonConfig")}
+              </label>
+              {(isEditing || selectedPreset === -1) && (
+                <button
+                  type="button"
+                  onClick={() => setIsWizardOpen(true)}
+                  className="text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                >
+                  {t("mcp.form.useWizard")}
+                </button>
               )}
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0">
+                <JsonEditor
+                  value={formConfig}
+                  onChange={handleConfigChange}
+                  placeholder={
+                    useToml
+                      ? t("mcp.form.tomlPlaceholder")
+                      : t("mcp.form.jsonPlaceholder")
+                  }
+                  darkMode={isDarkMode}
+                  rows={12}
+                  showValidation={!useToml}
+                  language={useToml ? "javascript" : "json"}
+                  height="100%"
+                />
+              </div>
               {configError && (
-                <div className="flex items-center gap-2 mt-2 text-red-500 dark:text-red-400 text-sm">
+                <div className="flex items-center gap-2 mt-2 text-red-500 dark:text-red-400 text-sm flex-shrink-0">
                   <AlertCircle size={16} />
                   <span>{configError}</span>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Footer */}
-          <DialogFooter className="flex justify-end gap-3 pt-4">
-            {/* 操作按钮 */}
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving || (!isEditing && !!idError)}
-              variant="mcp"
-            >
-              {isEditing ? <Save size={16} /> : <Plus size={16} />}
-              {saving
-                ? t("common.saving")
-                : isEditing
-                  ? t("common.save")
-                  : t("common.add")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </FullScreenPanel>
 
       {/* Wizard Modal */}
       <McpWizardModal
