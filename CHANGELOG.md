@@ -5,6 +5,31 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.1] - 2025-11-22
+
+### Fixed
+
+- **Skills third-party repository installation** (#268) - Fixed installation failure for skills repositories with custom subdirectories (e.g., `ComposioHQ/awesome-claude-skills`)
+- **Gemini configuration persistence** - Resolved issue where settings.json edits were lost when switching providers
+- **Dialog overlay click protection** - Prevented dialogs from closing when clicking outside, avoiding accidental form data loss (affects 11 dialog components)
+
+### Added
+
+- **Gemini configuration directory support** (#255) - Added custom configuration directory option for Gemini in settings
+- **ArchLinux installation support** (#259) - Added AUR installation via `paru -S cc-switch-bin`
+
+### Improved
+
+- **Skills error messages i18n** - Added 28+ detailed error messages (English & Chinese) with specific resolution suggestions
+- **Download timeout** - Extended from 15s to 60s to reduce network-related false positives
+- **Code formatting** - Applied unified Rust (`cargo fmt`) and TypeScript (`prettier`) formatting standards
+
+### Reverted
+
+- **Auto-launch on system startup** - Temporarily reverted feature pending further testing and optimization
+
+---
+
 ## [3.7.0] - 2025-11-19
 
 ### Major Features

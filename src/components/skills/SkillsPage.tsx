@@ -35,7 +35,7 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
       const { title, description } = formatSkillError(
         errorMessage,
         t,
-        "skills.loadFailed"
+        "skills.loadFailed",
       );
 
       toast.error(title, {
@@ -75,7 +75,7 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
       const { title, description } = formatSkillError(
         errorMessage,
         t,
-        "skills.installFailed"
+        "skills.installFailed",
       );
 
       toast.error(title, {
@@ -105,7 +105,7 @@ export function SkillsPage({ onClose: _onClose }: SkillsPageProps = {}) {
       const { title, description } = formatSkillError(
         errorMessage,
         t,
-        "skills.uninstallFailed"
+        "skills.uninstallFailed",
       );
 
       toast.error(title, {
