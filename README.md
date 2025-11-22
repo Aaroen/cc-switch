@@ -38,7 +38,7 @@ Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJ
 
 <tr>
 <td width="180"><img src="assets/partners/logos/sds-en.png" alt="ShanDianShuo" width="150"></td>
-<td>Thanks to ShanDianShuo for sponsoring this project! ShanDianShuo is a local-first AI voice input: Millisecond latency, data stays on device, 4x faster than typing, AI-powered correction, Privacy-first, completely free. Doubles your coding efficiency with Claude Code! <a href="shandianshuo.cn">Free download</a> for Mac/Win</td>
+<td>Thanks to ShanDianShuo for sponsoring this project! ShanDianShuo is a local-first AI voice input: Millisecond latency, data stays on device, 4x faster than typing, AI-powered correction, Privacy-first, completely free. Doubles your coding efficiency with Claude Code! <a href="https://www.shandianshuo.cn">Free download</a> for Mac/Win</td>
 </tr>
 
 </table>

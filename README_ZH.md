@@ -38,7 +38,7 @@ CC Switch 已经预设了智谱GLM，只需要填写 key 即可一键导入编�
 
 <tr>
 <td width="180"><img src="assets/partners/logos/sds-zh.png" alt="ShanDianShuo" width="150"></td>
-<td>感谢闪电说赞助了本项目！闪电说是本地优先的 AI 语音输入法：毫秒级响应，数据不离设备；打字速度提升 4 倍，AI 智能纠错；绝对隐私安全，完全免费，配合 Claude Code 写代码效率翻倍！支持 Mac/Win 双平台，<a href="shandianshuo.cn">免费下载</a></td>
+<td>感谢闪电说赞助了本项目！闪电说是本地优先的 AI 语音输入法：毫秒级响应，数据不离设备；打字速度提升 4 倍，AI 智能纠错；绝对隐私安全，完全免费，配合 Claude Code 写代码效率翻倍！支持 Mac/Win 双平台，<a href="https://www.shandianshuo.cn">免费下载</a></td>
 </tr>
 
 </table>
