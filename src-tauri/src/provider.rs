@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -64,7 +65,7 @@ impl Provider {
 /// 供应商管理器
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderManager {
-    pub providers: HashMap<String, Provider>,
+    pub providers: IndexMap<String, Provider>,
     pub current: String,
 }
 
@@ -154,7 +155,7 @@ pub struct ProviderMeta {
 
 impl ProviderManager {
     /// 获取所有供应商
-    pub fn get_all_providers(&self) -> &HashMap<String, Provider> {
+    pub fn get_all_providers(&self) -> &IndexMap<String, Provider> {
         &self.providers
     }
 }

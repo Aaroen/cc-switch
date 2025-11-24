@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
 use serde::Serialize;
@@ -82,12 +83,8 @@ pub async fn upsert_mcp_server_in_config(
 
     // 读取现有的服务器（如果存在）
     let existing_server = {
-        let cfg = state.config.read().map_err(|e| e.to_string())?;
-        if let Some(servers) = &cfg.mcp.servers {
-            servers.get(&id).cloned()
-        } else {
-            None
-        }
+        let servers = state.db.get_all_mcp_servers().map_err(|e| e.to_string())?;
+        servers.get(&id).cloned()
     };
 
     // 构建新的统一服务器结构
@@ -165,7 +162,7 @@ use crate::app_config::McpServer;
 #[tauri::command]
 pub async fn get_mcp_servers(
     state: State<'_, AppState>,
-) -> Result<HashMap<String, McpServer>, String> {
+) -> Result<IndexMap<String, McpServer>, String> {
     McpService::get_all_servers(&state).map_err(|e| e.to_string())
 }
 

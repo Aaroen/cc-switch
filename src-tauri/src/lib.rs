@@ -6,6 +6,7 @@ mod claude_plugin;
 mod codex_config;
 mod commands;
 mod config;
+mod database;
 mod deeplink;
 mod error;
 mod gemini_config; // 新增
@@ -206,8 +207,6 @@ fn create_tray_menu(
     let app_settings = crate::settings::get_settings();
     let tray_texts = TrayTexts::from_language(app_settings.language.as_deref().unwrap_or("zh"));
 
-    let config = app_state.config.read().map_err(AppError::from)?;
-
     let mut menu_builder = MenuBuilder::new(app);
 
     // 顶部：打开主界面
@@ -218,13 +217,20 @@ fn create_tray_menu(
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
     for section in TRAY_SECTIONS.iter() {
-        menu_builder = append_provider_section(
-            app,
-            menu_builder,
-            config.get_manager(&section.app_type),
-            section,
-            &tray_texts,
-        )?;
+        let app_type_str = section.app_type.as_str();
+        let providers = app_state.db.get_all_providers(app_type_str)?;
+        let current_id = app_state
+            .db
+            .get_current_provider(app_type_str)?
+            .unwrap_or_default();
+
+        let manager = crate::provider::ProviderManager {
+            providers,
+            current: current_id,
+        };
+
+        menu_builder =
+            append_provider_section(app, menu_builder, Some(&manager), section, &tray_texts)?;
     }
 
     // 分隔符和退出菜单
@@ -489,24 +495,31 @@ pub fn run() {
                     use objc2::runtime::AnyObject;
                     use objc2_app_kit::NSColor;
 
-                    let ns_window_ptr = window.ns_window().unwrap();
-                    let ns_window: Retained<AnyObject> =
-                        unsafe { Retained::retain(ns_window_ptr as *mut AnyObject).unwrap() };
+                    match window.ns_window() {
+                        Ok(ns_window_ptr) => {
+                            if let Some(ns_window) =
+                                unsafe { Retained::retain(ns_window_ptr as *mut AnyObject) }
+                            {
+                                // 使用与主界面 banner 相同的蓝色 #3498db
+                                // #3498db = RGB(52, 152, 219)
+                                let bg_color = unsafe {
+                                    NSColor::colorWithRed_green_blue_alpha(
+                                        52.0 / 255.0,  // R: 52
+                                        152.0 / 255.0, // G: 152
+                                        219.0 / 255.0, // B: 219
+                                        1.0,           // Alpha: 1.0
+                                    )
+                                };
 
-                    // 使用与主界面 banner 相同的蓝色 #3498db
-                    // #3498db = RGB(52, 152, 219)
-                    let bg_color = unsafe {
-                        NSColor::colorWithRed_green_blue_alpha(
-                            52.0 / 255.0,  // R: 52
-                            152.0 / 255.0, // G: 152
-                            219.0 / 255.0, // B: 219
-                            1.0,           // Alpha: 1.0
-                        )
-                    };
-
-                    unsafe {
-                        use objc2::msg_send;
-                        let _: () = msg_send![&*ns_window, setBackgroundColor: &*bg_color];
+                                unsafe {
+                                    use objc2::msg_send;
+                                    let _: () = msg_send![&*ns_window, setBackgroundColor: &*bg_color];
+                                }
+                            } else {
+                                log::warn!("Failed to retain NSWindow reference");
+                            }
+                        }
+                        Err(e) => log::warn!("Failed to get NSWindow pointer: {e}"),
                     }
                 }
             }
@@ -523,40 +536,155 @@ pub fn run() {
             // 预先刷新 Store 覆盖配置，确保 AppState 初始化时可读取到最新路径
             app_store::refresh_app_config_dir_override(app.handle());
 
-            // 初始化应用状态（仅创建一次，并在本函数末尾注入 manage）
-            // 如果配置解析失败，则向前端发送错误事件并提前结束 setup（不落盘、不覆盖配置）。
-            let app_state = match AppState::try_new() {
-                Ok(state) => state,
-                Err(err) => {
-                    let path = crate::config::get_app_config_path();
-                    let payload_json = serde_json::json!({
-                        "path": path.display().to_string(),
-                        "error": err.to_string(),
-                    });
-                    // 事件通知（可能早于前端订阅，不保证送达）
-                    if let Err(e) = app.emit("configLoadError", payload_json) {
-                        log::error!("发射配置加载错误事件失败: {e}");
-                    }
-                    // 同时缓存错误，供前端启动阶段主动拉取
-                    crate::init_status::set_init_error(crate::init_status::InitErrorPayload {
-                        path: path.display().to_string(),
-                        error: err.to_string(),
-                    });
-                    // 不再继续构建托盘/命令依赖的状态，交由前端提示后退出。
-                    return Ok(());
+            // 初始化数据库
+            let app_config_dir = crate::config::get_app_config_dir();
+            let db_path = app_config_dir.join("cc-switch.db");
+            let json_path = app_config_dir.join("config.json");
+
+            // Check if migration is needed (DB doesn't exist but JSON does)
+            let migration_needed = !db_path.exists() && json_path.exists();
+
+            let db = match crate::database::Database::init() {
+                Ok(db) => Arc::new(db),
+                Err(e) => {
+                    log::error!("Failed to init database: {e}");
+                    // 这里的错误处理比较棘手，因为 setup 返回 Result<Box<dyn Error>>
+                    // 我们暂时记录日志并让应用继续运行（可能会崩溃）或者返回错误
+                    return Err(Box::new(e));
                 }
             };
+
+            if migration_needed {
+                log::info!("Starting migration from config.json to SQLite...");
+                match crate::app_config::MultiAppConfig::load() {
+                    Ok(config) => {
+                        if let Err(e) = db.migrate_from_json(&config) {
+                            log::error!("Migration failed: {e}");
+                        } else {
+                            log::info!("Migration successful");
+                            // Optional: Rename config.json
+                            // let _ = std::fs::rename(&json_path, json_path.with_extension("json.bak"));
+                        }
+                    }
+                    Err(e) => log::error!("Failed to load config.json for migration: {e}"),
+                }
+            }
+
+            crate::settings::bind_db(db.clone());
+            let app_state = AppState::new(db);
+
+            // 检查是否需要首次导入（数据库为空）
+            let need_first_import = app_state
+                .db
+                .is_empty_for_first_import()
+                .unwrap_or_else(|e| {
+                    log::warn!("Failed to check if database is empty: {e}");
+                    false
+                });
+
+            if need_first_import {
+                // 数据库为空，尝试从用户现有的配置文件导入数据并初始化默认配置
+                log::info!(
+                    "Empty database detected, importing existing configurations and initializing defaults..."
+                );
+
+                // 1. 初始化默认 Skills 仓库（3个）
+                match app_state.db.init_default_skill_repos() {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Initialized {count} default skill repositories");
+                    }
+                    Ok(_) => log::debug!("No default skill repositories to initialize"),
+                    Err(e) => log::warn!("✗ Failed to initialize default skill repos: {e}"),
+                }
+
+                // 2. 导入供应商配置（从 live 配置文件）
+                for app in [
+                    crate::app_config::AppType::Claude,
+                    crate::app_config::AppType::Codex,
+                    crate::app_config::AppType::Gemini,
+                ] {
+                    match crate::services::provider::ProviderService::import_default_config(
+                        &app_state,
+                        app.clone(),
+                    ) {
+                        Ok(_) => {
+                            log::info!("✓ Imported default provider for {}", app.as_str());
+                        }
+                        Err(e) => {
+                            log::debug!(
+                                "○ No default provider to import for {}: {}",
+                                app.as_str(),
+                                e
+                            );
+                        }
+                    }
+                }
+
+                // 3. 导入 MCP 服务器配置
+                match crate::services::mcp::McpService::import_from_claude(&app_state) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} MCP server(s) from Claude");
+                    }
+                    Ok(_) => log::debug!("○ No Claude MCP servers found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Claude MCP: {e}"),
+                }
+
+                match crate::services::mcp::McpService::import_from_codex(&app_state) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} MCP server(s) from Codex");
+                    }
+                    Ok(_) => log::debug!("○ No Codex MCP servers found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Codex MCP: {e}"),
+                }
+
+                match crate::services::mcp::McpService::import_from_gemini(&app_state) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} MCP server(s) from Gemini");
+                    }
+                    Ok(_) => log::debug!("○ No Gemini MCP servers found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Gemini MCP: {e}"),
+                }
+
+                // 4. 导入提示词文件
+                match crate::services::prompt::PromptService::import_from_file_on_first_launch(
+                    &app_state,
+                    crate::app_config::AppType::Claude,
+                ) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} prompt(s) from Claude");
+                    }
+                    Ok(_) => log::debug!("○ No Claude prompt file found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Claude prompt: {e}"),
+                }
+
+                match crate::services::prompt::PromptService::import_from_file_on_first_launch(
+                    &app_state,
+                    crate::app_config::AppType::Codex,
+                ) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} prompt(s) from Codex");
+                    }
+                    Ok(_) => log::debug!("○ No Codex prompt file found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Codex prompt: {e}"),
+                }
+
+                match crate::services::prompt::PromptService::import_from_file_on_first_launch(
+                    &app_state,
+                    crate::app_config::AppType::Gemini,
+                ) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} prompt(s) from Gemini");
+                    }
+                    Ok(_) => log::debug!("○ No Gemini prompt file found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Gemini prompt: {e}"),
+                }
+
+                log::info!("First-time import completed");
+            }
 
             // 迁移旧的 app_config_dir 配置到 Store
             if let Err(e) = app_store::migrate_app_config_dir_from_settings(app.handle()) {
                 log::warn!("迁移 app_config_dir 失败: {e}");
-            }
-
-            // 确保配置结构就绪（已移除旧版本的副本迁移逻辑）
-            {
-                let mut config_guard = app_state.config.write().unwrap();
-                config_guard.ensure_app(&app_config::AppType::Claude);
-                config_guard.ensure_app(&app_config::AppType::Codex);
             }
 
             // 启动阶段不再无条件保存,避免意外覆盖用户配置。
@@ -611,7 +739,11 @@ pub fn run() {
                 .show_menu_on_left_click(true);
 
             // 统一使用应用默认图标；待托盘模板图标就绪后再启用
-            tray_builder = tray_builder.icon(app.default_window_icon().unwrap().clone());
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            } else {
+                log::warn!("Failed to get default window icon for tray");
+            }
 
             let _tray = tray_builder.build(app)?;
             // 将同一个实例注入到全局状态，避免重复创建导致的不一致

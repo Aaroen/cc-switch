@@ -79,6 +79,7 @@ pub fn get_app_config_path() -> PathBuf {
 }
 
 /// 清理供应商名称，确保文件名安全
+#[allow(dead_code)]
 pub fn sanitize_provider_name(name: &str) -> String {
     name.chars()
         .map(|c| match c {
@@ -90,6 +91,7 @@ pub fn sanitize_provider_name(name: &str) -> String {
 }
 
 /// 获取供应商配置文件路径
+#[allow(dead_code)]
 pub fn get_provider_config_path(provider_id: &str, provider_name: Option<&str>) -> PathBuf {
     let base_name = provider_name
         .map(sanitize_provider_name)

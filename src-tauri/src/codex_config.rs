@@ -29,6 +29,7 @@ pub fn get_codex_config_path() -> PathBuf {
 }
 
 /// 获取 Codex 供应商配置文件路径
+#[allow(dead_code)]
 pub fn get_codex_provider_paths(
     provider_id: &str,
     provider_name: Option<&str>,
@@ -44,6 +45,7 @@ pub fn get_codex_provider_paths(
 }
 
 /// 删除 Codex 供应商配置文件
+#[allow(dead_code)]
 pub fn delete_codex_provider_config(
     provider_id: &str,
     provider_name: &str,

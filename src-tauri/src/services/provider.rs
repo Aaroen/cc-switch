@@ -1,17 +1,18 @@
+use indexmap::IndexMap;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::app_config::{AppType, MultiAppConfig};
+use crate::app_config::AppType;
 use crate::codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
 use crate::config::{
-    delete_file, get_claude_settings_path, get_provider_config_path, read_json_file,
-    write_json_file, write_text_file,
+    delete_file, get_claude_settings_path, read_json_file, write_json_file, write_text_file,
 };
 use crate::error::AppError;
-use crate::provider::{Provider, ProviderMeta, UsageData, UsageResult};
+use crate::provider::{Provider, UsageData, UsageResult};
+use crate::services::mcp::McpService;
 use crate::settings::{self, CustomEndpoint};
 use crate::store::AppState;
 use crate::usage_script;
@@ -20,6 +21,7 @@ use crate::usage_script;
 pub struct ProviderService;
 
 #[derive(Clone)]
+#[allow(dead_code)]
 enum LiveSnapshot {
     Claude {
         settings: Option<Value>,
@@ -35,6 +37,7 @@ enum LiveSnapshot {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct PostCommitAction {
     app_type: AppType,
     provider: Provider,
@@ -44,6 +47,7 @@ struct PostCommitAction {
 }
 
 impl LiveSnapshot {
+    #[allow(dead_code)]
     fn restore(&self) -> Result<(), AppError> {
         match self {
             LiveSnapshot::Claude { settings } => {
@@ -421,9 +425,9 @@ impl ProviderService {
     /// 归一化 Claude 模型键：读旧键(ANTHROPIC_SMALL_FAST_MODEL)，写新键(DEFAULT_*), 并删除旧键
     fn normalize_claude_models_in_value(settings: &mut Value) -> bool {
         let mut changed = false;
-        let env = match settings.get_mut("env") {
-            Some(v) if v.is_object() => v.as_object_mut().unwrap(),
-            _ => return changed,
+        let env = match settings.get_mut("env").and_then(|v| v.as_object_mut()) {
+            Some(obj) => obj,
+            None => return changed,
         };
 
         let model = env
@@ -498,246 +502,93 @@ impl ProviderService {
             }
         }
     }
-    fn run_transaction<R, F>(state: &AppState, f: F) -> Result<R, AppError>
-    where
-        F: FnOnce(&mut MultiAppConfig) -> Result<(R, Option<PostCommitAction>), AppError>,
-    {
-        let mut guard = state.config.write().map_err(AppError::from)?;
-        let original = guard.clone();
-        let (result, action) = match f(&mut guard) {
-            Ok(value) => value,
-            Err(err) => {
-                *guard = original;
-                return Err(err);
-            }
-        };
-        drop(guard);
 
-        if let Err(save_err) = state.save() {
-            if let Err(rollback_err) = Self::restore_config_only(state, original.clone()) {
-                return Err(AppError::localized(
-                    "config.save.rollback_failed",
-                    format!("保存配置失败: {save_err}；回滚失败: {rollback_err}"),
-                    format!("Failed to save config: {save_err}; rollback failed: {rollback_err}"),
-                ));
-            }
-            return Err(save_err);
-        }
-
-        if let Some(action) = action {
-            if let Err(err) = Self::apply_post_commit(state, &action) {
-                if let Err(rollback_err) =
-                    Self::rollback_after_failure(state, original.clone(), action.backup.clone())
-                {
-                    return Err(AppError::localized(
-                        "post_commit.rollback_failed",
-                        format!("后置操作失败: {err}；回滚失败: {rollback_err}"),
-                        format!("Post-commit step failed: {err}; rollback failed: {rollback_err}"),
-                    ));
-                }
-                return Err(err);
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn restore_config_only(state: &AppState, snapshot: MultiAppConfig) -> Result<(), AppError> {
-        {
-            let mut guard = state.config.write().map_err(AppError::from)?;
-            *guard = snapshot;
-        }
-        state.save()
-    }
-
-    fn rollback_after_failure(
-        state: &AppState,
-        snapshot: MultiAppConfig,
-        backup: LiveSnapshot,
-    ) -> Result<(), AppError> {
-        Self::restore_config_only(state, snapshot)?;
-        backup.restore()
-    }
-
-    fn apply_post_commit(state: &AppState, action: &PostCommitAction) -> Result<(), AppError> {
-        Self::write_live_snapshot(&action.app_type, &action.provider)?;
-        if action.sync_mcp {
-            // 使用 v3.7.0 统一的 MCP 同步机制，支持所有应用
-            use crate::services::mcp::McpService;
-            McpService::sync_all_enabled(state)?;
-        }
-        if action.refresh_snapshot {
-            Self::refresh_provider_snapshot(state, &action.app_type, &action.provider.id)?;
-        }
-        Ok(())
-    }
-
-    fn refresh_provider_snapshot(
-        state: &AppState,
-        app_type: &AppType,
-        provider_id: &str,
-    ) -> Result<(), AppError> {
-        match app_type {
-            AppType::Claude => {
-                let settings_path = get_claude_settings_path();
-                if !settings_path.exists() {
-                    return Err(AppError::localized(
-                        "claude.live.missing",
-                        "Claude 设置文件不存在，无法刷新快照",
-                        "Claude settings file missing; cannot refresh snapshot",
-                    ));
-                }
-                let mut live_after = read_json_file::<Value>(&settings_path)?;
-                let _ = Self::normalize_claude_models_in_value(&mut live_after);
-                {
-                    let mut guard = state.config.write().map_err(AppError::from)?;
-                    if let Some(manager) = guard.get_manager_mut(app_type) {
-                        if let Some(target) = manager.providers.get_mut(provider_id) {
-                            target.settings_config = live_after;
-                        }
-                    }
-                }
-                state.save()?;
-            }
-            AppType::Codex => {
-                let auth_path = get_codex_auth_path();
-                if !auth_path.exists() {
-                    return Err(AppError::localized(
-                        "codex.live.missing",
-                        "Codex auth.json 不存在，无法刷新快照",
-                        "Codex auth.json missing; cannot refresh snapshot",
-                    ));
-                }
-                let auth: Value = read_json_file(&auth_path)?;
-                let cfg_text = crate::codex_config::read_and_validate_codex_config_text()?;
-
-                {
-                    let mut guard = state.config.write().map_err(AppError::from)?;
-                    if let Some(manager) = guard.get_manager_mut(app_type) {
-                        if let Some(target) = manager.providers.get_mut(provider_id) {
-                            let obj = target.settings_config.as_object_mut().ok_or_else(|| {
-                                AppError::Config(format!(
-                                    "供应商 {provider_id} 的 Codex 配置必须是 JSON 对象"
-                                ))
-                            })?;
-                            obj.insert("auth".to_string(), auth.clone());
-                            obj.insert("config".to_string(), Value::String(cfg_text.clone()));
-                        }
-                    }
-                }
-                state.save()?;
-            }
-            AppType::Gemini => {
-                use crate::gemini_config::{
-                    env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
-                };
-
-                let env_path = get_gemini_env_path();
-                if !env_path.exists() {
-                    return Err(AppError::localized(
-                        "gemini.live.missing",
-                        "Gemini .env 文件不存在，无法刷新快照",
-                        "Gemini .env file missing; cannot refresh snapshot",
-                    ));
-                }
-                let env_map = read_gemini_env()?;
-                let mut live_after = env_to_json(&env_map);
-
-                let settings_path = get_gemini_settings_path();
-                let config_value = if settings_path.exists() {
-                    read_json_file(&settings_path)?
-                } else {
-                    json!({})
-                };
-
-                if let Some(obj) = live_after.as_object_mut() {
-                    obj.insert("config".to_string(), config_value);
-                }
-
-                {
-                    let mut guard = state.config.write().map_err(AppError::from)?;
-                    if let Some(manager) = guard.get_manager_mut(app_type) {
-                        if let Some(target) = manager.providers.get_mut(provider_id) {
-                            target.settings_config = live_after;
-                        }
-                    }
-                }
-                state.save()?;
-            }
-        }
-        Ok(())
-    }
-
-    fn capture_live_snapshot(app_type: &AppType) -> Result<LiveSnapshot, AppError> {
+    fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Result<(), AppError> {
         match app_type {
             AppType::Claude => {
                 let path = get_claude_settings_path();
-                let settings = if path.exists() {
-                    Some(read_json_file::<Value>(&path)?)
-                } else {
-                    None
-                };
-                Ok(LiveSnapshot::Claude { settings })
+                write_json_file(&path, &provider.settings_config)?;
             }
             AppType::Codex => {
+                let obj = provider.settings_config.as_object().ok_or_else(|| {
+                    AppError::Config("Codex 供应商配置必须是 JSON 对象".to_string())
+                })?;
+                let auth = obj.get("auth").ok_or_else(|| {
+                    AppError::Config("Codex 供应商配置缺少 'auth' 字段".to_string())
+                })?;
+                let config_str = obj.get("config").and_then(|v| v.as_str()).ok_or_else(|| {
+                    AppError::Config("Codex 供应商配置缺少 'config' 字段或不是字符串".to_string())
+                })?;
+
                 let auth_path = get_codex_auth_path();
+                write_json_file(&auth_path, auth)?;
                 let config_path = get_codex_config_path();
-                let auth = if auth_path.exists() {
-                    Some(read_json_file::<Value>(&auth_path)?)
-                } else {
-                    None
-                };
-                let config = if config_path.exists() {
-                    Some(
-                        std::fs::read_to_string(&config_path)
-                            .map_err(|e| AppError::io(&config_path, e))?,
-                    )
-                } else {
-                    None
-                };
-                Ok(LiveSnapshot::Codex { auth, config })
+                std::fs::write(&config_path, config_str)
+                    .map_err(|e| AppError::io(&config_path, e))?;
             }
             AppType::Gemini => {
-                // 新增
                 use crate::gemini_config::{
-                    get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
+                    get_gemini_settings_path, json_to_env, write_gemini_env_atomic,
                 };
-                let path = get_gemini_env_path();
-                let env = if path.exists() {
-                    Some(read_gemini_env()?)
-                } else {
-                    None
-                };
-                let settings_path = get_gemini_settings_path();
-                let config = if settings_path.exists() {
-                    Some(read_json_file(&settings_path)?)
-                } else {
-                    None
-                };
-                Ok(LiveSnapshot::Gemini { env, config })
+
+                // Extract env and config from provider settings
+                let env_value = provider.settings_config.get("env");
+                let config_value = provider.settings_config.get("config");
+
+                // Write env file
+                if let Some(env) = env_value {
+                    let env_map = json_to_env(env)?;
+                    write_gemini_env_atomic(&env_map)?;
+                }
+
+                // Write settings file
+                if let Some(config) = config_value {
+                    let settings_path = get_gemini_settings_path();
+                    write_json_file(&settings_path, config)?;
+                }
             }
         }
+        Ok(())
+    }
+
+    /// 将数据库中的当前供应商同步到对应 live 配置
+    pub fn sync_current_from_db(state: &AppState) -> Result<(), AppError> {
+        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+            let current_id = match state.db.get_current_provider(app_type.as_str())? {
+                Some(id) => id,
+                None => continue,
+            };
+            let providers = state.db.get_all_providers(app_type.as_str())?;
+            if let Some(provider) = providers.get(&current_id) {
+                Self::write_live_snapshot(&app_type, provider)?;
+            } else {
+                log::warn!(
+                    "无法同步 live 配置: 当前供应商 {} ({}) 未找到",
+                    current_id,
+                    app_type.as_str()
+                );
+            }
+        }
+
+        // MCP 同步
+        McpService::sync_all_enabled(state)?;
+        Ok(())
     }
 
     /// 列出指定应用下的所有供应商
     pub fn list(
         state: &AppState,
         app_type: AppType,
-    ) -> Result<HashMap<String, Provider>, AppError> {
-        let config = state.config.read().map_err(AppError::from)?;
-        let manager = config
-            .get_manager(&app_type)
-            .ok_or_else(|| Self::app_not_found(&app_type))?;
-        Ok(manager.get_all_providers().clone())
+    ) -> Result<IndexMap<String, Provider>, AppError> {
+        state.db.get_all_providers(app_type.as_str())
     }
 
     /// 获取当前供应商 ID
     pub fn current(state: &AppState, app_type: AppType) -> Result<String, AppError> {
-        let config = state.config.read().map_err(AppError::from)?;
-        let manager = config
-            .get_manager(&app_type)
-            .ok_or_else(|| Self::app_not_found(&app_type))?;
-        Ok(manager.current.clone())
+        state
+            .db
+            .get_current_provider(app_type.as_str())
+            .map(|opt| opt.unwrap_or_default())
     }
 
     /// 新增供应商
@@ -747,35 +598,20 @@ impl ProviderService {
         Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
 
-        let app_type_clone = app_type.clone();
-        let provider_clone = provider.clone();
+        // 保存到数据库
+        state.db.save_provider(app_type.as_str(), &provider)?;
 
-        Self::run_transaction(state, move |config| {
-            config.ensure_app(&app_type_clone);
-            let manager = config
-                .get_manager_mut(&app_type_clone)
-                .ok_or_else(|| Self::app_not_found(&app_type_clone))?;
+        // 检查是否需要同步（如果是当前供应商，或者没有当前供应商）
+        let current = state.db.get_current_provider(app_type.as_str())?;
+        if current.is_none() {
+            // 如果没有当前供应商，设为当前并同步
+            state
+                .db
+                .set_current_provider(app_type.as_str(), &provider.id)?;
+            Self::write_live_snapshot(&app_type, &provider)?;
+        }
 
-            let is_current = manager.current == provider_clone.id;
-            manager
-                .providers
-                .insert(provider_clone.id.clone(), provider_clone.clone());
-
-            let action = if is_current {
-                let backup = Self::capture_live_snapshot(&app_type_clone)?;
-                Some(PostCommitAction {
-                    app_type: app_type_clone.clone(),
-                    provider: provider_clone.clone(),
-                    backup,
-                    sync_mcp: false,
-                    refresh_snapshot: false,
-                })
-            } else {
-                None
-            };
-
-            Ok((true, action))
-        })
+        Ok(true)
     }
 
     /// 更新供应商
@@ -788,71 +624,30 @@ impl ProviderService {
         // 归一化 Claude 模型键
         Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
-        let provider_id = provider.id.clone();
-        let app_type_clone = app_type.clone();
-        let provider_clone = provider.clone();
 
-        Self::run_transaction(state, move |config| {
-            let manager = config
-                .get_manager_mut(&app_type_clone)
-                .ok_or_else(|| Self::app_not_found(&app_type_clone))?;
+        // 检查是否为当前供应商
+        let current_id = state.db.get_current_provider(app_type.as_str())?;
+        let is_current = current_id.as_deref() == Some(provider.id.as_str());
 
-            if !manager.providers.contains_key(&provider_id) {
-                return Err(AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                ));
-            }
+        // 保存到数据库
+        state.db.save_provider(app_type.as_str(), &provider)?;
 
-            let is_current = manager.current == provider_id;
-            let merged = if let Some(existing) = manager.providers.get(&provider_id) {
-                let mut updated = provider_clone.clone();
-                match (existing.meta.as_ref(), updated.meta.take()) {
-                    // 前端未提供 meta，表示不修改，沿用旧值
-                    (Some(old_meta), None) => {
-                        updated.meta = Some(old_meta.clone());
-                    }
-                    (None, None) => {
-                        updated.meta = None;
-                    }
-                    // 前端提供的 meta 视为权威，直接覆盖（其中 custom_endpoints 允许是空，表示删除所有自定义端点）
-                    (_old, Some(new_meta)) => {
-                        updated.meta = Some(new_meta);
-                    }
-                }
-                updated
-            } else {
-                provider_clone.clone()
-            };
+        if is_current {
+            Self::write_live_snapshot(&app_type, &provider)?;
+            // Sync MCP
+            use crate::services::mcp::McpService;
+            McpService::sync_all_enabled(state)?;
+        }
 
-            manager.providers.insert(provider_id.clone(), merged);
-
-            let action = if is_current {
-                let backup = Self::capture_live_snapshot(&app_type_clone)?;
-                Some(PostCommitAction {
-                    app_type: app_type_clone.clone(),
-                    provider: provider_clone.clone(),
-                    backup,
-                    sync_mcp: false,
-                    refresh_snapshot: false,
-                })
-            } else {
-                None
-            };
-
-            Ok((true, action))
-        })
+        Ok(true)
     }
 
     /// 导入当前 live 配置为默认供应商
     pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<(), AppError> {
         {
-            let config = state.config.read().map_err(AppError::from)?;
-            if let Some(manager) = config.get_manager(&app_type) {
-                if !manager.get_all_providers().is_empty() {
-                    return Ok(());
-                }
+            let providers = state.db.get_all_providers(app_type.as_str())?;
+            if !providers.is_empty() {
+                return Ok(());
             }
         }
 
@@ -926,18 +721,11 @@ impl ProviderService {
         );
         provider.category = Some("custom".to_string());
 
-        {
-            let mut config = state.config.write().map_err(AppError::from)?;
-            let manager = config
-                .get_manager_mut(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-            manager
-                .providers
-                .insert(provider.id.clone(), provider.clone());
-            manager.current = provider.id.clone();
-        }
+        state.db.save_provider(app_type.as_str(), &provider)?;
+        state
+            .db
+            .set_current_provider(app_type.as_str(), &provider.id)?;
 
-        state.save()?;
         Ok(())
     }
 
@@ -1010,12 +798,8 @@ impl ProviderService {
         app_type: AppType,
         provider_id: &str,
     ) -> Result<Vec<CustomEndpoint>, AppError> {
-        let cfg = state.config.read().map_err(AppError::from)?;
-        let manager = cfg
-            .get_manager(&app_type)
-            .ok_or_else(|| Self::app_not_found(&app_type))?;
-
-        let Some(provider) = manager.providers.get(provider_id) else {
+        let providers = state.db.get_all_providers(app_type.as_str())?;
+        let Some(provider) = providers.get(provider_id) else {
             return Ok(vec![]);
         };
         let Some(meta) = provider.meta.as_ref() else {
@@ -1046,29 +830,9 @@ impl ProviderService {
             ));
         }
 
-        {
-            let mut cfg = state.config.write().map_err(AppError::from)?;
-            let manager = cfg
-                .get_manager_mut(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-            let provider = manager.providers.get_mut(provider_id).ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                )
-            })?;
-            let meta = provider.meta.get_or_insert_with(ProviderMeta::default);
-
-            let endpoint = CustomEndpoint {
-                url: normalized.clone(),
-                added_at: Self::now_millis(),
-                last_used: None,
-            };
-            meta.custom_endpoints.insert(normalized, endpoint);
-        }
-
-        state.save()?;
+        state
+            .db
+            .add_custom_endpoint(app_type.as_str(), provider_id, &normalized)?;
         Ok(())
     }
 
@@ -1080,19 +844,9 @@ impl ProviderService {
         url: String,
     ) -> Result<(), AppError> {
         let normalized = url.trim().trim_end_matches('/').to_string();
-
-        {
-            let mut cfg = state.config.write().map_err(AppError::from)?;
-            if let Some(manager) = cfg.get_manager_mut(&app_type) {
-                if let Some(provider) = manager.providers.get_mut(provider_id) {
-                    if let Some(meta) = provider.meta.as_mut() {
-                        meta.custom_endpoints.remove(&normalized);
-                    }
-                }
-            }
-        }
-
-        state.save()?;
+        state
+            .db
+            .remove_custom_endpoint(app_type.as_str(), provider_id, &normalized)?;
         Ok(())
     }
 
@@ -1105,20 +859,16 @@ impl ProviderService {
     ) -> Result<(), AppError> {
         let normalized = url.trim().trim_end_matches('/').to_string();
 
-        {
-            let mut cfg = state.config.write().map_err(AppError::from)?;
-            if let Some(manager) = cfg.get_manager_mut(&app_type) {
-                if let Some(provider) = manager.providers.get_mut(provider_id) {
-                    if let Some(meta) = provider.meta.as_mut() {
-                        if let Some(endpoint) = meta.custom_endpoints.get_mut(&normalized) {
-                            endpoint.last_used = Some(Self::now_millis());
-                        }
-                    }
+        // Get provider, update last_used, save back
+        let mut providers = state.db.get_all_providers(app_type.as_str())?;
+        if let Some(provider) = providers.get_mut(provider_id) {
+            if let Some(meta) = provider.meta.as_mut() {
+                if let Some(endpoint) = meta.custom_endpoints.get_mut(&normalized) {
+                    endpoint.last_used = Some(Self::now_millis());
+                    state.db.save_provider(app_type.as_str(), provider)?;
                 }
             }
         }
-
-        state.save()?;
         Ok(())
     }
 
@@ -1128,20 +878,15 @@ impl ProviderService {
         app_type: AppType,
         updates: Vec<ProviderSortUpdate>,
     ) -> Result<bool, AppError> {
-        {
-            let mut cfg = state.config.write().map_err(AppError::from)?;
-            let manager = cfg
-                .get_manager_mut(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
+        let mut providers = state.db.get_all_providers(app_type.as_str())?;
 
-            for update in updates {
-                if let Some(provider) = manager.providers.get_mut(&update.id) {
-                    provider.sort_index = Some(update.sort_index);
-                }
+        for update in updates {
+            if let Some(provider) = providers.get_mut(&update.id) {
+                provider.sort_index = Some(update.sort_index);
+                state.db.save_provider(app_type.as_str(), provider)?;
             }
         }
 
-        state.save()?;
         Ok(true)
     }
 
@@ -1222,11 +967,8 @@ impl ProviderService {
         provider_id: &str,
     ) -> Result<UsageResult, AppError> {
         let (script_code, timeout, api_key, base_url, access_token, user_id) = {
-            let config = state.config.read().map_err(AppError::from)?;
-            let manager = config
-                .get_manager(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-            let provider = manager.providers.get(provider_id).cloned().ok_or_else(|| {
+            let providers = state.db.get_all_providers(app_type.as_str())?;
+            let provider = providers.get(provider_id).ok_or_else(|| {
                 AppError::localized(
                     "provider.not_found",
                     format!("供应商不存在: {provider_id}"),
@@ -1300,98 +1042,7 @@ impl ProviderService {
         .await
     }
 
-    /// 切换指定应用的供应商
-    pub fn switch(state: &AppState, app_type: AppType, provider_id: &str) -> Result<(), AppError> {
-        let app_type_clone = app_type.clone();
-        let provider_id_owned = provider_id.to_string();
-
-        Self::run_transaction(state, move |config| {
-            let backup = Self::capture_live_snapshot(&app_type_clone)?;
-            let provider = match app_type_clone {
-                AppType::Codex => Self::prepare_switch_codex(config, &provider_id_owned)?,
-                AppType::Claude => Self::prepare_switch_claude(config, &provider_id_owned)?,
-                AppType::Gemini => Self::prepare_switch_gemini(config, &provider_id_owned)?,
-            };
-
-            let action = PostCommitAction {
-                app_type: app_type_clone.clone(),
-                provider,
-                backup,
-                sync_mcp: true, // v3.7.0: 所有应用切换时都同步 MCP，防止配置丢失
-                refresh_snapshot: true,
-            };
-
-            Ok(((), Some(action)))
-        })
-    }
-
-    fn prepare_switch_codex(
-        config: &mut MultiAppConfig,
-        provider_id: &str,
-    ) -> Result<Provider, AppError> {
-        let provider = config
-            .get_manager(&AppType::Codex)
-            .ok_or_else(|| Self::app_not_found(&AppType::Codex))?
-            .providers
-            .get(provider_id)
-            .cloned()
-            .ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                )
-            })?;
-
-        Self::backfill_codex_current(config, provider_id)?;
-
-        if let Some(manager) = config.get_manager_mut(&AppType::Codex) {
-            manager.current = provider_id.to_string();
-        }
-
-        Ok(provider)
-    }
-
-    fn backfill_codex_current(
-        config: &mut MultiAppConfig,
-        next_provider: &str,
-    ) -> Result<(), AppError> {
-        let current_id = config
-            .get_manager(&AppType::Codex)
-            .map(|m| m.current.clone())
-            .unwrap_or_default();
-
-        if current_id.is_empty() || current_id == next_provider {
-            return Ok(());
-        }
-
-        let auth_path = get_codex_auth_path();
-        if !auth_path.exists() {
-            return Ok(());
-        }
-
-        let auth: Value = read_json_file(&auth_path)?;
-        let config_path = get_codex_config_path();
-        let config_text = if config_path.exists() {
-            std::fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?
-        } else {
-            String::new()
-        };
-
-        let live = json!({
-            "auth": auth,
-            "config": config_text,
-        });
-
-        if let Some(manager) = config.get_manager_mut(&AppType::Codex) {
-            if let Some(current) = manager.providers.get_mut(&current_id) {
-                current.settings_config = live;
-            }
-        }
-
-        Ok(())
-    }
-
+    #[allow(dead_code)]
     fn write_codex_live(provider: &Provider) -> Result<(), AppError> {
         let settings = provider
             .settings_config
@@ -1412,131 +1063,7 @@ impl ProviderService {
         Ok(())
     }
 
-    fn prepare_switch_claude(
-        config: &mut MultiAppConfig,
-        provider_id: &str,
-    ) -> Result<Provider, AppError> {
-        let provider = config
-            .get_manager(&AppType::Claude)
-            .ok_or_else(|| Self::app_not_found(&AppType::Claude))?
-            .providers
-            .get(provider_id)
-            .cloned()
-            .ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                )
-            })?;
-
-        Self::backfill_claude_current(config, provider_id)?;
-
-        if let Some(manager) = config.get_manager_mut(&AppType::Claude) {
-            manager.current = provider_id.to_string();
-        }
-
-        Ok(provider)
-    }
-
-    fn prepare_switch_gemini(
-        config: &mut MultiAppConfig,
-        provider_id: &str,
-    ) -> Result<Provider, AppError> {
-        let provider = config
-            .get_manager(&AppType::Gemini)
-            .ok_or_else(|| Self::app_not_found(&AppType::Gemini))?
-            .providers
-            .get(provider_id)
-            .cloned()
-            .ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                )
-            })?;
-
-        Self::backfill_gemini_current(config, provider_id)?;
-
-        if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
-            manager.current = provider_id.to_string();
-        }
-
-        Ok(provider)
-    }
-
-    fn backfill_claude_current(
-        config: &mut MultiAppConfig,
-        next_provider: &str,
-    ) -> Result<(), AppError> {
-        let settings_path = get_claude_settings_path();
-        if !settings_path.exists() {
-            return Ok(());
-        }
-
-        let current_id = config
-            .get_manager(&AppType::Claude)
-            .map(|m| m.current.clone())
-            .unwrap_or_default();
-        if current_id.is_empty() || current_id == next_provider {
-            return Ok(());
-        }
-
-        let mut live = read_json_file::<Value>(&settings_path)?;
-        let _ = Self::normalize_claude_models_in_value(&mut live);
-        if let Some(manager) = config.get_manager_mut(&AppType::Claude) {
-            if let Some(current) = manager.providers.get_mut(&current_id) {
-                current.settings_config = live;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn backfill_gemini_current(
-        config: &mut MultiAppConfig,
-        next_provider: &str,
-    ) -> Result<(), AppError> {
-        use crate::gemini_config::{
-            env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
-        };
-
-        let env_path = get_gemini_env_path();
-        if !env_path.exists() {
-            return Ok(());
-        }
-
-        let current_id = config
-            .get_manager(&AppType::Gemini)
-            .map(|m| m.current.clone())
-            .unwrap_or_default();
-        if current_id.is_empty() || current_id == next_provider {
-            return Ok(());
-        }
-
-        let env_map = read_gemini_env()?;
-        let mut live = env_to_json(&env_map);
-
-        let settings_path = get_gemini_settings_path();
-        let config_value = if settings_path.exists() {
-            read_json_file(&settings_path)?
-        } else {
-            json!({})
-        };
-        if let Some(obj) = live.as_object_mut() {
-            obj.insert("config".to_string(), config_value);
-        }
-
-        if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
-            if let Some(current) = manager.providers.get_mut(&current_id) {
-                current.settings_config = live;
-            }
-        }
-
-        Ok(())
-    }
-
+    #[allow(dead_code)]
     fn write_claude_live(provider: &Provider) -> Result<(), AppError> {
         let settings_path = get_claude_settings_path();
         let mut content = provider.settings_config.clone();
@@ -1611,14 +1138,6 @@ impl ProviderService {
         }
 
         Ok(())
-    }
-
-    fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Result<(), AppError> {
-        match app_type {
-            AppType::Codex => Self::write_codex_live(provider),
-            AppType::Claude => Self::write_claude_live(provider),
-            AppType::Gemini => Self::write_gemini_live(provider), // 新增
-        }
     }
 
     fn validate_provider_settings(app_type: &AppType, provider: &Provider) -> Result<(), AppError> {
@@ -1838,6 +1357,7 @@ impl ProviderService {
         }
     }
 
+    #[allow(dead_code)]
     fn app_not_found(app_type: &AppType) -> AppError {
         AppError::localized(
             "provider.app_not_found",
@@ -1846,75 +1366,43 @@ impl ProviderService {
         )
     }
 
+    /// 删除供应商
+    pub fn delete(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
+        let current = state.db.get_current_provider(app_type.as_str())?;
+        if current.as_deref() == Some(id) {
+            return Err(AppError::Message(
+                "无法删除当前正在使用的供应商".to_string(),
+            ));
+        }
+        state.db.delete_provider(app_type.as_str(), id)
+    }
+
+    /// 切换供应商
+    pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
+        // Check if provider exists
+        let providers = state.db.get_all_providers(app_type.as_str())?;
+        let provider = providers
+            .get(id)
+            .ok_or_else(|| AppError::Message(format!("供应商 {id} 不存在")))?;
+
+        // Set current
+        state.db.set_current_provider(app_type.as_str(), id)?;
+
+        // Sync to live
+        Self::write_live_snapshot(&app_type, provider)?;
+
+        // Sync MCP
+        use crate::services::mcp::McpService;
+        McpService::sync_all_enabled(state)?;
+
+        Ok(())
+    }
+
     fn now_millis() -> i64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as i64
-    }
-
-    pub fn delete(state: &AppState, app_type: AppType, provider_id: &str) -> Result<(), AppError> {
-        let provider_snapshot = {
-            let config = state.config.read().map_err(AppError::from)?;
-            let manager = config
-                .get_manager(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-
-            if manager.current == provider_id {
-                return Err(AppError::localized(
-                    "provider.delete.current",
-                    "不能删除当前正在使用的供应商",
-                    "Cannot delete the provider currently in use",
-                ));
-            }
-
-            manager.providers.get(provider_id).cloned().ok_or_else(|| {
-                AppError::localized(
-                    "provider.not_found",
-                    format!("供应商不存在: {provider_id}"),
-                    format!("Provider not found: {provider_id}"),
-                )
-            })?
-        };
-
-        match app_type {
-            AppType::Codex => {
-                crate::codex_config::delete_codex_provider_config(
-                    provider_id,
-                    &provider_snapshot.name,
-                )?;
-            }
-            AppType::Claude => {
-                // 兼容旧版本：历史上会在 Claude 目录内为每个供应商生成 settings-*.json 副本
-                // 这里继续清理这些遗留文件，避免堆积过期配置。
-                let by_name = get_provider_config_path(provider_id, Some(&provider_snapshot.name));
-                let by_id = get_provider_config_path(provider_id, None);
-                delete_file(&by_name)?;
-                delete_file(&by_id)?;
-            }
-            AppType::Gemini => {
-                // Gemini 使用单一的 .env 文件，不需要删除单独的供应商配置文件
-            }
-        }
-
-        {
-            let mut config = state.config.write().map_err(AppError::from)?;
-            let manager = config
-                .get_manager_mut(&app_type)
-                .ok_or_else(|| Self::app_not_found(&app_type))?;
-
-            if manager.current == provider_id {
-                return Err(AppError::localized(
-                    "provider.delete.current",
-                    "不能删除当前正在使用的供应商",
-                    "Cannot delete the provider currently in use",
-                ));
-            }
-
-            manager.providers.remove(provider_id);
-        }
-
-        state.save()
     }
 }
 

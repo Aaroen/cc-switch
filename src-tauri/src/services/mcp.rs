@@ -1,6 +1,7 @@
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
-use crate::app_config::{AppType, McpServer, MultiAppConfig};
+use crate::app_config::{AppType, McpServer};
 use crate::error::AppError;
 use crate::mcp;
 use crate::store::AppState;
@@ -10,40 +11,13 @@ pub struct McpService;
 
 impl McpService {
     /// 获取所有 MCP 服务器（统一结构）
-    pub fn get_all_servers(state: &AppState) -> Result<HashMap<String, McpServer>, AppError> {
-        let cfg = state.config.read()?;
-
-        // 如果是新结构，直接返回
-        if let Some(servers) = &cfg.mcp.servers {
-            return Ok(servers.clone());
-        }
-
-        // 理论上不应该走到这里，因为 load 时会自动迁移
-        Err(AppError::localized(
-            "mcp.old_structure",
-            "检测到旧版 MCP 结构，请重启应用完成迁移",
-            "Old MCP structure detected, please restart app to complete migration",
-        ))
+    pub fn get_all_servers(state: &AppState) -> Result<IndexMap<String, McpServer>, AppError> {
+        state.db.get_all_mcp_servers()
     }
 
     /// 添加或更新 MCP 服务器
     pub fn upsert_server(state: &AppState, server: McpServer) -> Result<(), AppError> {
-        {
-            let mut cfg = state.config.write()?;
-
-            // 确保 servers 字段存在
-            if cfg.mcp.servers.is_none() {
-                cfg.mcp.servers = Some(HashMap::new());
-            }
-
-            let servers = cfg.mcp.servers.as_mut().unwrap();
-            let id = server.id.clone();
-
-            // 插入或更新
-            servers.insert(id, server.clone());
-        }
-
-        state.save()?;
+        state.db.save_mcp_server(&server)?;
 
         // 同步到各个启用的应用
         Self::sync_server_to_apps(state, &server)?;
@@ -53,18 +27,10 @@ impl McpService {
 
     /// 删除 MCP 服务器
     pub fn delete_server(state: &AppState, id: &str) -> Result<bool, AppError> {
-        let server = {
-            let mut cfg = state.config.write()?;
-
-            if let Some(servers) = &mut cfg.mcp.servers {
-                servers.remove(id)
-            } else {
-                None
-            }
-        };
+        let server = state.db.get_all_mcp_servers()?.shift_remove(id);
 
         if let Some(server) = server {
-            state.save()?;
+            state.db.delete_mcp_server(id)?;
 
             // 从所有应用的 live 配置中移除
             Self::remove_server_from_all_apps(state, id, &server)?;
@@ -81,27 +47,15 @@ impl McpService {
         app: AppType,
         enabled: bool,
     ) -> Result<(), AppError> {
-        let server = {
-            let mut cfg = state.config.write()?;
+        let mut servers = state.db.get_all_mcp_servers()?;
 
-            if let Some(servers) = &mut cfg.mcp.servers {
-                if let Some(server) = servers.get_mut(server_id) {
-                    server.apps.set_enabled_for(&app, enabled);
-                    Some(server.clone())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some(server) = server {
-            state.save()?;
+        if let Some(server) = servers.get_mut(server_id) {
+            server.apps.set_enabled_for(&app, enabled);
+            state.db.save_mcp_server(server)?;
 
             // 同步到对应应用
             if enabled {
-                Self::sync_server_to_app(state, &server, &app)?;
+                Self::sync_server_to_app(state, server, &app)?;
             } else {
                 Self::remove_server_from_app(state, server_id, &app)?;
             }
@@ -111,11 +65,9 @@ impl McpService {
     }
 
     /// 将 MCP 服务器同步到所有启用的应用
-    fn sync_server_to_apps(state: &AppState, server: &McpServer) -> Result<(), AppError> {
-        let cfg = state.config.read()?;
-
+    fn sync_server_to_apps(_state: &AppState, server: &McpServer) -> Result<(), AppError> {
         for app in server.apps.enabled_apps() {
-            Self::sync_server_to_app_internal(&cfg, server, &app)?;
+            Self::sync_server_to_app_no_config(server, &app)?;
         }
 
         Ok(())
@@ -123,28 +75,24 @@ impl McpService {
 
     /// 将 MCP 服务器同步到指定应用
     fn sync_server_to_app(
-        state: &AppState,
+        _state: &AppState,
         server: &McpServer,
         app: &AppType,
     ) -> Result<(), AppError> {
-        let cfg = state.config.read()?;
-        Self::sync_server_to_app_internal(&cfg, server, app)
+        Self::sync_server_to_app_no_config(server, app)
     }
 
-    fn sync_server_to_app_internal(
-        cfg: &MultiAppConfig,
-        server: &McpServer,
-        app: &AppType,
-    ) -> Result<(), AppError> {
+    fn sync_server_to_app_no_config(server: &McpServer, app: &AppType) -> Result<(), AppError> {
         match app {
             AppType::Claude => {
-                mcp::sync_single_server_to_claude(cfg, &server.id, &server.server)?;
+                mcp::sync_single_server_to_claude(&Default::default(), &server.id, &server.server)?;
             }
             AppType::Codex => {
-                mcp::sync_single_server_to_codex(cfg, &server.id, &server.server)?;
+                // Codex uses TOML format, must use the correct function
+                mcp::sync_single_server_to_codex(&Default::default(), &server.id, &server.server)?;
             }
             AppType::Gemini => {
-                mcp::sync_single_server_to_gemini(cfg, &server.id, &server.server)?;
+                mcp::sync_single_server_to_gemini(&Default::default(), &server.id, &server.server)?;
             }
         }
         Ok(())
@@ -233,28 +181,67 @@ impl McpService {
 
     /// 从 Claude 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_claude(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let count = mcp::import_from_claude(&mut cfg)?;
-        drop(cfg);
-        state.save()?;
+        // 创建临时 MultiAppConfig 用于导入
+        let mut temp_config = crate::app_config::MultiAppConfig::default();
+
+        // 调用原有的导入逻辑（从 mcp.rs）
+        let count = crate::mcp::import_from_claude(&mut temp_config)?;
+
+        // 如果有导入的服务器，保存到数据库
+        if count > 0 {
+            if let Some(servers) = &temp_config.mcp.servers {
+                for server in servers.values() {
+                    state.db.save_mcp_server(server)?;
+                    // 同步到 Claude live 配置
+                    Self::sync_server_to_apps(state, server)?;
+                }
+            }
+        }
+
         Ok(count)
     }
 
     /// 从 Codex 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_codex(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let count = mcp::import_from_codex(&mut cfg)?;
-        drop(cfg);
-        state.save()?;
+        // 创建临时 MultiAppConfig 用于导入
+        let mut temp_config = crate::app_config::MultiAppConfig::default();
+
+        // 调用原有的导入逻辑（从 mcp.rs）
+        let count = crate::mcp::import_from_codex(&mut temp_config)?;
+
+        // 如果有导入的服务器，保存到数据库
+        if count > 0 {
+            if let Some(servers) = &temp_config.mcp.servers {
+                for server in servers.values() {
+                    state.db.save_mcp_server(server)?;
+                    // 同步到 Codex live 配置
+                    Self::sync_server_to_apps(state, server)?;
+                }
+            }
+        }
+
         Ok(count)
     }
 
     /// 从 Gemini 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_gemini(state: &AppState) -> Result<usize, AppError> {
-        let mut cfg = state.config.write()?;
-        let count = mcp::import_from_gemini(&mut cfg)?;
-        drop(cfg);
-        state.save()?;
+        // 创建临时 MultiAppConfig 用于导入
+        let mut temp_config = crate::app_config::MultiAppConfig::default();
+
+        // 调用原有的导入逻辑（从 mcp.rs）
+        let count = crate::mcp::import_from_gemini(&mut temp_config)?;
+
+        // 如果有导入的服务器，保存到数据库
+        if count > 0 {
+            if let Some(servers) = &temp_config.mcp.servers {
+                for server in servers.values() {
+                    state.db.save_mcp_server(server)?;
+                    // 同步到 Gemini live 配置
+                    Self::sync_server_to_apps(state, server)?;
+                }
+            }
+        }
+
         Ok(count)
     }
 }

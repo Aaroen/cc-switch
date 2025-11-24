@@ -156,13 +156,14 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
                 {t("usage.remaining")}
               </span>
               <span
-                className={`font-semibold tabular-nums ${isExpired
+                className={`font-semibold tabular-nums ${
+                  isExpired
                     ? "text-red-500 dark:text-red-400"
                     : firstUsage.remaining <
-                      (firstUsage.total || firstUsage.remaining) * 0.1
+                        (firstUsage.total || firstUsage.remaining) * 0.1
                       ? "text-orange-500 dark:text-orange-400"
                       : "text-green-600 dark:text-green-400"
-                  }`}
+                }`}
               >
                 {firstUsage.remaining.toFixed(2)}
               </span>
@@ -310,12 +311,13 @@ const UsagePlanItem: React.FC<{ data: UsageData }> = ({ data }) => {
               {t("usage.remaining")}
             </span>
             <span
-              className={`font-semibold tabular-nums ${isExpired
-                ? "text-red-500 dark:text-red-400"
-                : remaining < (total || remaining) * 0.1
-                  ? "text-orange-500 dark:text-orange-400"
-                  : "text-green-600 dark:text-green-400"
-                }`}
+              className={`font-semibold tabular-nums ${
+                isExpired
+                  ? "text-red-500 dark:text-red-400"
+                  : remaining < (total || remaining) * 0.1
+                    ? "text-orange-500 dark:text-orange-400"
+                    : "text-green-600 dark:text-green-400"
+              }`}
             >
               {remaining.toFixed(2)}
             </span>

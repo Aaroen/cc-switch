@@ -13,16 +13,34 @@ pub async fn get_skills(
     service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<Vec<Skill>, String> {
-    let repos = {
-        let config = app_state.config.read().map_err(|e| e.to_string())?;
-        config.skills.repos.clone()
-    };
+    let repos = app_state.db.get_skill_repos().map_err(|e| e.to_string())?;
 
-    service
+    let skills = service
         .0
         .list_skills(repos)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // 自动同步本地已安装的 skills 到数据库
+    // 这样用户在首次运行时，已有的 skills 会被自动记录
+    let existing_states = app_state.db.get_skills().unwrap_or_default();
+
+    for skill in &skills {
+        if skill.installed && !existing_states.contains_key(&skill.directory) {
+            // 本地有该 skill，但数据库中没有记录，自动添加
+            if let Err(e) = app_state.db.update_skill_state(
+                &skill.directory,
+                &SkillState {
+                    installed: true,
+                    installed_at: Utc::now(),
+                },
+            ) {
+                log::warn!("同步本地 skill {} 状态到数据库失败: {}", skill.directory, e);
+            }
+        }
+    }
+
+    Ok(skills)
 }
 
 #[tauri::command]
@@ -32,10 +50,7 @@ pub async fn install_skill(
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
     // 先在不持有写锁的情况下收集仓库与技能信息
-    let repos = {
-        let config = app_state.config.read().map_err(|e| e.to_string())?;
-        config.skills.repos.clone()
-    };
+    let repos = app_state.db.get_skill_repos().map_err(|e| e.to_string())?;
 
     let skills = service
         .0
@@ -85,19 +100,16 @@ pub async fn install_skill(
             .map_err(|e| e.to_string())?;
     }
 
-    {
-        let mut config = app_state.config.write().map_err(|e| e.to_string())?;
-
-        config.skills.skills.insert(
-            directory.clone(),
-            SkillState {
+    app_state
+        .db
+        .update_skill_state(
+            &directory,
+            &SkillState {
                 installed: true,
                 installed_at: Utc::now(),
             },
-        );
-    }
-
-    app_state.save().map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
     Ok(true)
 }
@@ -113,13 +125,17 @@ pub fn uninstall_skill(
         .uninstall_skill(directory.clone())
         .map_err(|e| e.to_string())?;
 
-    {
-        let mut config = app_state.config.write().map_err(|e| e.to_string())?;
-
-        config.skills.skills.remove(&directory);
-    }
-
-    app_state.save().map_err(|e| e.to_string())?;
+    // Remove from database by setting installed = false
+    app_state
+        .db
+        .update_skill_state(
+            &directory,
+            &SkillState {
+                installed: false,
+                installed_at: Utc::now(),
+            },
+        )
+        .map_err(|e| e.to_string())?;
 
     Ok(true)
 }
@@ -129,28 +145,19 @@ pub fn get_skill_repos(
     _service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<Vec<SkillRepo>, String> {
-    let config = app_state.config.read().map_err(|e| e.to_string())?;
-
-    Ok(config.skills.repos.clone())
+    app_state.db.get_skill_repos().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn add_skill_repo(
     repo: SkillRepo,
-    service: State<'_, SkillServiceState>,
+    _service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    {
-        let mut config = app_state.config.write().map_err(|e| e.to_string())?;
-
-        service
-            .0
-            .add_repo(&mut config.skills, repo)
-            .map_err(|e| e.to_string())?;
-    }
-
-    app_state.save().map_err(|e| e.to_string())?;
-
+    app_state
+        .db
+        .save_skill_repo(&repo)
+        .map_err(|e| e.to_string())?;
     Ok(true)
 }
 
@@ -158,19 +165,12 @@ pub fn add_skill_repo(
 pub fn remove_skill_repo(
     owner: String,
     name: String,
-    service: State<'_, SkillServiceState>,
+    _service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    {
-        let mut config = app_state.config.write().map_err(|e| e.to_string())?;
-
-        service
-            .0
-            .remove_repo(&mut config.skills, owner, name)
-            .map_err(|e| e.to_string())?;
-    }
-
-    app_state.save().map_err(|e| e.to_string())?;
-
+    app_state
+        .db
+        .delete_skill_repo(&owner, &name)
+        .map_err(|e| e.to_string())?;
     Ok(true)
 }

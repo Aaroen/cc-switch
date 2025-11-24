@@ -109,7 +109,17 @@ impl ConfigService {
     }
 
     /// 将外部配置文件内容加载并写入应用状态。
-    pub fn import_config_from_path(file_path: &Path, state: &AppState) -> Result<String, AppError> {
+    /// TODO: 需要重构以使用数据库而不是 JSON 配置
+    pub fn import_config_from_path(
+        _file_path: &Path,
+        _state: &AppState,
+    ) -> Result<String, AppError> {
+        // TODO: 实现基于数据库的导入逻辑
+        Err(AppError::Message(
+            "配置导入功能正在重构中,暂时不可用".to_string(),
+        ))
+
+        /* 旧的实现,需要重构:
         let (new_config, backup_id) = Self::load_config_for_import(file_path)?;
 
         {
@@ -118,6 +128,7 @@ impl ConfigService {
         }
 
         Ok(backup_id)
+        */
     }
 
     /// 同步当前供应商到对应的 live 配置。

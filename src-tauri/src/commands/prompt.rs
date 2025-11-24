@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::str::FromStr;
 
 use tauri::State;
@@ -12,7 +12,7 @@ use crate::store::AppState;
 pub async fn get_prompts(
     app: String,
     state: State<'_, AppState>,
-) -> Result<HashMap<String, Prompt>, String> {
+) -> Result<IndexMap<String, Prompt>, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     PromptService::get_prompts(&state, app_type).map_err(|e| e.to_string())
 }

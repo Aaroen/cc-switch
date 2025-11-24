@@ -1,7 +1,14 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { SkillCard } from "./SkillCard";
 import { RepoManagerPanel } from "./RepoManagerPanel";
@@ -24,6 +31,7 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
     const [repos, setRepos] = useState<SkillRepo[]>([]);
     const [loading, setLoading] = useState(true);
     const [repoManagerOpen, setRepoManagerOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const loadSkills = async (afterLoad?: (data: Skill[]) => void) => {
       try {
@@ -111,12 +119,12 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
         const errorMessage =
           error instanceof Error ? error.message : String(error);
 
-      // 使用错误解析器格式化错误，传入 "skills.uninstallFailed"
-      const { title, description } = formatSkillError(
-        errorMessage,
-        t,
-        "skills.uninstallFailed",
-      );
+        // 使用错误解析器格式化错误，传入 "skills.uninstallFailed"
+        const { title, description } = formatSkillError(
+          errorMessage,
+          t,
+          "skills.uninstallFailed",
+        );
 
         toast.error(title, {
           description,
@@ -162,6 +170,24 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
       await Promise.all([loadRepos(), loadSkills()]);
     };
 
+    // 过滤技能列表
+    const filteredSkills = useMemo(() => {
+      if (!searchQuery.trim()) return skills;
+
+      const query = searchQuery.toLowerCase();
+      return skills.filter((skill) => {
+        const name = skill.name?.toLowerCase() || "";
+        const description = skill.description?.toLowerCase() || "";
+        const directory = skill.directory?.toLowerCase() || "";
+
+        return (
+          name.includes(query) ||
+          description.includes(query) ||
+          directory.includes(query)
+        );
+      });
+    }, [skills, searchQuery]);
+
     return (
       <div className="flex flex-col h-full min-h-0 bg-background/50">
         {/* 顶部操作栏（固定区域）已移除，由 App.tsx 接管 */}
@@ -190,16 +216,49 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {skills.map((skill) => (
-                  <SkillCard
-                    key={skill.key}
-                    skill={skill}
-                    onInstall={handleInstall}
-                    onUninstall={handleUninstall}
-                  />
-                ))}
-              </div>
+              <>
+                {/* 搜索框 */}
+                <div className="mb-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder={t("skills.searchPlaceholder")}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  {searchQuery && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {t("skills.count", { count: filteredSkills.length })}
+                    </p>
+                  )}
+                </div>
+
+                {/* 技能列表或无结果提示 */}
+                {filteredSkills.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 text-center">
+                    <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                      {t("skills.noResults")}
+                    </p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                      {t("skills.emptyDescription")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredSkills.map((skill) => (
+                      <SkillCard
+                        key={skill.key}
+                        skill={skill}
+                        onInstall={handleInstall}
+                        onUninstall={handleUninstall}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

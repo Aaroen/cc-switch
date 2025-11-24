@@ -50,6 +50,8 @@ pub enum AppError {
         zh: String,
         en: String,
     },
+    #[error("数据库错误: {0}")]
+    Database(String),
 }
 
 impl AppError {

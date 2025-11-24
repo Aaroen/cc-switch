@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use tauri::State;
 
 use crate::app_config::AppType;
@@ -13,7 +13,7 @@ use std::str::FromStr;
 pub fn get_providers(
     state: State<'_, AppState>,
     app: String,
-) -> Result<HashMap<String, Provider>, String> {
+) -> Result<IndexMap<String, Provider>, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     ProviderService::list(state.inner(), app_type).map_err(|e| e.to_string())
 }
