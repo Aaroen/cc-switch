@@ -219,14 +219,21 @@ impl Database {
     fn table_exists(conn: &Connection, table: &str) -> Result<bool, AppError> {
         Self::validate_identifier(table, "表名")?;
 
-        let sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?1 LIMIT 1;";
-        match conn.query_row(sql, params![table], |row| row.get::<_, i64>(0)) {
-            Ok(_) => Ok(true),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
-            Err(e) => Err(AppError::Database(format!(
-                "检查表是否存在失败: {e}"
-            ))),
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .map_err(|e| AppError::Database(format!("读取表名失败: {e}")))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AppError::Database(format!("查询表名失败: {e}")))?;
+        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+            let name: String = row
+                .get(0)
+                .map_err(|e| AppError::Database(format!("解析表名失败: {e}")))?;
+            if name.eq_ignore_ascii_case(table) {
+                return Ok(true);
+            }
         }
+        Ok(false)
     }
 
     fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, AppError> {
@@ -269,7 +276,7 @@ impl Database {
             return Ok(false);
         }
 
-        let sql = format!("ALTER TABLE \"{table}\" ADD COLUMN {definition};");
+        let sql = format!("ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition};");
         conn.execute(&sql, [])
             .map_err(|e| AppError::Database(format!("为表 {table} 添加列 {column} 失败: {e}")))?;
         log::info!("已为表 {table} 添加缺失列 {column}");
@@ -311,7 +318,7 @@ impl Database {
                             conn,
                             "providers",
                             "is_current",
-                            "INTEGER NOT NULL DEFAULT 0",
+                            "BOOLEAN NOT NULL DEFAULT 0",
                         )?;
 
                         Self::add_column_if_missing(
@@ -334,13 +341,13 @@ impl Database {
                             conn,
                             "mcp_servers",
                             "enabled_codex",
-                            "INTEGER NOT NULL DEFAULT 0",
+                            "BOOLEAN NOT NULL DEFAULT 0",
                         )?;
                         Self::add_column_if_missing(
                             conn,
                             "mcp_servers",
                             "enabled_gemini",
-                            "INTEGER NOT NULL DEFAULT 0",
+                            "BOOLEAN NOT NULL DEFAULT 0",
                         )?;
 
                         Self::add_column_if_missing(conn, "prompts", "description", "TEXT")?;
@@ -348,7 +355,7 @@ impl Database {
                             conn,
                             "prompts",
                             "enabled",
-                            "INTEGER NOT NULL DEFAULT 1",
+                            "BOOLEAN NOT NULL DEFAULT 1",
                         )?;
                         Self::add_column_if_missing(conn, "prompts", "created_at", "INTEGER")?;
                         Self::add_column_if_missing(conn, "prompts", "updated_at", "INTEGER")?;
@@ -370,7 +377,7 @@ impl Database {
                             conn,
                             "skill_repos",
                             "enabled",
-                            "INTEGER NOT NULL DEFAULT 1",
+                            "BOOLEAN NOT NULL DEFAULT 1",
                         )?;
                         Self::add_column_if_missing(conn, "skill_repos", "skills_path", "TEXT")?;
 
@@ -1456,45 +1463,7 @@ impl Database {
 mod tests {
     use super::*;
 
-    #[test]
-    fn migration_sets_user_version_when_missing() {
-        let conn = Connection::open_in_memory().expect("open memory db");
-
-        Database::create_tables_on_conn(&conn).expect("create tables");
-        assert_eq!(
-            Database::get_user_version(&conn).expect("read version before"),
-            0
-        );
-
-        Database::apply_schema_migrations_on_conn(&conn).expect("apply migration");
-
-        assert_eq!(
-            Database::get_user_version(&conn).expect("read version after"),
-            SCHEMA_VERSION
-        );
-    }
-
-    #[test]
-    fn migration_rejects_future_version() {
-        let conn = Connection::open_in_memory().expect("open memory db");
-        Database::create_tables_on_conn(&conn).expect("create tables");
-        Database::set_user_version(&conn, SCHEMA_VERSION + 1).expect("set future version");
-
-        let err = Database::apply_schema_migrations_on_conn(&conn)
-            .expect_err("should reject higher version");
-        assert!(
-            err.to_string().contains("数据库版本过新"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn migration_adds_missing_columns_for_providers() {
-        let conn = Connection::open_in_memory().expect("open memory db");
-
-        // 创建旧版 providers 表，缺少新增列
-        conn.execute_batch(
-            r#"
+    const LEGACY_SCHEMA_SQL: &str = r#"
             CREATE TABLE providers (
                 id TEXT NOT NULL,
                 app_type TEXT NOT NULL,
@@ -1533,9 +1502,80 @@ mod tests {
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
-            "#,
-        )
-        .expect("seed old schema");
+        "#;
+
+    #[derive(Debug)]
+    struct ColumnInfo {
+        name: String,
+        r#type: String,
+        notnull: i64,
+        default: Option<String>,
+    }
+
+    fn get_column_info(conn: &Connection, table: &str, column: &str) -> ColumnInfo {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info(\"{table}\");"))
+            .expect("prepare pragma");
+        let mut rows = stmt.query([]).expect("query pragma");
+        while let Some(row) = rows.next().expect("read row") {
+            let name: String = row.get(1).expect("name");
+            if name.eq_ignore_ascii_case(column) {
+                return ColumnInfo {
+                    name,
+                    r#type: row.get::<_, String>(2).expect("type"),
+                    notnull: row.get::<_, i64>(3).expect("notnull"),
+                    default: row.get::<_, Option<String>>(4).ok().flatten(),
+                };
+            }
+        }
+        panic!("column {table}.{column} not found");
+    }
+
+    fn normalize_default(default: &Option<String>) -> Option<String> {
+        default
+            .as_ref()
+            .map(|s| s.trim_matches('\'').trim_matches('"').to_string())
+    }
+
+    #[test]
+    fn migration_sets_user_version_when_missing() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version before"),
+            0
+        );
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migration");
+
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version after"),
+            SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn migration_rejects_future_version() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        Database::set_user_version(&conn, SCHEMA_VERSION + 1).expect("set future version");
+
+        let err = Database::apply_schema_migrations_on_conn(&conn)
+            .expect_err("should reject higher version");
+        assert!(
+            err.to_string().contains("数据库版本过新"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn migration_adds_missing_columns_for_providers() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+
+        // 创建旧版 providers 表，缺少新增列
+        conn.execute_batch(LEGACY_SCHEMA_SQL)
+            .expect("seed old schema");
 
         Database::apply_schema_migrations_on_conn(&conn).expect("apply migrations");
 
@@ -1556,27 +1596,67 @@ mod tests {
         }
 
         // 验证 meta 列约束保持一致
-        let mut stmt = conn
-            .prepare("PRAGMA table_info(\"providers\");")
-            .expect("prepare pragma");
-        let mut rows = stmt.query([]).expect("query pragma");
-        let mut meta_not_null = None;
-        let mut meta_default = None;
-        while let Some(row) = rows.next().expect("read row") {
-            let name: String = row.get(1).expect("name");
-            if name == "meta" {
-                meta_not_null = Some(row.get::<_, i64>(3).expect("notnull"));
-                meta_default = row.get::<_, Option<String>>(4).ok().flatten();
-                break;
-            }
-        }
-        assert_eq!(meta_not_null, Some(1), "meta should be NOT NULL");
-        let normalized_default = meta_default.map(|s| s.trim_matches('\'').to_string());
-        assert_eq!(normalized_default.as_deref(), Some("{}"), "meta default should be '{}'");
+        let meta = get_column_info(&conn, "providers", "meta");
+        assert_eq!(meta.notnull, 1, "meta should be NOT NULL");
+        assert_eq!(
+            normalize_default(&meta.default).as_deref(),
+            Some("{}"),
+            "meta default should be '{{}}'"
+        );
 
         assert_eq!(
             Database::get_user_version(&conn).expect("version after migration"),
             SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn migration_aligns_column_defaults_and_types() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        conn.execute_batch(LEGACY_SCHEMA_SQL)
+            .expect("seed old schema");
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migrations");
+
+        let is_current = get_column_info(&conn, "providers", "is_current");
+        assert_eq!(is_current.r#type, "BOOLEAN");
+        assert_eq!(is_current.notnull, 1);
+        assert_eq!(
+            normalize_default(&is_current.default).as_deref(),
+            Some("0")
+        );
+
+        let tags = get_column_info(&conn, "mcp_servers", "tags");
+        assert_eq!(tags.r#type, "TEXT");
+        assert_eq!(tags.notnull, 1);
+        assert_eq!(normalize_default(&tags.default).as_deref(), Some("[]"));
+
+        let enabled = get_column_info(&conn, "prompts", "enabled");
+        assert_eq!(enabled.r#type, "BOOLEAN");
+        assert_eq!(enabled.notnull, 1);
+        assert_eq!(
+            normalize_default(&enabled.default).as_deref(),
+            Some("1")
+        );
+
+        let installed_at = get_column_info(&conn, "skills", "installed_at");
+        assert_eq!(installed_at.r#type, "INTEGER");
+        assert_eq!(installed_at.notnull, 1);
+        assert_eq!(
+            normalize_default(&installed_at.default).as_deref(),
+            Some("0")
+        );
+
+        let branch = get_column_info(&conn, "skill_repos", "branch");
+        assert_eq!(branch.r#type, "TEXT");
+        assert_eq!(normalize_default(&branch.default).as_deref(), Some("main"));
+
+        let skill_repo_enabled = get_column_info(&conn, "skill_repos", "enabled");
+        assert_eq!(skill_repo_enabled.r#type, "BOOLEAN");
+        assert_eq!(skill_repo_enabled.notnull, 1);
+        assert_eq!(
+            normalize_default(&skill_repo_enabled.default).as_deref(),
+            Some("1")
         );
     }
 }
