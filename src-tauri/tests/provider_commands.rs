@@ -1,14 +1,13 @@
 use serde_json::json;
-use std::sync::RwLock;
 
 use cc_switch_lib::{
     get_codex_auth_path, get_codex_config_path, read_json_file, switch_provider_test_hook,
-    write_codex_live_atomic, AppError, AppState, AppType, MultiAppConfig, Provider,
+    write_codex_live_atomic, AppError, AppType, MultiAppConfig, Provider,
 };
 
 #[path = "support.rs"]
 mod support;
-use support::{ensure_test_home, reset_test_fs, test_mutex};
+use support::{create_test_state_with_config, ensure_test_home, reset_test_fs, test_mutex};
 
 #[test]
 fn switch_provider_updates_codex_live_and_state() {
@@ -71,9 +70,7 @@ command = "say"
         }),
     );
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     switch_provider_test_hook(&app_state, AppType::Codex, "new-provider")
         .expect("switch provider should succeed");
@@ -95,14 +92,14 @@ command = "say"
         "config.toml should contain synced MCP servers"
     );
 
-    let locked = app_state.config.read().expect("lock config after switch");
-    let manager = locked
-        .get_manager(&AppType::Codex)
-        .expect("codex manager after switch");
-    assert_eq!(manager.current, "new-provider", "current provider updated");
+    let current_id = app_state.db.get_current_provider(AppType::Codex.as_str())
+        .expect("get current provider");
+    assert_eq!(current_id.as_deref(), Some("new-provider"), "current provider updated");
 
-    let new_provider = manager
-        .providers
+    let providers = app_state.db.get_all_providers(AppType::Codex.as_str())
+        .expect("get all providers");
+
+    let new_provider = providers
         .get("new-provider")
         .expect("new provider exists");
     let new_config_text = new_provider
@@ -115,8 +112,7 @@ command = "say"
         "provider config snapshot should match live file"
     );
 
-    let legacy = manager
-        .providers
+    let legacy = providers
         .get("old-provider")
         .expect("legacy provider still exists");
     let legacy_auth_value = legacy
@@ -142,9 +138,7 @@ fn switch_provider_missing_provider_returns_error() {
         .expect("claude manager")
         .current = "does-not-exist".to_string();
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     let err = switch_provider_test_hook(&app_state, AppType::Claude, "missing-provider")
         .expect_err("switching to a missing provider should fail");
@@ -210,9 +204,7 @@ fn switch_provider_updates_claude_live_and_state() {
         );
     }
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     switch_provider_test_hook(&app_state, AppType::Claude, "new-provider")
         .expect("switch provider should succeed");
@@ -228,14 +220,14 @@ fn switch_provider_updates_claude_live_and_state() {
         "live settings.json should reflect new provider auth"
     );
 
-    let locked = app_state.config.read().expect("lock config after switch");
-    let manager = locked
-        .get_manager(&AppType::Claude)
-        .expect("claude manager after switch");
-    assert_eq!(manager.current, "new-provider", "current provider updated");
+    let current_id = app_state.db.get_current_provider(AppType::Claude.as_str())
+        .expect("get current provider");
+    assert_eq!(current_id.as_deref(), Some("new-provider"), "current provider updated");
 
-    let legacy_provider = manager
-        .providers
+    let providers = app_state.db.get_all_providers(AppType::Claude.as_str())
+        .expect("get all providers");
+
+    let legacy_provider = providers
         .get("old-provider")
         .expect("legacy provider still exists");
     assert_eq!(
@@ -243,8 +235,7 @@ fn switch_provider_updates_claude_live_and_state() {
         "previous provider should receive backfilled live config"
     );
 
-    let new_provider = manager
-        .providers
+    let new_provider = providers
         .get("new-provider")
         .expect("new provider exists");
     assert_eq!(
@@ -256,8 +247,6 @@ fn switch_provider_updates_claude_live_and_state() {
         Some("fresh-key"),
         "new provider snapshot should retain fresh auth"
     );
-
-    drop(locked);
 
     let home_dir = std::env::var("HOME").expect("HOME should be set by ensure_test_home");
     let config_path = std::path::Path::new(&home_dir)
@@ -304,9 +293,7 @@ fn switch_provider_codex_missing_auth_returns_error_and_keeps_state() {
         );
     }
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     let err = switch_provider_test_hook(&app_state, AppType::Codex, "invalid")
         .expect_err("switching should fail when auth missing");
@@ -318,10 +305,10 @@ fn switch_provider_codex_missing_auth_returns_error_and_keeps_state() {
         other => panic!("expected config error, got {other:?}"),
     }
 
-    let locked = app_state.config.read().expect("lock config after failure");
-    let manager = locked.get_manager(&AppType::Codex).expect("codex manager");
+    let current_id = app_state.db.get_current_provider(AppType::Codex.as_str())
+        .expect("get current provider");
     assert!(
-        manager.current.is_empty(),
+        current_id.is_none(),
         "current provider should remain empty on failure"
     );
 }

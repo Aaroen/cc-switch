@@ -1,12 +1,10 @@
-use std::sync::RwLock;
-
 use cc_switch_lib::{
-    import_provider_from_deeplink, parse_deeplink_url, AppState, AppType, MultiAppConfig,
+    import_provider_from_deeplink, parse_deeplink_url, AppType, MultiAppConfig,
 };
 
 #[path = "support.rs"]
 mod support;
-use support::{ensure_test_home, reset_test_fs, test_mutex};
+use support::{create_test_state_with_config, ensure_test_home, reset_test_fs, test_mutex};
 
 #[test]
 fn deeplink_import_claude_provider_persists_to_config() {
@@ -20,20 +18,15 @@ fn deeplink_import_claude_provider_persists_to_config() {
     let mut config = MultiAppConfig::default();
     config.ensure_app(&AppType::Claude);
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     let provider_id = import_provider_from_deeplink(&state, request.clone())
         .expect("import provider from deeplink");
 
     // 验证内存状态
-    let guard = state.config.read().expect("read config");
-    let manager = guard
-        .get_manager(&AppType::Claude)
-        .expect("claude manager should exist");
-    let provider = manager
-        .providers
+    let providers = state.db.get_all_providers(AppType::Claude.as_str())
+        .expect("get all providers");
+    let provider = providers
         .get(&provider_id)
         .expect("provider created via deeplink");
     assert_eq!(provider.name, request.name);
@@ -51,7 +44,6 @@ fn deeplink_import_claude_provider_persists_to_config() {
         .and_then(|v| v.as_str());
     assert_eq!(auth_token, Some(request.api_key.as_str()));
     assert_eq!(base_url, Some(request.endpoint.as_str()));
-    drop(guard);
 
     // 验证配置已持久化
     let config_path = home.join(".cc-switch").join("config.json");
@@ -73,19 +65,14 @@ fn deeplink_import_codex_provider_builds_auth_and_config() {
     let mut config = MultiAppConfig::default();
     config.ensure_app(&AppType::Codex);
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     let provider_id = import_provider_from_deeplink(&state, request.clone())
         .expect("import provider from deeplink");
 
-    let guard = state.config.read().expect("read config");
-    let manager = guard
-        .get_manager(&AppType::Codex)
-        .expect("codex manager should exist");
-    let provider = manager
-        .providers
+    let providers = state.db.get_all_providers(AppType::Codex.as_str())
+        .expect("get all providers");
+    let provider = providers
         .get(&provider_id)
         .expect("provider created via deeplink");
     assert_eq!(provider.name, request.name);
@@ -111,7 +98,6 @@ fn deeplink_import_codex_provider_builds_auth_and_config() {
         config_text.contains("model = \"gpt-4o\""),
         "config.toml content should contain model setting"
     );
-    drop(guard);
 
     let config_path = home.join(".cc-switch").join("config.json");
     assert!(

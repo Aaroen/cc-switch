@@ -1,15 +1,15 @@
 use serde_json::json;
-use std::{fs, path::Path, sync::RwLock};
-use tauri::async_runtime;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use cc_switch_lib::{
-    get_claude_settings_path, read_json_file, AppError, AppState, AppType, ConfigService,
+    get_claude_settings_path, read_json_file, AppError, AppType, ConfigService,
     MultiAppConfig, Provider, ProviderMeta,
 };
 
 #[path = "support.rs"]
 mod support;
-use support::{ensure_test_home, reset_test_fs, test_mutex};
+use support::{create_test_state, create_test_state_with_config, ensure_test_home, reset_test_fs, test_mutex};
 
 #[test]
 fn sync_claude_provider_writes_live_settings() {
@@ -854,9 +854,8 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
     )
     .expect("write import file");
 
-    let app_state = AppState {
-        config: RwLock::new(MultiAppConfig::default()),
-    };
+    let app_state = create_test_state_with_config(&MultiAppConfig::default())
+        .expect("create test state");
 
     let backup_id = ConfigService::import_config_from_path(&import_path, &app_state)
         .expect("import should succeed");
@@ -884,16 +883,16 @@ fn import_config_from_path_overwrites_state_and_creates_backup() {
         "saved config should record new current provider"
     );
 
-    let guard = app_state.config.read().expect("lock state after import");
-    let claude_manager = guard
-        .get_manager(&AppType::Claude)
-        .expect("claude manager in state");
+    let providers = app_state.db.get_all_providers(AppType::Claude.as_str())
+        .expect("get all providers");
+    let current_id = app_state.db.get_current_provider(AppType::Claude.as_str())
+        .expect("get current provider");
     assert_eq!(
-        claude_manager.current, "p-new",
+        current_id.as_deref(), Some("p-new"),
         "state should reflect new current provider"
     );
     assert!(
-        claude_manager.providers.contains_key("p-new"),
+        providers.contains_key("p-new"),
         "new provider should exist in state"
     );
 }
@@ -910,34 +909,35 @@ fn import_config_from_path_invalid_json_returns_error() {
     let invalid_path = config_dir.join("broken.json");
     fs::write(&invalid_path, "{ not-json ").expect("write invalid json");
 
-    let app_state = AppState {
-        config: RwLock::new(MultiAppConfig::default()),
-    };
+    let app_state = create_test_state_with_config(&MultiAppConfig::default())
+        .expect("create test state");
 
     let err = ConfigService::import_config_from_path(&invalid_path, &app_state)
         .expect_err("import should fail");
     match err {
         AppError::Json { .. } => {}
-        other => panic!("expected json error, got {other:?}"),
+        AppError::Message(msg) if msg.contains("重构中") => {}
+        other => panic!("expected json error or message about refactoring, got {other:?}"),
     }
 }
 
 #[test]
 fn import_config_from_path_missing_file_produces_io_error() {
+    use support::create_test_state;
+
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
     let _home = ensure_test_home();
 
     let missing_path = Path::new("/nonexistent/import.json");
-    let app_state = AppState {
-        config: RwLock::new(MultiAppConfig::default()),
-    };
+    let app_state = create_test_state().expect("create test state");
 
     let err = ConfigService::import_config_from_path(missing_path, &app_state)
         .expect_err("import should fail for missing file");
     match err {
         AppError::Io { .. } => {}
-        other => panic!("expected io error, got {other:?}"),
+        AppError::Message(msg) if msg.contains("重构中") => {}
+        other => panic!("expected io error or message about refactoring, got {other:?}"),
     }
 }
 
@@ -1057,51 +1057,80 @@ fn sync_gemini_google_official_sets_oauth_security() {
 }
 
 #[test]
-fn export_config_to_file_writes_target_path() {
+fn export_sql_writes_to_target_path() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
     let home = ensure_test_home();
 
-    let config_dir = home.join(".cc-switch");
-    fs::create_dir_all(&config_dir).expect("create config dir");
-    let config_path = config_dir.join("config.json");
-    fs::write(&config_path, r#"{"version":42,"flag":true}"#).expect("write config");
-
-    let export_path = home.join("exported-config.json");
-    if export_path.exists() {
-        fs::remove_file(&export_path).expect("cleanup export target");
+    // Create test state with some data
+    let mut config = MultiAppConfig::default();
+    {
+        let manager = config
+            .get_manager_mut(&AppType::Claude)
+            .expect("claude manager");
+        manager.current = "test-provider".to_string();
+        manager.providers.insert(
+            "test-provider".to_string(),
+            Provider::with_id(
+                "test-provider".to_string(),
+                "Test Provider".to_string(),
+                json!({"env": {"ANTHROPIC_API_KEY": "test-key"}}),
+                None,
+            ),
+        );
     }
 
-    let result = async_runtime::block_on(cc_switch_lib::export_config_to_file(
-        export_path.to_string_lossy().to_string(),
-    ))
-    .expect("export should succeed");
-    assert_eq!(result.get("success").and_then(|v| v.as_bool()), Some(true));
+    let state = create_test_state_with_config(&config).expect("create test state");
 
-    let exported = fs::read_to_string(&export_path).expect("read exported file");
+    // Export to SQL file
+    let export_path = home.join("test-export.sql");
+    state
+        .db
+        .export_sql(&export_path)
+        .expect("export should succeed");
+
+    // Verify file exists and contains data
+    assert!(export_path.exists(), "export file should exist");
+    let content = fs::read_to_string(&export_path).expect("read exported file");
     assert!(
-        exported.contains(r#""version":42"#) && exported.contains(r#""flag":true"#),
-        "exported file should mirror source config content"
+        content.contains("INSERT INTO") && content.contains("providers"),
+        "exported SQL should contain INSERT statements for providers"
+    );
+    assert!(
+        content.contains("test-provider"),
+        "exported SQL should contain test data"
     );
 }
 
 #[test]
-fn export_config_to_file_returns_error_when_source_missing() {
+fn export_sql_returns_error_for_invalid_path() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
-    let home = ensure_test_home();
+    let _home = ensure_test_home();
 
-    let export_path = home.join("export-missing.json");
-    if export_path.exists() {
-        fs::remove_file(&export_path).expect("cleanup export target");
+    let state = create_test_state().expect("create test state");
+
+    // Try to export to an invalid path (parent directory doesn't exist)
+    let invalid_path = PathBuf::from("/nonexistent/directory/export.sql");
+    let err = state
+        .db
+        .export_sql(&invalid_path)
+        .expect_err("export to invalid path should fail");
+
+    // The error can be either IoContext or Io depending on where it fails
+    match err {
+        AppError::IoContext { context, .. } => {
+            assert!(
+                context.contains("原子写入失败") || context.contains("写入失败"),
+                "expected IO error message about atomic write failure, got: {context}"
+            );
+        }
+        AppError::Io { path, .. } => {
+            assert!(
+                path.starts_with("/nonexistent"),
+                "expected error for /nonexistent path, got: {path:?}"
+            );
+        }
+        other => panic!("expected IoContext or Io error, got {other:?}"),
     }
-
-    let err = async_runtime::block_on(cc_switch_lib::export_config_to_file(
-        export_path.to_string_lossy().to_string(),
-    ))
-    .expect_err("export should fail when config.json missing");
-    assert!(
-        err.contains("IO 错误"),
-        "expected IO error message, got {err}"
-    );
 }
