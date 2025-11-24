@@ -48,6 +48,11 @@ pub async fn import_config_from_file(
             log::warn!("导入后同步 live 配置失败: {err}");
         }
 
+        // 重新加载设置到内存缓存，确保导入的设置生效
+        if let Err(err) = crate::settings::reload_settings() {
+            log::warn!("导入后重载设置失败: {err}");
+        }
+
         Ok::<_, AppError>(json!({
             "success": true,
             "message": "SQL imported successfully",

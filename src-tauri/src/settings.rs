@@ -260,6 +260,15 @@ pub fn update_settings(mut new_settings: AppSettings) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 从数据库重新加载设置到内存缓存
+/// 用于导入配置等场景，确保内存缓存与数据库同步
+pub fn reload_settings() -> Result<(), AppError> {
+    let fresh_settings = load_initial_settings();
+    let mut guard = settings_store().write().expect("写入设置锁失败");
+    *guard = fresh_settings;
+    Ok(())
+}
+
 pub fn ensure_security_auth_selected_type(selected_type: &str) -> Result<(), AppError> {
     let mut settings = get_settings();
     let current = settings

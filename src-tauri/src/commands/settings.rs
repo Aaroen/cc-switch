@@ -18,7 +18,12 @@ pub async fn save_settings(settings: crate::settings::AppSettings) -> Result<boo
 /// 重启应用程序（当 app_config_dir 变更后使用）
 #[tauri::command]
 pub async fn restart_app(app: AppHandle) -> Result<bool, String> {
-    app.restart();
+    // 在后台延迟重启，让函数有时间返回响应
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        app.restart();
+    });
+    Ok(true)
 }
 
 /// 获取 app_config_dir 覆盖配置 (从 Store)
