@@ -32,6 +32,7 @@ macro_rules! lock_conn {
 }
 
 const DB_BACKUP_RETAIN: usize = 10;
+const SCHEMA_VERSION: i32 = 1;
 
 pub struct Database {
     // 使用 Mutex 包装 Connection 以支持在多线程环境（如 Tauri State）中共享
@@ -59,6 +60,7 @@ impl Database {
             conn: Mutex::new(conn),
         };
         db.create_tables()?;
+        db.apply_schema_migrations()?;
 
         Ok(db)
     }
@@ -177,6 +179,56 @@ impl Database {
         Ok(())
     }
 
+    fn get_user_version(conn: &Connection) -> Result<i32, AppError> {
+        conn.query_row("PRAGMA user_version;", [], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("读取 user_version 失败: {e}")))
+    }
+
+    fn set_user_version(conn: &Connection, version: i32) -> Result<(), AppError> {
+        if version < 0 {
+            return Err(AppError::Database(
+                "user_version 不能为负数".to_string(),
+            ));
+        }
+        let sql = format!("PRAGMA user_version = {version};");
+        conn.execute(&sql, [])
+            .map_err(|e| AppError::Database(format!("写入 user_version 失败: {e}")))?;
+        Ok(())
+    }
+
+    fn apply_schema_migrations(&self) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        Self::apply_schema_migrations_on_conn(&conn)
+    }
+
+    fn apply_schema_migrations_on_conn(conn: &Connection) -> Result<(), AppError> {
+        let mut version = Self::get_user_version(conn)?;
+
+        if version > SCHEMA_VERSION {
+            return Err(AppError::Database(format!(
+                "数据库版本过新（{version}），当前应用仅支持 {SCHEMA_VERSION}，请升级应用后再尝试。"
+            )));
+        }
+
+        while version < SCHEMA_VERSION {
+            match version {
+                0 => {
+                    log::info!("检测到 user_version=0，设置为初始版本 {SCHEMA_VERSION}");
+                    Self::set_user_version(conn, SCHEMA_VERSION)?;
+                }
+                _ => {
+                    return Err(AppError::Database(format!(
+                        "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
+                    )));
+                }
+            }
+
+            version = Self::get_user_version(conn)?;
+        }
+
+        Ok(())
+    }
+
     /// 创建内存快照以避免长时间持有数据库锁
     fn snapshot_to_memory(&self) -> Result<Connection, AppError> {
         let conn = lock_conn!(self.conn);
@@ -236,6 +288,7 @@ impl Database {
 
         // 补齐缺失表/索引并进行基础校验
         Self::create_tables_on_conn(&temp_conn)?;
+        Self::apply_schema_migrations_on_conn(&temp_conn)?;
         Self::validate_basic_state(&temp_conn)?;
 
         // 使用 Backup 将临时库原子写回主库
@@ -1221,5 +1274,42 @@ impl Database {
                 .map_err(|e| AppError::Database(e.to_string()))?;
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migration_sets_user_version_when_missing() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version before"),
+            0
+        );
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migration");
+
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version after"),
+            SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn migration_rejects_future_version() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        Database::set_user_version(&conn, SCHEMA_VERSION + 1).expect("set future version");
+
+        let err = Database::apply_schema_migrations_on_conn(&conn)
+            .expect_err("should reject higher version");
+        assert!(
+            err.to_string().contains("数据库版本过新"),
+            "unexpected error: {err}"
+        );
     }
 }
