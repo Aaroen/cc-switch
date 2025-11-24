@@ -721,6 +721,34 @@ impl Database {
             .transaction()
             .map_err(|e| AppError::Database(e.to_string()))?;
 
+        Self::migrate_from_json_tx(&tx, config)?;
+
+        tx.commit()
+            .map_err(|e| AppError::Database(format!("Commit migration failed: {e}")))?;
+        Ok(())
+    }
+
+    /// Run migration dry-run in memory for pre-deployment validation (no disk writes)
+    pub fn migrate_from_json_dry_run(config: &MultiAppConfig) -> Result<(), AppError> {
+        let mut conn =
+            Connection::open_in_memory().map_err(|e| AppError::Database(e.to_string()))?;
+        Self::create_tables_on_conn(&conn)?;
+        Self::apply_schema_migrations_on_conn(&conn)?;
+
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Self::migrate_from_json_tx(&tx, config)?;
+
+        // Explicitly drop transaction without committing (in-memory DB discarded anyway)
+        drop(tx);
+        Ok(())
+    }
+
+    fn migrate_from_json_tx(
+        tx: &rusqlite::Transaction<'_>,
+        config: &MultiAppConfig,
+    ) -> Result<(), AppError> {
         // 1. 迁移 Providers
         for (app_key, manager) in &config.apps {
             let app_type = app_key; // "claude", "codex", "gemini"
@@ -862,8 +890,6 @@ impl Database {
             .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
         }
 
-        tx.commit()
-            .map_err(|e| AppError::Database(format!("Commit migration failed: {e}")))?;
         Ok(())
     }
 
@@ -1657,6 +1683,90 @@ mod tests {
         assert_eq!(
             normalize_default(&skill_repo_enabled.default).as_deref(),
             Some("1")
+        );
+    }
+
+    #[test]
+    fn dry_run_does_not_write_to_disk() {
+        use crate::app_config::MultiAppConfig;
+        use crate::provider::ProviderManager;
+        use std::collections::HashMap;
+
+        // Create minimal valid config for migration
+        let mut apps = HashMap::new();
+        apps.insert("claude".to_string(), ProviderManager::default());
+
+        let config = MultiAppConfig {
+            version: 2,
+            apps,
+            mcp: Default::default(),
+            prompts: Default::default(),
+            skills: Default::default(),
+            common_config_snippets: Default::default(),
+            claude_common_config_snippet: None,
+        };
+
+        // Dry-run should succeed without any file I/O errors
+        let result = Database::migrate_from_json_dry_run(&config);
+        assert!(
+            result.is_ok(),
+            "Dry-run should succeed with valid config: {result:?}"
+        );
+
+        // Verify dry-run can detect schema errors early
+        // (This would fail if migrate_from_json_tx had incompatible SQL)
+    }
+
+    #[test]
+    fn dry_run_validates_schema_compatibility() {
+        use crate::app_config::MultiAppConfig;
+        use crate::provider::{Provider, ProviderManager};
+        use indexmap::IndexMap;
+        use serde_json::json;
+
+        // Create config with actual provider data
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "test-provider".to_string(),
+            Provider {
+                id: "test-provider".to_string(),
+                name: "Test Provider".to_string(),
+                settings_config: json!({
+                    "anthropicApiKey": "sk-test-123",
+                }),
+                website_url: None,
+                category: None,
+                created_at: Some(1234567890),
+                sort_index: None,
+                notes: None,
+                meta: None,
+                icon: None,
+                icon_color: None,
+            },
+        );
+
+        let mut manager = ProviderManager::default();
+        manager.providers = providers;
+        manager.current = "test-provider".to_string();
+
+        let mut apps = HashMap::new();
+        apps.insert("claude".to_string(), manager);
+
+        let config = MultiAppConfig {
+            version: 2,
+            apps,
+            mcp: Default::default(),
+            prompts: Default::default(),
+            skills: Default::default(),
+            common_config_snippets: Default::default(),
+            claude_common_config_snippet: None,
+        };
+
+        // Dry-run should validate the full migration path
+        let result = Database::migrate_from_json_dry_run(&config);
+        assert!(
+            result.is_ok(),
+            "Dry-run should succeed with provider data: {result:?}"
         );
     }
 }

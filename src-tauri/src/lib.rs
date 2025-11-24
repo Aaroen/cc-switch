@@ -113,14 +113,22 @@ const TRAY_SECTIONS: [TrayAppSection; 3] = [
     },
 ];
 
-/// 读取类似布尔的环境变量（1/true/yes/on 视为开启）
-fn env_flag_enabled(key: &str) -> bool {
-    match std::env::var(key) {
-        Ok(val) => matches!(
-            val.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
-        Err(_) => false,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum JsonMigrationMode {
+    Disabled,
+    DryRun,
+    Enabled,
+}
+
+/// 解析 JSON→DB 迁移模式：默认关闭，支持 dryrun/模拟演练
+fn json_migration_mode() -> JsonMigrationMode {
+    match std::env::var("CC_SWITCH_ENABLE_JSON_DB_MIGRATION") {
+        Ok(val) => match val.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => JsonMigrationMode::Enabled,
+            "dryrun" | "dry-run" | "simulate" | "sim" => JsonMigrationMode::DryRun,
+            _ => JsonMigrationMode::Disabled,
+        },
+        Err(_) => JsonMigrationMode::Disabled,
     }
 }
 
@@ -553,9 +561,10 @@ pub fn run() {
             let db_path = app_config_dir.join("cc-switch.db");
             let json_path = app_config_dir.join("config.json");
 
-            // 检查是否需要从 config.json 迁移到 SQLite，功能尚未正式发布，默认关闭
-            let migration_opt_in = env_flag_enabled("CC_SWITCH_ENABLE_JSON_DB_MIGRATION");
-            let migration_needed = !db_path.exists() && json_path.exists() && migration_opt_in;
+            // Check if config.json→SQLite migration needed (feature gated, disabled by default)
+            let migration_mode = json_migration_mode();
+            let has_json = json_path.exists();
+            let has_db = db_path.exists();
 
             let db = match crate::database::Database::init() {
                 Ok(db) => Arc::new(db),
@@ -567,23 +576,42 @@ pub fn run() {
                 }
             };
 
-            if !migration_opt_in && !db_path.exists() && json_path.exists() {
-                log::warn!(
-                    "检测到 config.json，但 JSON→数据库迁移功能尚未正式发布，默认跳过。设置 CC_SWITCH_ENABLE_JSON_DB_MIGRATION=1 后再尝试。"
-                );
-            } else if migration_needed {
-                log::info!("Starting migration from config.json to SQLite (opt-in)...");
-                match crate::app_config::MultiAppConfig::load() {
-                    Ok(config) => {
-                        if let Err(e) = db.migrate_from_json(&config) {
-                            log::error!("Migration failed: {e}");
-                        } else {
-                            log::info!("Migration successful");
-                            // Optional: Rename config.json
-                            // let _ = std::fs::rename(&json_path, json_path.with_extension("json.bak"));
+            if !has_db && has_json {
+                match migration_mode {
+                    JsonMigrationMode::Disabled => {
+                        log::warn!(
+                            "Detected config.json but migration is disabled by default. \
+                             Set CC_SWITCH_ENABLE_JSON_DB_MIGRATION=1 to migrate, or =dryrun to validate first."
+                        );
+                    }
+                    JsonMigrationMode::DryRun => {
+                        log::info!("Running migration dry-run (validation only, no disk writes)");
+                        match crate::app_config::MultiAppConfig::load() {
+                            Ok(config) => {
+                                if let Err(e) = crate::database::Database::migrate_from_json_dry_run(&config) {
+                                    log::error!("Migration dry-run failed: {e}");
+                                } else {
+                                    log::info!("Migration dry-run succeeded (no database written)");
+                                }
+                            }
+                            Err(e) => log::error!("Failed to load config.json for dry-run: {e}"),
                         }
                     }
-                    Err(e) => log::error!("Failed to load config.json for migration: {e}"),
+                    JsonMigrationMode::Enabled => {
+                        log::info!("Starting migration from config.json to SQLite (user opt-in)");
+                        match crate::app_config::MultiAppConfig::load() {
+                            Ok(config) => {
+                                if let Err(e) = db.migrate_from_json(&config) {
+                                    log::error!("Migration failed: {e}");
+                                } else {
+                                    log::info!("Migration successful");
+                                    // Optional: Rename config.json to prevent re-migration
+                                    // let _ = std::fs::rename(&json_path, json_path.with_extension("json.migrated"));
+                                }
+                            }
+                            Err(e) => log::error!("Failed to load config.json for migration: {e}"),
+                        }
+                    }
                 }
             }
 
