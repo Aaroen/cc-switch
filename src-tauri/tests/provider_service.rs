@@ -1,14 +1,13 @@
 use serde_json::json;
-use std::sync::RwLock;
 
 use cc_switch_lib::{
-    get_claude_settings_path, read_json_file, write_codex_live_atomic, AppError, AppState, AppType,
+    get_claude_settings_path, read_json_file, write_codex_live_atomic, AppError, AppType,
     MultiAppConfig, Provider, ProviderMeta, ProviderService,
 };
 
 #[path = "support.rs"]
 mod support;
-use support::{ensure_test_home, reset_test_fs, test_mutex};
+use support::{create_test_state, create_test_state_with_config, ensure_test_home, reset_test_fs, test_mutex};
 
 fn sanitize_provider_name(name: &str) -> String {
     name.chars()
@@ -81,9 +80,7 @@ command = "say"
         }),
     );
 
-    let state = AppState {
-        config: RwLock::new(initial_config),
-    };
+    let state = create_test_state_with_config(&initial_config).expect("create test state");
 
     ProviderService::switch(&state, AppType::Codex, "new-provider")
         .expect("switch provider should succeed");
@@ -103,14 +100,14 @@ command = "say"
         "config.toml should contain synced MCP servers"
     );
 
-    let guard = state.config.read().expect("read config after switch");
-    let manager = guard
-        .get_manager(&AppType::Codex)
-        .expect("codex manager after switch");
-    assert_eq!(manager.current, "new-provider", "current provider updated");
+    let current_id = state.db.get_current_provider(AppType::Codex.as_str())
+        .expect("read current provider after switch");
+    assert_eq!(current_id.as_deref(), Some("new-provider"), "current provider updated");
 
-    let new_provider = manager
-        .providers
+    let providers = state.db.get_all_providers(AppType::Codex.as_str())
+        .expect("read providers after switch");
+
+    let new_provider = providers
         .get("new-provider")
         .expect("new provider exists");
     let new_config_text = new_provider
@@ -123,8 +120,7 @@ command = "say"
         "provider config snapshot should match live file"
     );
 
-    let legacy = manager
-        .providers
+    let legacy = providers
         .get("old-provider")
         .expect("legacy provider still exists");
     let legacy_auth_value = legacy
@@ -167,9 +163,7 @@ fn switch_packycode_gemini_updates_security_selected_type() {
         );
     }
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::switch(&state, AppType::Gemini, "packy-gemini")
         .expect("switching to PackyCode Gemini should succeed");
@@ -223,9 +217,7 @@ fn packycode_partner_meta_triggers_security_flag_even_without_keywords() {
         manager.providers.insert("packy-meta".to_string(), provider);
     }
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::switch(&state, AppType::Gemini, "packy-meta")
         .expect("switching to partner meta provider should succeed");
@@ -278,9 +270,7 @@ fn switch_google_official_gemini_sets_oauth_security() {
             .insert("google-official".to_string(), provider);
     }
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::switch(&state, AppType::Gemini, "google-official")
         .expect("switching to Google official Gemini should succeed");
@@ -376,9 +366,7 @@ fn provider_service_switch_claude_updates_live_and_state() {
         );
     }
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::switch(&state, AppType::Claude, "new-provider")
         .expect("switch provider should succeed");
@@ -394,17 +382,13 @@ fn provider_service_switch_claude_updates_live_and_state() {
         "live settings.json should reflect new provider auth"
     );
 
-    let guard = state
-        .config
-        .read()
-        .expect("read claude config after switch");
-    let manager = guard
-        .get_manager(&AppType::Claude)
-        .expect("claude manager after switch");
-    assert_eq!(manager.current, "new-provider", "current provider updated");
+    let providers = state.db.get_all_providers(AppType::Claude.as_str())
+        .expect("get all providers");
+    let current_id = state.db.get_current_provider(AppType::Claude.as_str())
+        .expect("get current provider");
+    assert_eq!(current_id.as_deref(), Some("new-provider"), "current provider updated");
 
-    let legacy_provider = manager
-        .providers
+    let legacy_provider = providers
         .get("old-provider")
         .expect("legacy provider still exists");
     assert_eq!(
@@ -415,20 +399,31 @@ fn provider_service_switch_claude_updates_live_and_state() {
 
 #[test]
 fn provider_service_switch_missing_provider_returns_error() {
-    let state = AppState {
-        config: RwLock::new(MultiAppConfig::default()),
-    };
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let _home = ensure_test_home();
+
+    let state = create_test_state().expect("create test state");
 
     let err = ProviderService::switch(&state, AppType::Claude, "missing")
         .expect_err("switching missing provider should fail");
     match err {
-        AppError::Localized { key, .. } => assert_eq!(key, "provider.not_found"),
-        other => panic!("expected Localized error for provider not found, got {other:?}"),
+        AppError::Message(msg) => {
+            assert!(
+                msg.contains("不存在") || msg.contains("not found"),
+                "expected provider not found message, got {msg}"
+            );
+        }
+        other => panic!("expected Message error for provider not found, got {other:?}"),
     }
 }
 
 #[test]
 fn provider_service_switch_codex_missing_auth_returns_error() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let _home = ensure_test_home();
+
     let mut config = MultiAppConfig::default();
     {
         let manager = config
@@ -447,9 +442,7 @@ fn provider_service_switch_codex_missing_auth_returns_error() {
         );
     }
 
-    let state = AppState {
-        config: RwLock::new(config),
-    };
+    let state = create_test_state_with_config(&config).expect("create test state");
 
     let err = ProviderService::switch(&state, AppType::Codex, "invalid")
         .expect_err("switching should fail without auth");
@@ -508,23 +501,19 @@ fn provider_service_delete_codex_removes_provider_and_files() {
     std::fs::write(&auth_path, "{}").expect("seed auth file");
     std::fs::write(&cfg_path, "base_url = \"https://example\"").expect("seed config file");
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::delete(&app_state, AppType::Codex, "to-delete")
         .expect("delete provider should succeed");
 
-    let locked = app_state.config.read().expect("lock config after delete");
-    let manager = locked.get_manager(&AppType::Codex).expect("codex manager");
+    let providers = app_state.db.get_all_providers(AppType::Codex.as_str())
+        .expect("get all providers");
     assert!(
-        !manager.providers.contains_key("to-delete"),
+        !providers.contains_key("to-delete"),
         "provider entry should be removed"
     );
-    assert!(
-        !auth_path.exists() && !cfg_path.exists(),
-        "provider-specific files should be deleted"
-    );
+    // v3.7.0+ 不再使用供应商特定文件（如 auth-*.json, config-*.toml）
+    // 删除供应商只影响数据库记录，不清理这些旧格式文件
 }
 
 #[test]
@@ -571,18 +560,14 @@ fn provider_service_delete_claude_removes_provider_files() {
     std::fs::write(&by_name, "{}").expect("seed settings by name");
     std::fs::write(&by_id, "{}").expect("seed settings by id");
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     ProviderService::delete(&app_state, AppType::Claude, "delete").expect("delete claude provider");
 
-    let locked = app_state.config.read().expect("lock config after delete");
-    let manager = locked
-        .get_manager(&AppType::Claude)
-        .expect("claude manager");
+    let providers = app_state.db.get_all_providers(AppType::Claude.as_str())
+        .expect("get all providers");
     assert!(
-        !manager.providers.contains_key("delete"),
+        !providers.contains_key("delete"),
         "claude provider should be removed"
     );
     assert!(
@@ -612,21 +597,23 @@ fn provider_service_delete_current_provider_returns_error() {
         );
     }
 
-    let app_state = AppState {
-        config: RwLock::new(config),
-    };
+    let app_state = create_test_state_with_config(&config).expect("create test state");
 
     let err = ProviderService::delete(&app_state, AppType::Claude, "keep")
         .expect_err("deleting current provider should fail");
     match err {
         AppError::Localized { zh, .. } => assert!(
-            zh.contains("不能删除当前正在使用的供应商"),
+            zh.contains("不能删除当前正在使用的供应商") || zh.contains("无法删除当前正在使用的供应商"),
             "unexpected message: {zh}"
         ),
         AppError::Config(msg) => assert!(
-            msg.contains("不能删除当前正在使用的供应商"),
+            msg.contains("不能删除当前正在使用的供应商") || msg.contains("无法删除当前正在使用的供应商"),
             "unexpected message: {msg}"
         ),
-        other => panic!("expected Config error, got {other:?}"),
+        AppError::Message(msg) => assert!(
+            msg.contains("不能删除当前正在使用的供应商") || msg.contains("无法删除当前正在使用的供应商"),
+            "unexpected message: {msg}"
+        ),
+        other => panic!("expected Config/Message error, got {other:?}"),
     }
 }

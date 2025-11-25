@@ -32,6 +32,7 @@ macro_rules! lock_conn {
 }
 
 const DB_BACKUP_RETAIN: usize = 10;
+const SCHEMA_VERSION: i32 = 1;
 
 pub struct Database {
     // 使用 Mutex 包装 Connection 以支持在多线程环境（如 Tauri State）中共享
@@ -59,6 +60,7 @@ impl Database {
             conn: Mutex::new(conn),
         };
         db.create_tables()?;
+        db.apply_schema_migrations()?;
 
         Ok(db)
     }
@@ -99,7 +101,7 @@ impl Database {
                 notes TEXT,
                 icon TEXT,
                 icon_color TEXT,
-                meta TEXT,
+                meta TEXT NOT NULL DEFAULT '{}',
                 is_current BOOLEAN NOT NULL DEFAULT 0,
                 PRIMARY KEY (id, app_type)
             )",
@@ -129,7 +131,7 @@ impl Database {
                 description TEXT,
                 homepage TEXT,
                 docs TEXT,
-                tags TEXT,
+                tags TEXT NOT NULL DEFAULT '[]',
                 enabled_claude BOOLEAN NOT NULL DEFAULT 0,
                 enabled_codex BOOLEAN NOT NULL DEFAULT 0,
                 enabled_gemini BOOLEAN NOT NULL DEFAULT 0
@@ -160,7 +162,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS skills (
                 key TEXT PRIMARY KEY,
                 installed BOOLEAN NOT NULL DEFAULT 0,
-                installed_at INTEGER
+                installed_at INTEGER NOT NULL DEFAULT 0
             )",
             [],
         )
@@ -171,7 +173,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS skill_repos (
                 owner TEXT NOT NULL,
                 name TEXT NOT NULL,
-                branch TEXT NOT NULL,
+                branch TEXT NOT NULL DEFAULT 'main',
                 enabled BOOLEAN NOT NULL DEFAULT 1,
                 skills_path TEXT,
                 PRIMARY KEY (owner, name)
@@ -191,6 +193,238 @@ impl Database {
         .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
+    }
+
+    fn get_user_version(conn: &Connection) -> Result<i32, AppError> {
+        conn.query_row("PRAGMA user_version;", [], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("读取 user_version 失败: {e}")))
+    }
+
+    fn set_user_version(conn: &Connection, version: i32) -> Result<(), AppError> {
+        if version < 0 {
+            return Err(AppError::Database(
+                "user_version 不能为负数".to_string(),
+            ));
+        }
+        let sql = format!("PRAGMA user_version = {version};");
+        conn.execute(&sql, [])
+            .map_err(|e| AppError::Database(format!("写入 user_version 失败: {e}")))?;
+        Ok(())
+    }
+
+    fn apply_schema_migrations(&self) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        Self::apply_schema_migrations_on_conn(&conn)
+    }
+
+    fn validate_identifier(s: &str, kind: &str) -> Result<(), AppError> {
+        if s.is_empty() {
+            return Err(AppError::Database(format!("{kind} 不能为空")));
+        }
+        if !s
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(AppError::Database(format!(
+                "非法{kind}: {s}，仅允许字母、数字和下划线"
+            )));
+        }
+        Ok(())
+    }
+
+    fn table_exists(conn: &Connection, table: &str) -> Result<bool, AppError> {
+        Self::validate_identifier(table, "表名")?;
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .map_err(|e| AppError::Database(format!("读取表名失败: {e}")))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AppError::Database(format!("查询表名失败: {e}")))?;
+        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+            let name: String = row
+                .get(0)
+                .map_err(|e| AppError::Database(format!("解析表名失败: {e}")))?;
+            if name.eq_ignore_ascii_case(table) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, AppError> {
+        Self::validate_identifier(table, "表名")?;
+        Self::validate_identifier(column, "列名")?;
+
+        let sql = format!("PRAGMA table_info(\"{table}\");");
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| AppError::Database(format!("读取表结构失败: {e}")))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AppError::Database(format!("查询表结构失败: {e}")))?;
+        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+            let name: String = row
+                .get(1)
+                .map_err(|e| AppError::Database(format!("读取列名失败: {e}")))?;
+            if name.eq_ignore_ascii_case(column) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn add_column_if_missing(
+        conn: &Connection,
+        table: &str,
+        column: &str,
+        definition: &str,
+    ) -> Result<bool, AppError> {
+        Self::validate_identifier(table, "表名")?;
+        Self::validate_identifier(column, "列名")?;
+
+        if !Self::table_exists(conn, table)? {
+            return Err(AppError::Database(format!(
+                "表 {table} 不存在，无法添加列 {column}"
+            )));
+        }
+        if Self::has_column(conn, table, column)? {
+            return Ok(false);
+        }
+
+        let sql = format!("ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition};");
+        conn.execute(&sql, [])
+            .map_err(|e| AppError::Database(format!("为表 {table} 添加列 {column} 失败: {e}")))?;
+        log::info!("已为表 {table} 添加缺失列 {column}");
+        Ok(true)
+    }
+
+    fn apply_schema_migrations_on_conn(conn: &Connection) -> Result<(), AppError> {
+        conn.execute("SAVEPOINT schema_migration;", [])
+            .map_err(|e| AppError::Database(format!("开启迁移 savepoint 失败: {e}")))?;
+
+        let mut version = Self::get_user_version(conn)?;
+
+        if version > SCHEMA_VERSION {
+            conn.execute("ROLLBACK TO schema_migration;", []).ok();
+            conn.execute("RELEASE schema_migration;", []).ok();
+            return Err(AppError::Database(format!(
+                "数据库版本过新（{version}），当前应用仅支持 {SCHEMA_VERSION}，请升级应用后再尝试。"
+            )));
+        }
+
+        let result = (|| {
+            while version < SCHEMA_VERSION {
+                match version {
+                    0 => {
+                        log::info!("检测到 user_version=0，迁移到 1（补齐缺失列并设置版本）");
+                        Self::add_column_if_missing(conn, "providers", "category", "TEXT")?;
+                        Self::add_column_if_missing(conn, "providers", "created_at", "INTEGER")?;
+                        Self::add_column_if_missing(conn, "providers", "sort_index", "INTEGER")?;
+                        Self::add_column_if_missing(conn, "providers", "notes", "TEXT")?;
+                        Self::add_column_if_missing(conn, "providers", "icon", "TEXT")?;
+                        Self::add_column_if_missing(conn, "providers", "icon_color", "TEXT")?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "providers",
+                            "meta",
+                            "TEXT NOT NULL DEFAULT '{}'",
+                        )?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "providers",
+                            "is_current",
+                            "BOOLEAN NOT NULL DEFAULT 0",
+                        )?;
+
+                        Self::add_column_if_missing(
+                            conn,
+                            "provider_endpoints",
+                            "added_at",
+                            "INTEGER",
+                        )?;
+
+                        Self::add_column_if_missing(conn, "mcp_servers", "description", "TEXT")?;
+                        Self::add_column_if_missing(conn, "mcp_servers", "homepage", "TEXT")?;
+                        Self::add_column_if_missing(conn, "mcp_servers", "docs", "TEXT")?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "mcp_servers",
+                            "tags",
+                            "TEXT NOT NULL DEFAULT '[]'",
+                        )?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "mcp_servers",
+                            "enabled_codex",
+                            "BOOLEAN NOT NULL DEFAULT 0",
+                        )?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "mcp_servers",
+                            "enabled_gemini",
+                            "BOOLEAN NOT NULL DEFAULT 0",
+                        )?;
+
+                        Self::add_column_if_missing(conn, "prompts", "description", "TEXT")?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "prompts",
+                            "enabled",
+                            "BOOLEAN NOT NULL DEFAULT 1",
+                        )?;
+                        Self::add_column_if_missing(conn, "prompts", "created_at", "INTEGER")?;
+                        Self::add_column_if_missing(conn, "prompts", "updated_at", "INTEGER")?;
+
+                        Self::add_column_if_missing(
+                            conn,
+                            "skills",
+                            "installed_at",
+                            "INTEGER NOT NULL DEFAULT 0",
+                        )?;
+
+                        Self::add_column_if_missing(
+                            conn,
+                            "skill_repos",
+                            "branch",
+                            "TEXT NOT NULL DEFAULT 'main'",
+                        )?;
+                        Self::add_column_if_missing(
+                            conn,
+                            "skill_repos",
+                            "enabled",
+                            "BOOLEAN NOT NULL DEFAULT 1",
+                        )?;
+                        Self::add_column_if_missing(conn, "skill_repos", "skills_path", "TEXT")?;
+
+                        Self::set_user_version(conn, SCHEMA_VERSION)?;
+                    }
+                    _ => {
+                        return Err(AppError::Database(format!(
+                            "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
+                        )));
+                    }
+                }
+
+                version = Self::get_user_version(conn)?;
+            }
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(_) => {
+                conn.execute("RELEASE schema_migration;", []).map_err(|e| {
+                    AppError::Database(format!("提交迁移 savepoint 失败: {e}"))
+                })?;
+                Ok(())
+            }
+            Err(e) => {
+                conn.execute("ROLLBACK TO schema_migration;", []).ok();
+                conn.execute("RELEASE schema_migration;", []).ok();
+                Err(e)
+            }
+        }
     }
 
     /// 创建内存快照以避免长时间持有数据库锁
@@ -252,6 +486,7 @@ impl Database {
 
         // 补齐缺失表/索引并进行基础校验
         Self::create_tables_on_conn(&temp_conn)?;
+        Self::apply_schema_migrations_on_conn(&temp_conn)?;
         Self::validate_basic_state(&temp_conn)?;
 
         // 使用 Backup 将临时库原子写回主库
@@ -502,6 +737,34 @@ impl Database {
             .transaction()
             .map_err(|e| AppError::Database(e.to_string()))?;
 
+        Self::migrate_from_json_tx(&tx, config)?;
+
+        tx.commit()
+            .map_err(|e| AppError::Database(format!("Commit migration failed: {e}")))?;
+        Ok(())
+    }
+
+    /// Run migration dry-run in memory for pre-deployment validation (no disk writes)
+    pub fn migrate_from_json_dry_run(config: &MultiAppConfig) -> Result<(), AppError> {
+        let mut conn =
+            Connection::open_in_memory().map_err(|e| AppError::Database(e.to_string()))?;
+        Self::create_tables_on_conn(&conn)?;
+        Self::apply_schema_migrations_on_conn(&conn)?;
+
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Self::migrate_from_json_tx(&tx, config)?;
+
+        // Explicitly drop transaction without committing (in-memory DB discarded anyway)
+        drop(tx);
+        Ok(())
+    }
+
+    fn migrate_from_json_tx(
+        tx: &rusqlite::Transaction<'_>,
+        config: &MultiAppConfig,
+    ) -> Result<(), AppError> {
         // 1. 迁移 Providers
         for (app_key, manager) in &config.apps {
             let app_type = app_key; // "claude", "codex", "gemini"
@@ -643,8 +906,6 @@ impl Database {
             .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
         }
 
-        tx.commit()
-            .map_err(|e| AppError::Database(format!("Commit migration failed: {e}")))?;
         Ok(())
     }
 
@@ -1237,5 +1498,291 @@ impl Database {
                 .map_err(|e| AppError::Database(e.to_string()))?;
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LEGACY_SCHEMA_SQL: &str = r#"
+            CREATE TABLE providers (
+                id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                settings_config TEXT NOT NULL,
+                PRIMARY KEY (id, app_type)
+            );
+            CREATE TABLE provider_endpoints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                url TEXT NOT NULL
+            );
+            CREATE TABLE mcp_servers (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                server_config TEXT NOT NULL
+            );
+            CREATE TABLE prompts (
+                id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                PRIMARY KEY (id, app_type)
+            );
+            CREATE TABLE skills (
+                key TEXT PRIMARY KEY,
+                installed BOOLEAN NOT NULL DEFAULT 0
+            );
+            CREATE TABLE skill_repos (
+                owner TEXT NOT NULL,
+                name TEXT NOT NULL,
+                PRIMARY KEY (owner, name)
+            );
+            CREATE TABLE settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        "#;
+
+    #[derive(Debug)]
+    struct ColumnInfo {
+        name: String,
+        r#type: String,
+        notnull: i64,
+        default: Option<String>,
+    }
+
+    fn get_column_info(conn: &Connection, table: &str, column: &str) -> ColumnInfo {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info(\"{table}\");"))
+            .expect("prepare pragma");
+        let mut rows = stmt.query([]).expect("query pragma");
+        while let Some(row) = rows.next().expect("read row") {
+            let name: String = row.get(1).expect("name");
+            if name.eq_ignore_ascii_case(column) {
+                return ColumnInfo {
+                    name,
+                    r#type: row.get::<_, String>(2).expect("type"),
+                    notnull: row.get::<_, i64>(3).expect("notnull"),
+                    default: row.get::<_, Option<String>>(4).ok().flatten(),
+                };
+            }
+        }
+        panic!("column {table}.{column} not found");
+    }
+
+    fn normalize_default(default: &Option<String>) -> Option<String> {
+        default
+            .as_ref()
+            .map(|s| s.trim_matches('\'').trim_matches('"').to_string())
+    }
+
+    #[test]
+    fn migration_sets_user_version_when_missing() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version before"),
+            0
+        );
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migration");
+
+        assert_eq!(
+            Database::get_user_version(&conn).expect("read version after"),
+            SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn migration_rejects_future_version() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        Database::create_tables_on_conn(&conn).expect("create tables");
+        Database::set_user_version(&conn, SCHEMA_VERSION + 1).expect("set future version");
+
+        let err = Database::apply_schema_migrations_on_conn(&conn)
+            .expect_err("should reject higher version");
+        assert!(
+            err.to_string().contains("数据库版本过新"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn migration_adds_missing_columns_for_providers() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+
+        // 创建旧版 providers 表，缺少新增列
+        conn.execute_batch(LEGACY_SCHEMA_SQL)
+            .expect("seed old schema");
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migrations");
+
+        // 验证关键新增列已补齐
+        for (table, column) in [
+            ("providers", "meta"),
+            ("providers", "is_current"),
+            ("provider_endpoints", "added_at"),
+            ("mcp_servers", "enabled_gemini"),
+            ("prompts", "updated_at"),
+            ("skills", "installed_at"),
+            ("skill_repos", "enabled"),
+        ] {
+            assert!(
+                Database::has_column(&conn, table, column).expect("check column"),
+                "{table}.{column} should exist after migration"
+            );
+        }
+
+        // 验证 meta 列约束保持一致
+        let meta = get_column_info(&conn, "providers", "meta");
+        assert_eq!(meta.notnull, 1, "meta should be NOT NULL");
+        assert_eq!(
+            normalize_default(&meta.default).as_deref(),
+            Some("{}"),
+            "meta default should be '{{}}'"
+        );
+
+        assert_eq!(
+            Database::get_user_version(&conn).expect("version after migration"),
+            SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn migration_aligns_column_defaults_and_types() {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        conn.execute_batch(LEGACY_SCHEMA_SQL)
+            .expect("seed old schema");
+
+        Database::apply_schema_migrations_on_conn(&conn).expect("apply migrations");
+
+        let is_current = get_column_info(&conn, "providers", "is_current");
+        assert_eq!(is_current.r#type, "BOOLEAN");
+        assert_eq!(is_current.notnull, 1);
+        assert_eq!(
+            normalize_default(&is_current.default).as_deref(),
+            Some("0")
+        );
+
+        let tags = get_column_info(&conn, "mcp_servers", "tags");
+        assert_eq!(tags.r#type, "TEXT");
+        assert_eq!(tags.notnull, 1);
+        assert_eq!(normalize_default(&tags.default).as_deref(), Some("[]"));
+
+        let enabled = get_column_info(&conn, "prompts", "enabled");
+        assert_eq!(enabled.r#type, "BOOLEAN");
+        assert_eq!(enabled.notnull, 1);
+        assert_eq!(
+            normalize_default(&enabled.default).as_deref(),
+            Some("1")
+        );
+
+        let installed_at = get_column_info(&conn, "skills", "installed_at");
+        assert_eq!(installed_at.r#type, "INTEGER");
+        assert_eq!(installed_at.notnull, 1);
+        assert_eq!(
+            normalize_default(&installed_at.default).as_deref(),
+            Some("0")
+        );
+
+        let branch = get_column_info(&conn, "skill_repos", "branch");
+        assert_eq!(branch.r#type, "TEXT");
+        assert_eq!(normalize_default(&branch.default).as_deref(), Some("main"));
+
+        let skill_repo_enabled = get_column_info(&conn, "skill_repos", "enabled");
+        assert_eq!(skill_repo_enabled.r#type, "BOOLEAN");
+        assert_eq!(skill_repo_enabled.notnull, 1);
+        assert_eq!(
+            normalize_default(&skill_repo_enabled.default).as_deref(),
+            Some("1")
+        );
+    }
+
+    #[test]
+    fn dry_run_does_not_write_to_disk() {
+        use crate::app_config::MultiAppConfig;
+        use crate::provider::ProviderManager;
+        use std::collections::HashMap;
+
+        // Create minimal valid config for migration
+        let mut apps = HashMap::new();
+        apps.insert("claude".to_string(), ProviderManager::default());
+
+        let config = MultiAppConfig {
+            version: 2,
+            apps,
+            mcp: Default::default(),
+            prompts: Default::default(),
+            skills: Default::default(),
+            common_config_snippets: Default::default(),
+            claude_common_config_snippet: None,
+        };
+
+        // Dry-run should succeed without any file I/O errors
+        let result = Database::migrate_from_json_dry_run(&config);
+        assert!(
+            result.is_ok(),
+            "Dry-run should succeed with valid config: {result:?}"
+        );
+
+        // Verify dry-run can detect schema errors early
+        // (This would fail if migrate_from_json_tx had incompatible SQL)
+    }
+
+    #[test]
+    fn dry_run_validates_schema_compatibility() {
+        use crate::app_config::MultiAppConfig;
+        use crate::provider::{Provider, ProviderManager};
+        use indexmap::IndexMap;
+        use serde_json::json;
+
+        // Create config with actual provider data
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "test-provider".to_string(),
+            Provider {
+                id: "test-provider".to_string(),
+                name: "Test Provider".to_string(),
+                settings_config: json!({
+                    "anthropicApiKey": "sk-test-123",
+                }),
+                website_url: None,
+                category: None,
+                created_at: Some(1234567890),
+                sort_index: None,
+                notes: None,
+                meta: None,
+                icon: None,
+                icon_color: None,
+            },
+        );
+
+        let mut manager = ProviderManager::default();
+        manager.providers = providers;
+        manager.current = "test-provider".to_string();
+
+        let mut apps = HashMap::new();
+        apps.insert("claude".to_string(), manager);
+
+        let config = MultiAppConfig {
+            version: 2,
+            apps,
+            mcp: Default::default(),
+            prompts: Default::default(),
+            skills: Default::default(),
+            common_config_snippets: Default::default(),
+            claude_common_config_snippet: None,
+        };
+
+        // Dry-run should validate the full migration path
+        let result = Database::migrate_from_json_dry_run(&config);
+        assert!(
+            result.is_ok(),
+            "Dry-run should succeed with provider data: {result:?}"
+        );
     }
 }
