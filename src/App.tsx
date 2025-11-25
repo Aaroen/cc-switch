@@ -6,7 +6,7 @@ import {
   Plus,
   Settings,
   ArrowLeft,
-  Bot,
+  // Bot, // TODO: Agents 功能开发中，暂时不需要
   Book,
   Wrench,
   Server,
@@ -24,6 +24,7 @@ import {
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { cn } from "@/lib/utils";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
@@ -404,7 +405,6 @@ function App() {
                   >
                     CC Switch
                   </a>
-                  <div className="h-5 w-[1px] bg-black/10 dark:bg-white/15" />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -470,39 +470,24 @@ function App() {
               <>
                 <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
 
-                <div className="h-8 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
-
                 <div className="glass p-1 rounded-xl flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCurrentView("prompts")}
-                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                    title={t("prompts.manage")}
+                    onClick={() => setCurrentView("skills")}
+                    className={cn(
+                      "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                      "transition-all duration-200 ease-in-out overflow-hidden",
+                      isClaudeApp
+                        ? "opacity-100 w-8 scale-100 px-2"
+                        : "opacity-0 w-0 scale-75 pointer-events-none px-0 -ml-1",
+                    )}
+                    title={t("skills.manage")}
                   >
-                    <Book className="h-4 w-4" />
+                    <Wrench className="h-4 w-4 flex-shrink-0" />
                   </Button>
-                  {isClaudeApp && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("skills")}
-                      className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                      title={t("skills.manage")}
-                    >
-                      <Wrench className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCurrentView("mcp")}
-                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                    title="MCP"
-                  >
-                    <Server className="h-4 w-4" />
-                  </Button>
-                  {isClaudeApp && (
+                  {/* TODO: Agents 功能开发中，暂时隐藏入口 */}
+                  {/* {isClaudeApp && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -512,7 +497,25 @@ function App() {
                     >
                       <Bot className="h-4 w-4" />
                     </Button>
-                  )}
+                  )} */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentView("prompts")}
+                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                    title={t("prompts.manage")}
+                  >
+                    <Book className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentView("mcp")}
+                    className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                    title="MCP"
+                  >
+                    <Server className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 <Button
