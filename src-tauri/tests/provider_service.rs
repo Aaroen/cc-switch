@@ -2,7 +2,7 @@ use serde_json::json;
 
 use cc_switch_lib::{
     get_claude_settings_path, read_json_file, write_codex_live_atomic, AppError, AppType,
-    MultiAppConfig, Provider, ProviderMeta, ProviderService,
+    McpApps, McpServer, MultiAppConfig, Provider, ProviderMeta, ProviderService,
 };
 
 #[path = "support.rs"]
@@ -68,16 +68,27 @@ command = "say"
         );
     }
 
-    initial_config.mcp.codex.servers.insert(
+    // 使用新的统一 MCP 结构（v3.7.0+）
+    let servers = initial_config.mcp.servers.get_or_insert_with(Default::default);
+    servers.insert(
         "echo-server".into(),
-        json!({
-            "id": "echo-server",
-            "enabled": true,
-            "server": {
+        McpServer {
+            id: "echo-server".into(),
+            name: "Echo Server".into(),
+            server: json!({
                 "type": "stdio",
                 "command": "echo"
-            }
-        }),
+            }),
+            apps: McpApps {
+                claude: false,
+                codex: true,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
     );
 
     let state = create_test_state_with_config(&initial_config).expect("create test state");
@@ -115,9 +126,15 @@ command = "say"
         .get("config")
         .and_then(|v| v.as_str())
         .unwrap_or_default();
-    assert_eq!(
-        new_config_text, config_text,
-        "provider config snapshot should match live file"
+    // provider 存储的是原始配置，不包含 MCP 同步后的内容
+    assert!(
+        new_config_text.contains("mcp_servers.latest"),
+        "provider config should contain original MCP servers"
+    );
+    // live 文件额外包含同步的 MCP 服务器
+    assert!(
+        config_text.contains("mcp_servers.echo-server"),
+        "live config should include synced MCP servers"
     );
 
     let legacy = providers
@@ -570,10 +587,8 @@ fn provider_service_delete_claude_removes_provider_files() {
         !providers.contains_key("delete"),
         "claude provider should be removed"
     );
-    assert!(
-        !by_name.exists() && !by_id.exists(),
-        "provider config files should be deleted"
-    );
+    // v3.7.0+ 不再使用供应商特定文件（如 settings-*.json）
+    // 删除供应商只影响数据库记录，不清理这些旧格式文件
 }
 
 #[test]

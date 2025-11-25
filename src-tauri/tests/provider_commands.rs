@@ -139,11 +139,11 @@ command = "say"
         .and_then(|v| v.get("OPENAI_API_KEY"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    // 注意：v3.7.0+ 的 switch 实现不再 backfill 旧供应商
-    // 旧供应商保持其原始配置不变
+    // 回填机制：切换前会将 live 配置回填到当前供应商
+    // 这保护了用户在 live 文件中的手动修改
     assert_eq!(
-        legacy_auth_value, "stale",
-        "previous provider should retain its original auth (no backfill in v3.7.0+)"
+        legacy_auth_value, "legacy-key",
+        "previous provider should be backfilled with live auth"
     );
 }
 
@@ -251,16 +251,11 @@ fn switch_provider_updates_claude_live_and_state() {
     let legacy_provider = providers
         .get("old-provider")
         .expect("legacy provider still exists");
-    // 注意：v3.7.0+ 的 switch 实现不再 backfill 旧供应商
-    // 旧供应商保持其原始配置不变
+    // 回填机制：切换前会将 live 配置回填到当前供应商
+    // 这保护了用户在 live 文件中的手动修改
     assert_eq!(
-        legacy_provider
-            .settings_config
-            .get("env")
-            .and_then(|env| env.get("ANTHROPIC_API_KEY"))
-            .and_then(|key| key.as_str()),
-        Some("stale-key"),
-        "previous provider should retain its original config (no backfill in v3.7.0+)"
+        legacy_provider.settings_config, legacy_live,
+        "previous provider should be backfilled with live config"
     );
 
     let new_provider = providers

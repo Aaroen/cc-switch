@@ -1378,6 +1378,14 @@ impl ProviderService {
     }
 
     /// 切换供应商
+    ///
+    /// 切换流程：
+    /// 1. 验证目标供应商存在
+    /// 2. **回填机制**：将当前 live 配置回填到当前供应商，保护用户手动修改
+    /// 3. 设置新的当前供应商
+    /// 4. 将目标供应商配置写入 live 文件
+    /// 5. Gemini 额外处理安全标志
+    /// 6. 同步 MCP 配置
     pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
         // Check if provider exists
         let providers = state.db.get_all_providers(app_type.as_str())?;
@@ -1385,11 +1393,35 @@ impl ProviderService {
             .get(id)
             .ok_or_else(|| AppError::Message(format!("供应商 {id} 不存在")))?;
 
+        // Backfill: 将当前 live 配置回填到当前供应商
+        if let Some(current_id) = state.db.get_current_provider(app_type.as_str())? {
+            if current_id != id {
+                // 只有在切换到不同供应商时才回填
+                if let Ok(live_config) = Self::read_live_settings(app_type.clone()) {
+                    if let Some(mut current_provider) = providers.get(&current_id).cloned() {
+                        current_provider.settings_config = live_config;
+                        // 忽略回填失败，不影响切换流程
+                        let _ = state.db.save_provider(app_type.as_str(), &current_provider);
+                    }
+                }
+            }
+        }
+
         // Set current
         state.db.set_current_provider(app_type.as_str(), id)?;
 
         // Sync to live
         Self::write_live_snapshot(&app_type, provider)?;
+
+        // Gemini 需要额外处理安全标志（PackyCode 或 Google OAuth）
+        if matches!(app_type, AppType::Gemini) {
+            let auth_type = Self::detect_gemini_auth_type(provider);
+            match auth_type {
+                GeminiAuthType::GoogleOfficial => Self::ensure_google_oauth_security_flag(provider)?,
+                GeminiAuthType::Packycode => Self::ensure_packycode_security_flag(provider)?,
+                GeminiAuthType::Generic => {}
+            }
+        }
 
         // Sync MCP
         use crate::services::mcp::McpService;
