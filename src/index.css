@@ -139,6 +139,8 @@ html {
   line-height: 1.5;
   /* 让原生控件与滚动条随主题切换配色 */
   color-scheme: light;
+  /* 禁用 overscroll 回弹效果，防止下拉时顶部边框被拉下来 */
+  overscroll-behavior: none;
 }
 
 body {
