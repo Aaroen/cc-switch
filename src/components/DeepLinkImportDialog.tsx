@@ -117,12 +117,17 @@ export function DeepLinkImportDialog() {
         });
 
         if (summary.failed.length > 0) {
-          toast.warning(`部分导入成功`, {
-            description: `成功: ${summary.importedCount}, 失败: ${summary.failed.length}`,
+          toast.warning(t("deeplink.mcpPartialSuccess"), {
+            description: t("deeplink.mcpPartialSuccessDescription", {
+              success: summary.importedCount,
+              failed: summary.failed.length,
+            }),
           });
         } else {
-          toast.success("MCP Servers 导入成功", {
-            description: `成功导入 ${summary.importedCount} 个服务器`,
+          toast.success(t("deeplink.mcpImportSuccess"), {
+            description: t("deeplink.mcpImportSuccessDescription", {
+              count: summary.importedCount,
+            }),
           });
         }
       };
@@ -145,8 +150,10 @@ export function DeepLinkImportDialog() {
               detail: { app: request.app },
             }),
           );
-          toast.success("提示词导入成功", {
-            description: `已导入提示词: ${request.name}`,
+          toast.success(t("deeplink.promptImportSuccess"), {
+            description: t("deeplink.promptImportSuccessDescription", {
+              name: request.name,
+            }),
           });
         } else if (result.type === "mcp") {
           await refreshMcp(result);
@@ -160,8 +167,10 @@ export function DeepLinkImportDialog() {
             queryKey: ["skills"],
             type: "all",
           });
-          toast.success("Skill 仓库添加成功", {
-            description: `已添加仓库: ${request.repo}`,
+          toast.success(t("deeplink.skillImportSuccess"), {
+            description: t("deeplink.skillImportSuccessDescription", {
+              repo: request.repo,
+            }),
           });
         }
       } else if (isMcpImportResult(result)) {
@@ -282,11 +291,11 @@ export function DeepLinkImportDialog() {
     if (!request) return t("deeplink.confirmImport");
     switch (request.resource) {
       case "prompt":
-        return "导入提示词";
+        return t("deeplink.importPrompt");
       case "mcp":
-        return "导入 MCP Servers";
+        return t("deeplink.importMcp");
       case "skill":
-        return "添加 Skill 仓库";
+        return t("deeplink.importSkill");
       default:
         return t("deeplink.confirmImport");
     }
@@ -296,11 +305,11 @@ export function DeepLinkImportDialog() {
     if (!request) return t("deeplink.confirmImportDescription");
     switch (request.resource) {
       case "prompt":
-        return "请确认是否导入此系统提示词";
+        return t("deeplink.importPromptDescription");
       case "mcp":
-        return "请确认是否导入这些 MCP Servers";
+        return t("deeplink.importMcpDescription");
       case "skill":
-        return "请确认是否添加此 Skill 仓库";
+        return t("deeplink.importSkillDescription");
       default:
         return t("deeplink.confirmImportDescription");
     }
