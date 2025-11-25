@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { DeepLinkImportRequest } from "../../lib/api/deeplink";
 import { decodeBase64Utf8 } from "../../lib/utils/base64";
 
@@ -7,6 +8,8 @@ export function McpConfirmation({
 }: {
   request: DeepLinkImportRequest;
 }) {
+  const { t } = useTranslation();
+
   const mcpServers = useMemo(() => {
     if (!request.config) return null;
     try {
@@ -20,14 +23,15 @@ export function McpConfirmation({
   }, [request.config]);
 
   const targetApps = request.apps?.split(",") || [];
+  const serverCount = Object.keys(mcpServers || {}).length;
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">批量导入 MCP Servers</h3>
+      <h3 className="text-lg font-semibold">{t("deeplink.mcp.title")}</h3>
 
       <div>
         <label className="block text-sm font-medium text-muted-foreground">
-          目标应用
+          {t("deeplink.mcp.targetApps")}
         </label>
         <div className="mt-1 flex gap-2 flex-wrap">
           {targetApps.map((app) => (
@@ -43,7 +47,7 @@ export function McpConfirmation({
 
       <div>
         <label className="block text-sm font-medium text-muted-foreground">
-          MCP Servers ({Object.keys(mcpServers || {}).length} 个)
+          {t("deeplink.mcp.serverCount", { count: serverCount })}
         </label>
         <div className="mt-1 space-y-2 max-h-64 overflow-auto border rounded p-2 bg-muted/30">
           {mcpServers &&
@@ -63,7 +67,7 @@ export function McpConfirmation({
       {request.enabled && (
         <div className="text-yellow-600 dark:text-yellow-500 text-sm flex items-center gap-2">
           <span>⚠️</span>
-          <span>导入后将立即写入所有指定应用的配置文件</span>
+          <span>{t("deeplink.mcp.enabledWarning")}</span>
         </div>
       )}
     </div>

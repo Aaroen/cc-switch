@@ -787,7 +787,30 @@
     "configRemote": "Remote Config",
     "configDetails": "Config Details",
     "configUrl": "Config File URL",
-    "configMergeError": "Failed to merge configuration file"
+    "configMergeError": "Failed to merge configuration file",
+    "mcp": {
+      "title": "Batch Import MCP Servers",
+      "targetApps": "Target Apps",
+      "serverCount": "MCP Servers ({{count}})",
+      "enabledWarning": "After import, configurations will be written to all specified apps immediately"
+    },
+    "prompt": {
+      "title": "Import System Prompt",
+      "app": "App",
+      "name": "Name",
+      "description": "Description",
+      "contentPreview": "Content Preview",
+      "enabledWarning": "After import, this prompt will be enabled immediately and other prompts will be disabled"
+    },
+    "skill": {
+      "title": "Add Claude Skill Repository",
+      "repo": "GitHub Repository",
+      "directory": "Target Directory",
+      "branch": "Branch",
+      "skillsPath": "Skills Path",
+      "hint": "This will add the Skill repository to the list.",
+      "hintDetail": "After adding, you can install specific Skills from the Skills management page."
+    }
   },
   "iconPicker": {
     "search": "Search Icons",

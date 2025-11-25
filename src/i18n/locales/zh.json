@@ -787,7 +787,30 @@
     "configRemote": "远程配置",
     "configDetails": "配置详情",
     "configUrl": "配置文件 URL",
-    "configMergeError": "合并配置文件失败"
+    "configMergeError": "合并配置文件失败",
+    "mcp": {
+      "title": "批量导入 MCP Servers",
+      "targetApps": "目标应用",
+      "serverCount": "MCP Servers ({{count}} 个)",
+      "enabledWarning": "导入后将立即写入所有指定应用的配置文件"
+    },
+    "prompt": {
+      "title": "导入系统提示词",
+      "app": "应用",
+      "name": "名称",
+      "description": "描述",
+      "contentPreview": "内容预览",
+      "enabledWarning": "导入后将立即启用此提示词，其他提示词将被禁用"
+    },
+    "skill": {
+      "title": "添加 Claude Skill 仓库",
+      "repo": "GitHub 仓库",
+      "directory": "目标目录",
+      "branch": "分支",
+      "skillsPath": "Skills 路径",
+      "hint": "此操作将添加 Skill 仓库到列表。",
+      "hintDetail": "添加后，您可以在 Skills 管理界面中选择安装具体的 Skill。"
+    }
   },
   "iconPicker": {
     "search": "搜索图标",
