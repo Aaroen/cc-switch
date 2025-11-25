@@ -113,25 +113,6 @@ const TRAY_SECTIONS: [TrayAppSection; 3] = [
     },
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum JsonMigrationMode {
-    Disabled,
-    DryRun,
-    Enabled,
-}
-
-/// 解析 JSON→DB 迁移模式：默认关闭，支持 dryrun/模拟演练
-fn json_migration_mode() -> JsonMigrationMode {
-    match std::env::var("CC_SWITCH_ENABLE_JSON_DB_MIGRATION") {
-        Ok(val) => match val.trim().to_ascii_lowercase().as_str() {
-            "1" | "true" | "yes" | "on" => JsonMigrationMode::Enabled,
-            "dryrun" | "dry-run" | "simulate" | "sim" => JsonMigrationMode::DryRun,
-            _ => JsonMigrationMode::Disabled,
-        },
-        Err(_) => JsonMigrationMode::Disabled,
-    }
-}
-
 fn append_provider_section<'a>(
     app: &'a tauri::AppHandle,
     mut menu_builder: MenuBuilder<'a, tauri::Wry, tauri::AppHandle<tauri::Wry>>,
@@ -561,8 +542,7 @@ pub fn run() {
             let db_path = app_config_dir.join("cc-switch.db");
             let json_path = app_config_dir.join("config.json");
 
-            // Check if config.json→SQLite migration needed (feature gated, disabled by default)
-            let migration_mode = json_migration_mode();
+            // 检查是否需要从 config.json 迁移到 SQLite
             let has_json = json_path.exists();
             let has_db = db_path.exists();
 
@@ -576,42 +556,27 @@ pub fn run() {
                 }
             };
 
+            // 静默迁移：检测到旧版 config.json 且数据库不存在时自动迁移
             if !has_db && has_json {
-                match migration_mode {
-                    JsonMigrationMode::Disabled => {
-                        log::warn!(
-                            "Detected config.json but migration is disabled by default. \
-                             Set CC_SWITCH_ENABLE_JSON_DB_MIGRATION=1 to migrate, or =dryrun to validate first."
-                        );
-                    }
-                    JsonMigrationMode::DryRun => {
-                        log::info!("Running migration dry-run (validation only, no disk writes)");
-                        match crate::app_config::MultiAppConfig::load() {
-                            Ok(config) => {
-                                if let Err(e) = crate::database::Database::migrate_from_json_dry_run(&config) {
-                                    log::error!("Migration dry-run failed: {e}");
-                                } else {
-                                    log::info!("Migration dry-run succeeded (no database written)");
-                                }
+                log::info!("检测到旧版配置文件，开始自动迁移到数据库...");
+                match crate::app_config::MultiAppConfig::load() {
+                    Ok(config) => {
+                        if let Err(e) = db.migrate_from_json(&config) {
+                            log::error!("配置迁移失败: {e}，将从现有配置导入");
+                        } else {
+                            log::info!("✓ 配置迁移成功");
+                            // 标记迁移成功，供前端显示 Toast
+                            crate::init_status::set_migration_success();
+                            // 归档旧配置文件（重命名而非删除，便于用户恢复）
+                            let archive_path = json_path.with_extension("json.migrated");
+                            if let Err(e) = std::fs::rename(&json_path, &archive_path) {
+                                log::warn!("归档旧配置文件失败: {e}");
+                            } else {
+                                log::info!("✓ 旧配置已归档为 config.json.migrated");
                             }
-                            Err(e) => log::error!("Failed to load config.json for dry-run: {e}"),
                         }
                     }
-                    JsonMigrationMode::Enabled => {
-                        log::info!("Starting migration from config.json to SQLite (user opt-in)");
-                        match crate::app_config::MultiAppConfig::load() {
-                            Ok(config) => {
-                                if let Err(e) = db.migrate_from_json(&config) {
-                                    log::error!("Migration failed: {e}");
-                                } else {
-                                    log::info!("Migration successful");
-                                    // Optional: Rename config.json to prevent re-migration
-                                    // let _ = std::fs::rename(&json_path, json_path.with_extension("json.migrated"));
-                                }
-                            }
-                            Err(e) => log::error!("Failed to load config.json for migration: {e}"),
-                        }
-                    }
+                    Err(e) => log::error!("加载旧配置文件失败: {e}，将从现有配置导入"),
                 }
             }
 
@@ -822,6 +787,7 @@ pub fn run() {
             commands::pick_directory,
             commands::open_external,
             commands::get_init_error,
+            commands::get_migration_result,
             commands::get_app_config_path,
             commands::open_app_config_folder,
             commands::get_claude_common_config_snippet,

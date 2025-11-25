@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Plus,
   Settings,
@@ -122,6 +123,24 @@ function App() {
 
     checkEnvOnStartup();
   }, []);
+
+  // 应用启动时检查是否刚完成了配置迁移
+  useEffect(() => {
+    const checkMigration = async () => {
+      try {
+        const migrated = await invoke<boolean>("get_migration_result");
+        if (migrated) {
+          toast.success(
+            t("migration.success", { defaultValue: "配置迁移成功" }),
+          );
+        }
+      } catch (error) {
+        console.error("[App] Failed to check migration result:", error);
+      }
+    };
+
+    checkMigration();
+  }, [t]);
 
   // 切换应用时检测当前应用的环境变量冲突
   useEffect(() => {

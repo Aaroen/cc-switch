@@ -51,3 +51,10 @@ pub async fn is_portable_mode() -> Result<bool, String> {
 pub async fn get_init_error() -> Result<Option<InitErrorPayload>, String> {
     Ok(crate::init_status::get_init_error())
 }
+
+/// 获取 JSON→SQLite 迁移结果（若有）。
+/// 只返回一次 true，之后返回 false，用于前端显示一次性 Toast 通知。
+#[tauri::command]
+pub async fn get_migration_result() -> Result<bool, String> {
+    Ok(crate::init_status::take_migration_success())
+}
