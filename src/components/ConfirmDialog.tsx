@@ -40,8 +40,12 @@ export function ConfirmDialog({
         }
       }}
     >
-      <DialogContent className="max-w-sm">
-        <DialogHeader className="space-y-3">
+      <DialogContent
+        className="max-w-sm"
+        zIndex="alert"
+        overlayClassName="bg-background/80"
+      >
+        <DialogHeader className="space-y-3 border-b-0 bg-transparent pb-0">
           <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             {title}
@@ -50,7 +54,7 @@ export function ConfirmDialog({
             {message}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="flex gap-2 sm:justify-end">
+        <DialogFooter className="flex gap-2 border-t-0 bg-transparent pt-2 sm:justify-end">
           <Button variant="outline" onClick={onCancel}>
             {cancelText || t("common.cancel")}
           </Button>
