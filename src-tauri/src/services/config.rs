@@ -2,7 +2,6 @@ use super::provider::ProviderService;
 use crate::app_config::{AppType, MultiAppConfig};
 use crate::error::AppError;
 use crate::provider::Provider;
-use crate::store::AppState;
 use chrono::Utc;
 use serde_json::Value;
 use std::fs;
@@ -82,53 +81,6 @@ impl ConfigService {
         }
 
         Ok(())
-    }
-
-    /// 将当前 config.json 拷贝到目标路径。
-    pub fn export_config_to_path(target_path: &Path) -> Result<(), AppError> {
-        let config_path = crate::config::get_app_config_path();
-        let config_content =
-            fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?;
-        fs::write(target_path, config_content).map_err(|e| AppError::io(target_path, e))
-    }
-
-    /// 从磁盘文件加载配置并写回 config.json，返回备份 ID 及新配置。
-    pub fn load_config_for_import(file_path: &Path) -> Result<(MultiAppConfig, String), AppError> {
-        let import_content =
-            fs::read_to_string(file_path).map_err(|e| AppError::io(file_path, e))?;
-
-        let new_config: MultiAppConfig =
-            serde_json::from_str(&import_content).map_err(|e| AppError::json(file_path, e))?;
-
-        let config_path = crate::config::get_app_config_path();
-        let backup_id = Self::create_backup(&config_path)?;
-
-        fs::write(&config_path, &import_content).map_err(|e| AppError::io(&config_path, e))?;
-
-        Ok((new_config, backup_id))
-    }
-
-    /// 将外部配置文件内容加载并写入应用状态。
-    /// TODO: 需要重构以使用数据库而不是 JSON 配置
-    pub fn import_config_from_path(
-        _file_path: &Path,
-        _state: &AppState,
-    ) -> Result<String, AppError> {
-        // TODO: 实现基于数据库的导入逻辑
-        Err(AppError::Message(
-            "配置导入功能正在重构中,暂时不可用".to_string(),
-        ))
-
-        /* 旧的实现,需要重构:
-        let (new_config, backup_id) = Self::load_config_for_import(file_path)?;
-
-        {
-            let mut guard = state.config.write().map_err(AppError::from)?;
-            *guard = new_config;
-        }
-
-        Ok(backup_id)
-        */
     }
 
     /// 同步当前供应商到对应的 live 配置。
