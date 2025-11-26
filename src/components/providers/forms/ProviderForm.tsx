@@ -389,13 +389,12 @@ export function ProviderForm({
     if (appId === "claude" && templateValueEntries.length > 0) {
       const validation = validateTemplateValues();
       if (!validation.isValid && validation.missingField) {
-        form.setError("settingsConfig", {
-          type: "manual",
-          message: t("providerForm.fillParameter", {
+        toast.error(
+          t("providerForm.fillParameter", {
             label: validation.missingField.label,
             defaultValue: `请填写 ${validation.missingField.label}`,
           }),
-        });
+        );
         return;
       }
     }
