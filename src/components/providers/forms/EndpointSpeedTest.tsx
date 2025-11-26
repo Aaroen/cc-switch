@@ -140,15 +140,24 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         setEntries((prev) => {
           const map = new Map<string, EndpointEntry>();
 
-          // 先添加现有端点
+          // 先添加现有端点（来自预设，isCustom 可能为 false）
           prev.forEach((entry) => {
             map.set(entry.url, entry);
           });
 
-          // 添加从后端加载的自定义端点
+          // 合并从后端加载的自定义端点
+          // 关键：如果 URL 已存在（与预设重合），需要将 isCustom 更新为 true
+          // 因为它存在于数据库中，需要在 handleSave 时被正确识别
           candidates.forEach((candidate) => {
             const sanitized = normalizeEndpointUrl(candidate.url);
-            if (sanitized && !map.has(sanitized)) {
+            if (!sanitized) return;
+
+            const existing = map.get(sanitized);
+            if (existing) {
+              // URL 已存在，更新 isCustom 为 true（因为它在数据库中）
+              existing.isCustom = true;
+            } else {
+              // URL 不存在，添加新条目
               map.set(sanitized, {
                 id: randomId(),
                 url: sanitized,

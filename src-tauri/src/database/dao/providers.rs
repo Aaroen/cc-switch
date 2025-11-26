@@ -122,62 +122,98 @@ impl Database {
     }
 
     /// 保存供应商（新增或更新）
+    ///
+    /// 注意：更新模式下不同步 endpoints，因为编辑模式下端点通过单独的 API 管理
+    /// （add_custom_endpoint / remove_custom_endpoint），避免覆盖用户的修改。
     pub fn save_provider(&self, app_type: &str, provider: &Provider) -> Result<(), AppError> {
         let mut conn = lock_conn!(self.conn);
         let tx = conn
             .transaction()
             .map_err(|e| AppError::Database(e.to_string()))?;
 
-        // 处理 meta 和 endpoints
+        // 处理 meta：取出 endpoints 以便单独处理
         let mut meta_clone = provider.meta.clone().unwrap_or_default();
         let endpoints = std::mem::take(&mut meta_clone.custom_endpoints);
 
-        // 检查是否存在以保留 is_current
-        let is_current: bool = tx
+        // 检查是否存在（用于判断新增/更新，以及保留 is_current）
+        let existing: Option<bool> = tx
             .query_row(
                 "SELECT is_current FROM providers WHERE id = ?1 AND app_type = ?2",
                 params![provider.id, app_type],
                 |row| row.get(0),
             )
-            .unwrap_or(false);
+            .ok();
 
-        tx.execute(
-            "INSERT OR REPLACE INTO providers (
-                id, app_type, name, settings_config, website_url, category,
-                created_at, sort_index, notes, icon, icon_color, meta, is_current
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![
-                provider.id,
-                app_type,
-                provider.name,
-                serde_json::to_string(&provider.settings_config).unwrap(),
-                provider.website_url,
-                provider.category,
-                provider.created_at,
-                provider.sort_index,
-                provider.notes,
-                provider.icon,
-                provider.icon_color,
-                serde_json::to_string(&meta_clone).unwrap(),
-                is_current,
-            ],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        let is_update = existing.is_some();
+        let is_current = existing.unwrap_or(false);
 
-        // 同步 endpoints：删除全部后重新插入
-        tx.execute(
-            "DELETE FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2",
-            params![provider.id, app_type],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
-
-        for (url, endpoint) in endpoints {
+        if is_update {
+            // 更新模式：使用 UPDATE 避免触发 ON DELETE CASCADE
             tx.execute(
-                "INSERT INTO provider_endpoints (provider_id, app_type, url, added_at)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![provider.id, app_type, url, endpoint.added_at],
+                "UPDATE providers SET
+                    name = ?1,
+                    settings_config = ?2,
+                    website_url = ?3,
+                    category = ?4,
+                    created_at = ?5,
+                    sort_index = ?6,
+                    notes = ?7,
+                    icon = ?8,
+                    icon_color = ?9,
+                    meta = ?10,
+                    is_current = ?11
+                WHERE id = ?12 AND app_type = ?13",
+                params![
+                    provider.name,
+                    serde_json::to_string(&provider.settings_config).unwrap(),
+                    provider.website_url,
+                    provider.category,
+                    provider.created_at,
+                    provider.sort_index,
+                    provider.notes,
+                    provider.icon,
+                    provider.icon_color,
+                    serde_json::to_string(&meta_clone).unwrap(),
+                    is_current,
+                    provider.id,
+                    app_type,
+                ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
+        } else {
+            // 新增模式：使用 INSERT
+            tx.execute(
+                "INSERT INTO providers (
+                    id, app_type, name, settings_config, website_url, category,
+                    created_at, sort_index, notes, icon, icon_color, meta, is_current
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                params![
+                    provider.id,
+                    app_type,
+                    provider.name,
+                    serde_json::to_string(&provider.settings_config).unwrap(),
+                    provider.website_url,
+                    provider.category,
+                    provider.created_at,
+                    provider.sort_index,
+                    provider.notes,
+                    provider.icon,
+                    provider.icon_color,
+                    serde_json::to_string(&meta_clone).unwrap(),
+                    is_current,
+                ],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+            // 只有新增时才同步 endpoints
+            for (url, endpoint) in endpoints {
+                tx.execute(
+                    "INSERT INTO provider_endpoints (provider_id, app_type, url, added_at)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![provider.id, app_type, url, endpoint.added_at],
+                )
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            }
         }
 
         tx.commit().map_err(|e| AppError::Database(e.to_string()))?;
