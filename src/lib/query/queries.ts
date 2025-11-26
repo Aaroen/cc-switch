@@ -95,6 +95,13 @@ export const useUsageQuery = (
 ) => {
   const { enabled = true, autoQueryInterval = 0 } = options || {};
 
+  // 计算 staleTime：如果有自动刷新间隔，使用该间隔；否则默认 5 分钟
+  // 这样可以避免切换 app 页面时重复触发查询
+  const staleTime =
+    autoQueryInterval > 0
+      ? autoQueryInterval * 60 * 1000 // 与刷新间隔保持一致
+      : 5 * 60 * 1000; // 默认 5 分钟
+
   const query = useQuery<UsageResult>({
     queryKey: ["usage", providerId, appId],
     queryFn: async () => usageApi.query(providerId, appId),
@@ -106,7 +113,8 @@ export const useUsageQuery = (
     refetchIntervalInBackground: true, // 后台也继续定时查询
     refetchOnWindowFocus: false,
     retry: false,
-    staleTime: 0, // 不使用缓存策略，确保 refetchInterval 准确执行
+    staleTime, // 使用动态计算的缓存时间
+    gcTime: 10 * 60 * 1000, // 缓存保留 10 分钟（组件卸载后）
   });
 
   return {
