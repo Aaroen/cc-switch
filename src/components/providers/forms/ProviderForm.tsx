@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
@@ -396,6 +397,72 @@ export function ProviderForm({
           }),
         });
         return;
+      }
+    }
+
+    // 供应商名称必填校验
+    if (!values.name.trim()) {
+      toast.error(
+        t("providerForm.fillSupplierName", {
+          defaultValue: "请填写供应商名称",
+        }),
+      );
+      return;
+    }
+
+    // 非官方供应商必填校验：端点和 API Key
+    if (category !== "official") {
+      if (appId === "claude") {
+        if (!baseUrl.trim()) {
+          toast.error(
+            t("providerForm.endpointRequired", {
+              defaultValue: "非官方供应商请填写 API 端点",
+            }),
+          );
+          return;
+        }
+        if (!apiKey.trim()) {
+          toast.error(
+            t("providerForm.apiKeyRequired", {
+              defaultValue: "非官方供应商请填写 API Key",
+            }),
+          );
+          return;
+        }
+      } else if (appId === "codex") {
+        if (!codexBaseUrl.trim()) {
+          toast.error(
+            t("providerForm.endpointRequired", {
+              defaultValue: "非官方供应商请填写 API 端点",
+            }),
+          );
+          return;
+        }
+        if (!codexApiKey.trim()) {
+          toast.error(
+            t("providerForm.apiKeyRequired", {
+              defaultValue: "非官方供应商请填写 API Key",
+            }),
+          );
+          return;
+        }
+      } else if (appId === "gemini") {
+        if (!geminiBaseUrl.trim()) {
+          toast.error(
+            t("providerForm.endpointRequired", {
+              defaultValue: "非官方供应商请填写 API 端点",
+            }),
+          );
+          return;
+        }
+        if (!geminiApiKey.trim()) {
+          toast.error(
+            t("providerForm.apiKeyRequired", {
+              defaultValue: "非官方供应商请填写 API Key",
+            }),
+          );
+          return;
+        }
       }
     }
 
