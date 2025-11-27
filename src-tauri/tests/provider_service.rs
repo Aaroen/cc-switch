@@ -185,15 +185,16 @@ fn switch_packycode_gemini_updates_security_selected_type() {
     ProviderService::switch(&state, AppType::Gemini, "packy-gemini")
         .expect("switching to PackyCode Gemini should succeed");
 
-    let settings_path = home.join(".cc-switch").join("settings.json");
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
-        "settings.json should exist at {}",
+        "Gemini settings.json should exist at {}",
         settings_path.display()
     );
-    let raw = std::fs::read_to_string(&settings_path).expect("read settings.json");
+    let raw = std::fs::read_to_string(&settings_path).expect("read gemini settings.json");
     let value: serde_json::Value =
-        serde_json::from_str(&raw).expect("parse settings.json after switch");
+        serde_json::from_str(&raw).expect("parse gemini settings.json after switch");
 
     assert_eq!(
         value
@@ -239,15 +240,16 @@ fn packycode_partner_meta_triggers_security_flag_even_without_keywords() {
     ProviderService::switch(&state, AppType::Gemini, "packy-meta")
         .expect("switching to partner meta provider should succeed");
 
-    let settings_path = home.join(".cc-switch").join("settings.json");
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
-        "settings.json should exist at {}",
+        "Gemini settings.json should exist at {}",
         settings_path.display()
     );
-    let raw = std::fs::read_to_string(&settings_path).expect("read settings.json");
+    let raw = std::fs::read_to_string(&settings_path).expect("read gemini settings.json");
     let value: serde_json::Value =
-        serde_json::from_str(&raw).expect("parse settings.json after switch");
+        serde_json::from_str(&raw).expect("parse gemini settings.json after switch");
 
     assert_eq!(
         value
@@ -292,23 +294,7 @@ fn switch_google_official_gemini_sets_oauth_security() {
     ProviderService::switch(&state, AppType::Gemini, "google-official")
         .expect("switching to Google official Gemini should succeed");
 
-    let settings_path = home.join(".cc-switch").join("settings.json");
-    assert!(
-        settings_path.exists(),
-        "settings.json should exist at {}",
-        settings_path.display()
-    );
-
-    let raw = std::fs::read_to_string(&settings_path).expect("read settings.json");
-    let value: serde_json::Value = serde_json::from_str(&raw).expect("parse settings.json");
-    assert_eq!(
-        value
-            .pointer("/security/auth/selectedType")
-            .and_then(|v| v.as_str()),
-        Some("oauth-personal"),
-        "Google official Gemini should set oauth-personal selectedType in app settings"
-    );
-
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
     let gemini_settings = home.join(".gemini").join("settings.json");
     assert!(
         gemini_settings.exists(),
@@ -324,7 +310,7 @@ fn switch_google_official_gemini_sets_oauth_security() {
             .pointer("/security/auth/selectedType")
             .and_then(|v| v.as_str()),
         Some("oauth-personal"),
-        "Gemini settings json should also reflect oauth-personal"
+        "Gemini settings json should reflect oauth-personal for Google Official"
     );
 }
 
@@ -593,6 +579,10 @@ fn provider_service_delete_claude_removes_provider_files() {
 
 #[test]
 fn provider_service_delete_current_provider_returns_error() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let _home = ensure_test_home();
+
     let mut config = MultiAppConfig::default();
     {
         let manager = config

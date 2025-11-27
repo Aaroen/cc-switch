@@ -260,3 +260,38 @@ pub fn set_current_provider(app_type: &AppType, id: Option<&str>) -> Result<(), 
 
     update_settings(settings)
 }
+
+/// 获取有效的当前供应商 ID（验证存在性）
+///
+/// 逻辑：
+/// 1. 从本地 settings 读取当前供应商 ID
+/// 2. 验证该 ID 在数据库中存在
+/// 3. 如果不存在则清理本地 settings，fallback 到数据库的 is_current
+///
+/// 这确保了返回的 ID 一定是有效的（在数据库中存在）。
+/// 多设备云同步场景下，配置导入后本地 ID 可能失效，此函数会自动修复。
+pub fn get_effective_current_provider(
+    db: &crate::database::Database,
+    app_type: &AppType,
+) -> Result<Option<String>, AppError> {
+    // 1. 从本地 settings 读取
+    if let Some(local_id) = get_current_provider(app_type) {
+        // 2. 验证该 ID 在数据库中存在
+        let providers = db.get_all_providers(app_type.as_str())?;
+        if providers.contains_key(&local_id) {
+            // 存在，直接返回
+            return Ok(Some(local_id));
+        }
+
+        // 3. 不存在，清理本地 settings
+        log::warn!(
+            "本地 settings 中的供应商 {} ({}) 在数据库中不存在，将清理并 fallback 到数据库",
+            local_id,
+            app_type.as_str()
+        );
+        let _ = set_current_provider(app_type, None);
+    }
+
+    // Fallback 到数据库的 is_current
+    db.get_current_provider(app_type.as_str())
+}

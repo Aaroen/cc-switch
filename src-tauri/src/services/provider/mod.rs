@@ -95,17 +95,11 @@ impl ProviderService {
 
     /// Get current provider ID
     ///
-    /// 优先从本地 settings 读取当前供应商，fallback 到数据库的 is_current 字段。
-    /// 这确保了云同步场景下多设备可以独立选择供应商。
+    /// 使用有效的当前供应商 ID（验证过存在性）。
+    /// 优先从本地 settings 读取，验证后 fallback 到数据库的 is_current 字段。
+    /// 这确保了云同步场景下多设备可以独立选择供应商，且返回的 ID 一定有效。
     pub fn current(state: &AppState, app_type: AppType) -> Result<String, AppError> {
-        // 优先从本地 settings 读取
-        if let Some(id) = crate::settings::get_current_provider(&app_type) {
-            return Ok(id);
-        }
-        // Fallback 到数据库的默认供应商
-        state
-            .db
-            .get_current_provider(app_type.as_str())
+        crate::settings::get_effective_current_provider(&state.db, &app_type)
             .map(|opt| opt.unwrap_or_default())
     }
 
@@ -143,9 +137,10 @@ impl ProviderService {
         Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
 
-        // Check if this is current provider
-        let current_id = state.db.get_current_provider(app_type.as_str())?;
-        let is_current = current_id.as_deref() == Some(provider.id.as_str());
+        // Check if this is current provider (use effective current, not just DB)
+        let effective_current =
+            crate::settings::get_effective_current_provider(&state.db, &app_type)?;
+        let is_current = effective_current.as_deref() == Some(provider.id.as_str());
 
         // Save to database
         state.db.save_provider(app_type.as_str(), &provider)?;
@@ -160,13 +155,19 @@ impl ProviderService {
     }
 
     /// Delete a provider
+    ///
+    /// 同时检查本地 settings 和数据库的当前供应商，防止删除任一端正在使用的供应商。
     pub fn delete(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
-        let current = state.db.get_current_provider(app_type.as_str())?;
-        if current.as_deref() == Some(id) {
+        // Check both local settings and database
+        let local_current = crate::settings::get_current_provider(&app_type);
+        let db_current = state.db.get_current_provider(app_type.as_str())?;
+
+        if local_current.as_deref() == Some(id) || db_current.as_deref() == Some(id) {
             return Err(AppError::Message(
                 "无法删除当前正在使用的供应商".to_string(),
             ));
         }
+
         state.db.delete_provider(app_type.as_str(), id)
     }
 
@@ -187,9 +188,8 @@ impl ProviderService {
             .ok_or_else(|| AppError::Message(format!("供应商 {id} 不存在")))?;
 
         // Backfill: Backfill current live config to current provider
-        // Use local settings first, fallback to database
-        let current_id = crate::settings::get_current_provider(&app_type)
-            .or_else(|| state.db.get_current_provider(app_type.as_str()).ok().flatten());
+        // Use effective current provider (validated existence) to ensure backfill targets valid provider
+        let current_id = crate::settings::get_effective_current_provider(&state.db, &app_type)?;
 
         if let Some(current_id) = current_id {
             if current_id != id {

@@ -126,36 +126,24 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
 
 /// Sync current provider to live configuration
 ///
-/// 从本地 settings 获取当前供应商 ID，fallback 到数据库的 is_current 字段。
-/// 这确保了云同步场景下多设备可以独立选择供应商。
+/// 使用有效的当前供应商 ID（验证过存在性）。
+/// 优先从本地 settings 读取，验证后 fallback 到数据库的 is_current 字段。
+/// 这确保了配置导入后无效 ID 会自动 fallback 到数据库。
 pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
     for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-        // Priority: local settings > database is_current
-        let current_id = match crate::settings::get_current_provider(&app_type) {
+        // Use validated effective current provider
+        let current_id = match crate::settings::get_effective_current_provider(&state.db, &app_type)?
+        {
             Some(id) => id,
-            None => {
-                // Fallback: get from database and update local settings
-                match state.db.get_current_provider(app_type.as_str())? {
-                    Some(id) => {
-                        // Update local settings for future use
-                        let _ = crate::settings::set_current_provider(&app_type, Some(&id));
-                        id
-                    }
-                    None => continue,
-                }
-            }
+            None => continue,
         };
 
         let providers = state.db.get_all_providers(app_type.as_str())?;
         if let Some(provider) = providers.get(&current_id) {
             write_live_snapshot(&app_type, provider)?;
-        } else {
-            log::warn!(
-                "无法同步 live 配置: 当前供应商 {} ({}) 未找到",
-                current_id,
-                app_type.as_str()
-            );
         }
+        // Note: get_effective_current_provider already validates existence,
+        // so providers.get() should always succeed here
     }
 
     // MCP sync

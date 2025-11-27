@@ -221,16 +221,12 @@ fn create_tray_menu(
         let app_type_str = section.app_type.as_str();
         let providers = app_state.db.get_all_providers(app_type_str)?;
 
-        // 优先从本地 settings 读取当前供应商，fallback 到数据库
-        let current_id = crate::settings::get_current_provider(&section.app_type)
-            .or_else(|| {
-                app_state
-                    .db
-                    .get_current_provider(app_type_str)
-                    .ok()
-                    .flatten()
-            })
-            .unwrap_or_default();
+        // 使用有效的当前供应商 ID（验证存在性，自动清理失效 ID）
+        let current_id = crate::settings::get_effective_current_provider(
+            &app_state.db,
+            &section.app_type,
+        )?
+        .unwrap_or_default();
 
         let manager = crate::provider::ProviderManager {
             providers,
