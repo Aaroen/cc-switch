@@ -22,18 +22,32 @@ export function useGeminiConfigState({
   const [configError, setConfigError] = useState("");
 
   // 将 JSON env 对象转换为 .env 格式字符串
+  // 保留所有环境变量，已知 key 优先显示
   const envObjToString = useCallback(
     (envObj: Record<string, unknown>): string => {
+      const priorityKeys = [
+        "GOOGLE_GEMINI_BASE_URL",
+        "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+      ];
       const lines: string[] = [];
-      if (typeof envObj.GOOGLE_GEMINI_BASE_URL === "string") {
-        lines.push(`GOOGLE_GEMINI_BASE_URL=${envObj.GOOGLE_GEMINI_BASE_URL}`);
+      const addedKeys = new Set<string>();
+
+      // 先添加已知 key（按顺序）
+      for (const key of priorityKeys) {
+        if (typeof envObj[key] === "string" && envObj[key]) {
+          lines.push(`${key}=${envObj[key]}`);
+          addedKeys.add(key);
+        }
       }
-      if (typeof envObj.GEMINI_API_KEY === "string") {
-        lines.push(`GEMINI_API_KEY=${envObj.GEMINI_API_KEY}`);
+
+      // 再添加其他自定义 key（保留用户添加的环境变量）
+      for (const [key, value] of Object.entries(envObj)) {
+        if (!addedKeys.has(key) && typeof value === "string") {
+          lines.push(`${key}=${value}`);
+        }
       }
-      if (typeof envObj.GEMINI_MODEL === "string") {
-        lines.push(`GEMINI_MODEL=${envObj.GEMINI_MODEL}`);
-      }
+
       return lines.join("\n");
     },
     [],
@@ -164,6 +178,20 @@ export function useGeminiConfigState({
     [geminiEnv, envStringToObj, envObjToString, setGeminiEnv],
   );
 
+  // 处理 Gemini Model 变化
+  const handleGeminiModelChange = useCallback(
+    (model: string) => {
+      const trimmed = model.trim();
+      setGeminiModel(trimmed);
+
+      const envObj = envStringToObj(geminiEnv);
+      envObj.GEMINI_MODEL = trimmed;
+      const newEnv = envObjToString(envObj);
+      setGeminiEnv(newEnv);
+    },
+    [geminiEnv, envStringToObj, envObjToString, setGeminiEnv],
+  );
+
   // 处理 env 变化
   const handleGeminiEnvChange = useCallback(
     (value: string) => {
@@ -223,6 +251,7 @@ export function useGeminiConfigState({
     setGeminiConfig,
     handleGeminiApiKeyChange,
     handleGeminiBaseUrlChange,
+    handleGeminiModelChange,
     handleGeminiEnvChange,
     handleGeminiConfigChange,
     resetGeminiConfig,

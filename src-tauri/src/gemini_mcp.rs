@@ -49,6 +49,11 @@ pub fn read_mcp_json() -> Result<Option<String>, AppError> {
 }
 
 /// 读取 Gemini settings.json 中的 mcpServers 映射
+///
+/// 执行反向格式转换以保持与统一 MCP 结构的兼容性：
+/// - httpUrl → url + type: "http"
+/// - 仅有 url 字段 → 保持不变（SSE 类型）
+/// - 仅有 command 字段 → 保持不变（stdio 类型）
 pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>, AppError> {
     let path = user_config_path();
     if !path.exists() {
@@ -56,11 +61,24 @@ pub fn read_mcp_servers_map() -> Result<std::collections::HashMap<String, Value>
     }
 
     let root = read_json_value(&path)?;
-    let servers = root
+    let mut servers: std::collections::HashMap<String, Value> = root
         .get("mcpServers")
         .and_then(|v| v.as_object())
         .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default();
+
+    // 反向格式转换：Gemini 特有格式 → 统一 MCP 格式
+    for (_, spec) in servers.iter_mut() {
+        if let Some(obj) = spec.as_object_mut() {
+            // httpUrl → url + type: "http"
+            if let Some(http_url) = obj.remove("httpUrl") {
+                obj.insert("url".to_string(), http_url);
+                obj.insert("type".to_string(), Value::String("http".to_string()));
+            }
+            // 如果有 url 但没有 type，不添加 type（默认为 SSE）
+            // 如果有 command 但没有 type，不添加 type（默认为 stdio）
+        }
+    }
 
     Ok(servers)
 }

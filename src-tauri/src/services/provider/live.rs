@@ -310,28 +310,44 @@ pub(crate) fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
 
     let mut env_map = json_to_env(&provider.settings_config)?;
 
-    // Prepare config to write to ~/.gemini/settings.json (preserve existing file content when absent)
-    let mut config_to_write = if let Some(config_value) = provider.settings_config.get("config") {
-        if config_value.is_null() {
-            Some(json!({}))
-        } else if config_value.is_object() {
-            Some(config_value.clone())
-        } else {
+    // Prepare config to write to ~/.gemini/settings.json
+    // Behavior:
+    // - config is object: use it (merge with existing to preserve mcpServers etc.)
+    // - config is null or absent: preserve existing file content
+    let settings_path = get_gemini_settings_path();
+    let mut config_to_write: Option<Value> = None;
+
+    if let Some(config_value) = provider.settings_config.get("config") {
+        if config_value.is_object() {
+            // Merge with existing settings to preserve mcpServers and other fields
+            let mut merged = if settings_path.exists() {
+                read_json_file::<Value>(&settings_path).unwrap_or_else(|_| json!({}))
+            } else {
+                json!({})
+            };
+
+            // Merge provider config into existing settings
+            if let (Some(merged_obj), Some(config_obj)) =
+                (merged.as_object_mut(), config_value.as_object())
+            {
+                for (k, v) in config_obj {
+                    merged_obj.insert(k.clone(), v.clone());
+                }
+            }
+            config_to_write = Some(merged);
+        } else if !config_value.is_null() {
             return Err(AppError::localized(
                 "gemini.validation.invalid_config",
                 "Gemini 配置格式错误: config 必须是对象或 null",
                 "Gemini config invalid: config must be an object or null",
             ));
         }
-    } else {
-        None
-    };
+        // config is null: don't modify existing settings.json (preserve mcpServers etc.)
+    }
 
-    if config_to_write.is_none() {
-        let settings_path = get_gemini_settings_path();
-        if settings_path.exists() {
-            config_to_write = Some(read_json_file(&settings_path)?);
-        }
+    // If no config specified or config is null, preserve existing file
+    if config_to_write.is_none() && settings_path.exists() {
+        config_to_write = Some(read_json_file(&settings_path)?);
     }
 
     match auth_type {
@@ -353,7 +369,6 @@ pub(crate) fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
     }
 
     if let Some(config_value) = config_to_write {
-        let settings_path = get_gemini_settings_path();
         write_json_file(&settings_path, &config_value)?;
     }
 

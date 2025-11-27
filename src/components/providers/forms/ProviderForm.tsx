@@ -327,11 +327,11 @@ export function ProviderForm({
     configError: geminiConfigError,
     handleGeminiApiKeyChange: originalHandleGeminiApiKeyChange,
     handleGeminiBaseUrlChange: originalHandleGeminiBaseUrlChange,
+    handleGeminiModelChange: originalHandleGeminiModelChange,
     handleGeminiEnvChange,
     handleGeminiConfigChange,
     resetGeminiConfig,
     envStringToObj,
-    envObjToString,
   } = useGeminiConfigState({
     initialData: appId === "gemini" ? initialData : undefined,
   });
@@ -367,6 +367,22 @@ export function ProviderForm({
       }
     },
     [originalHandleGeminiBaseUrlChange, form],
+  );
+
+  const handleGeminiModelChange = useCallback(
+    (model: string) => {
+      originalHandleGeminiModelChange(model);
+      // 同步更新 settingsConfig
+      try {
+        const config = JSON.parse(form.watch("settingsConfig") || "{}");
+        if (!config.env) config.env = {};
+        config.env.GEMINI_MODEL = model.trim();
+        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
+      } catch {
+        // ignore
+      }
+    },
+    [originalHandleGeminiModelChange, form],
   );
 
   // 使用 Gemini 通用配置 hook (仅 Gemini 模式)
@@ -824,19 +840,7 @@ export function ProviderForm({
             onCustomEndpointsChange={setDraftCustomEndpoints}
             shouldShowModelField={true}
             model={geminiModel}
-            onModelChange={(model) => {
-              // 同时更新 form.settingsConfig 和 geminiEnv
-              const config = JSON.parse(form.watch("settingsConfig") || "{}");
-              if (!config.env) config.env = {};
-              config.env.GEMINI_MODEL = model;
-              form.setValue("settingsConfig", JSON.stringify(config, null, 2));
-
-              // 同步更新 geminiEnv，确保提交时不丢失
-              const envObj = envStringToObj(geminiEnv);
-              envObj.GEMINI_MODEL = model.trim();
-              const newEnv = envObjToString(envObj);
-              handleGeminiEnvChange(newEnv);
-            }}
+            onModelChange={handleGeminiModelChange}
             speedTestEndpoints={speedTestEndpoints}
           />
         )}

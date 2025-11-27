@@ -89,104 +89,13 @@ fn contains_packycode_keyword(value: &str) -> bool {
         .any(|keyword| lower.contains(keyword))
 }
 
-/// Detect if provider is PackyCode Gemini (uses API Key authentication)
-///
-/// PackyCode is an official partner requiring special security configuration.
-///
-/// # Detection Rules (priority from high to low)
-///
-/// 1. **Partner Promotion Key** (most reliable):
-///    - `provider.meta.partner_promotion_key == "packycode"`
-///
-/// 2. **Provider name**:
-///    - Name contains "packycode", "packyapi" or "packy" (case-insensitive)
-///
-/// 3. **Website URL**:
-///    - `provider.website_url` contains keywords
-///
-/// 4. **Base URL**:
-///    - `settings_config.env.GOOGLE_GEMINI_BASE_URL` contains keywords
-///
-/// # Why multiple detection methods
-///
-/// - Users may manually create providers without `partner_promotion_key`
-/// - Meta fields may be modified after copying from presets
-/// - Ensure all PackyCode providers get correct security flags
-#[allow(dead_code)]
-pub(crate) fn is_packycode_gemini(provider: &Provider) -> bool {
-    // Strategy 1: Check partner_promotion_key (most reliable)
-    if provider
-        .meta
-        .as_ref()
-        .and_then(|meta| meta.partner_promotion_key.as_deref())
-        .is_some_and(|key| key.eq_ignore_ascii_case(PACKYCODE_PARTNER_KEY))
-    {
-        return true;
-    }
-
-    // Strategy 2: Check provider name
-    if contains_packycode_keyword(&provider.name) {
-        return true;
-    }
-
-    // Strategy 3: Check website URL
-    if let Some(site) = provider.website_url.as_deref() {
-        if contains_packycode_keyword(site) {
-            return true;
-        }
-    }
-
-    // Strategy 4: Check Base URL
-    if let Some(base_url) = provider
-        .settings_config
-        .pointer("/env/GOOGLE_GEMINI_BASE_URL")
-        .and_then(|v| v.as_str())
-    {
-        if contains_packycode_keyword(base_url) {
-            return true;
-        }
-    }
-
-    false
-}
-
 /// Detect if provider is Google Official Gemini (uses OAuth authentication)
 ///
 /// Google Official Gemini uses OAuth personal authentication, no API Key needed.
 ///
-/// # Detection Rules (priority from high to low)
-///
-/// 1. **Partner Promotion Key** (most reliable):
-///    - `provider.meta.partner_promotion_key == "google-official"`
-///
-/// 2. **Provider name**:
-///    - Name equals "google" (case-insensitive)
-///    - Or name starts with "google " (e.g., "Google Official")
-///
-/// # OAuth vs API Key
-///
-/// - **OAuth mode**: `security.auth.selectedType = "oauth-personal"`
-///   - User needs to login via browser with Google account
-///   - No API Key needed in `.env` file
-///
-/// - **API Key mode**: `security.auth.selectedType = "gemini-api-key"`
-///   - Used for third-party relay services (like PackyCode)
-///   - Requires `GEMINI_API_KEY` in `.env` file
-#[allow(dead_code)]
+/// This is a convenience wrapper around `detect_gemini_auth_type`.
 pub(crate) fn is_google_official_gemini(provider: &Provider) -> bool {
-    // Strategy 1: Check partner_promotion_key (most reliable)
-    if provider
-        .meta
-        .as_ref()
-        .and_then(|meta| meta.partner_promotion_key.as_deref())
-        .is_some_and(|key| key.eq_ignore_ascii_case(GOOGLE_OFFICIAL_PARTNER_KEY))
-    {
-        return true;
-    }
-
-    // Strategy 2: Check name matching (fallback)
-    let name_lower = provider.name.to_ascii_lowercase();
-    name_lower == "google" || name_lower.starts_with("google ")
+    detect_gemini_auth_type(provider) == GeminiAuthType::GoogleOfficial
 }
 
 /// Ensure Google Official Gemini provider security flag is correctly set (OAuth mode)
