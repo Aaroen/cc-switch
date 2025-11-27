@@ -43,6 +43,7 @@ pub use services::{
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 use std::sync::Arc;
 use tauri::{
@@ -549,37 +550,65 @@ pub fn run() {
             let has_json = json_path.exists();
             let has_db = db_path.exists();
 
+            // 如果需要迁移，先验证 config.json 是否可以加载（在创建数据库之前）
+            // 这样如果加载失败用户选择退出，数据库文件还没被创建，下次可以正常重试
+            let migration_config = if !has_db && has_json {
+                log::info!("检测到旧版配置文件，验证配置文件...");
+
+                // 循环：支持用户重试加载配置文件
+                loop {
+                    match crate::app_config::MultiAppConfig::load() {
+                        Ok(config) => {
+                            log::info!("✓ 配置文件加载成功");
+                            break Some(config);
+                        }
+                        Err(e) => {
+                            log::error!("加载旧配置文件失败: {e}");
+                            // 弹出系统对话框让用户选择
+                            if !show_migration_error_dialog(app.handle(), &e.to_string()) {
+                                // 用户选择退出（此时数据库还没创建，下次启动可以重试）
+                                log::info!("用户选择退出程序");
+                                std::process::exit(1);
+                            }
+                            // 用户选择重试，继续循环
+                            log::info!("用户选择重试加载配置文件");
+                        }
+                    }
+                }
+            } else {
+                None
+            };
+
+            // 现在创建数据库
             let db = match crate::database::Database::init() {
                 Ok(db) => Arc::new(db),
                 Err(e) => {
                     log::error!("Failed to init database: {e}");
-                    // 这里的错误处理比较棘手，因为 setup 返回 Result<Box<dyn Error>>
-                    // 我们暂时记录日志并让应用继续运行（可能会崩溃）或者返回错误
                     return Err(Box::new(e));
                 }
             };
 
-            // 静默迁移：检测到旧版 config.json 且数据库不存在时自动迁移
-            if !has_db && has_json {
-                log::info!("检测到旧版配置文件，开始自动迁移到数据库...");
-                match crate::app_config::MultiAppConfig::load() {
-                    Ok(config) => {
-                        if let Err(e) = db.migrate_from_json(&config) {
-                            log::error!("配置迁移失败: {e}，将从现有配置导入");
+            // 如果有预加载的配置，执行迁移
+            if let Some(config) = migration_config {
+                log::info!("开始执行数据迁移...");
+
+                match db.migrate_from_json(&config) {
+                    Ok(_) => {
+                        log::info!("✓ 配置迁移成功");
+                        // 标记迁移成功，供前端显示 Toast
+                        crate::init_status::set_migration_success();
+                        // 归档旧配置文件（重命名而非删除，便于用户恢复）
+                        let archive_path = json_path.with_extension("json.migrated");
+                        if let Err(e) = std::fs::rename(&json_path, &archive_path) {
+                            log::warn!("归档旧配置文件失败: {e}");
                         } else {
-                            log::info!("✓ 配置迁移成功");
-                            // 标记迁移成功，供前端显示 Toast
-                            crate::init_status::set_migration_success();
-                            // 归档旧配置文件（重命名而非删除，便于用户恢复）
-                            let archive_path = json_path.with_extension("json.migrated");
-                            if let Err(e) = std::fs::rename(&json_path, &archive_path) {
-                                log::warn!("归档旧配置文件失败: {e}");
-                            } else {
-                                log::info!("✓ 旧配置已归档为 config.json.migrated");
-                            }
+                            log::info!("✓ 旧配置已归档为 config.json.migrated");
                         }
                     }
-                    Err(e) => log::error!("加载旧配置文件失败: {e}，将从现有配置导入"),
+                    Err(e) => {
+                        // 配置加载成功但迁移失败的情况极少（磁盘满等），仅记录日志
+                        log::error!("配置迁移失败: {e}，将从现有配置导入");
+                    }
                 }
             }
 
@@ -953,4 +982,70 @@ pub fn run() {
             let _ = (app_handle, event);
         }
     });
+}
+
+// ============================================================
+// 迁移错误对话框辅助函数
+// ============================================================
+
+/// 检测是否为中文环境
+fn is_chinese_locale() -> bool {
+    std::env::var("LANG")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .or_else(|_| std::env::var("LC_MESSAGES"))
+        .map(|lang| lang.starts_with("zh"))
+        .unwrap_or(false)
+}
+
+/// 显示迁移错误对话框
+/// 返回 true 表示用户选择重试，false 表示用户选择退出
+fn show_migration_error_dialog(app: &tauri::AppHandle, error: &str) -> bool {
+    let title = if is_chinese_locale() {
+        "配置迁移失败"
+    } else {
+        "Migration Failed"
+    };
+
+    let message = if is_chinese_locale() {
+        format!(
+            "从旧版本迁移配置时发生错误：\n\n{}\n\n\
+            您的数据尚未丢失，旧配置文件仍然保留。\n\
+            建议回退到旧版本 CC Switch 以保护数据。\n\n\
+            点击「重试」重新尝试迁移\n\
+            点击「退出」关闭程序（可回退版本后重新打开）",
+            error
+        )
+    } else {
+        format!(
+            "An error occurred while migrating configuration:\n\n{}\n\n\
+            Your data is NOT lost - the old config file is still preserved.\n\
+            Consider rolling back to an older CC Switch version.\n\n\
+            Click 'Retry' to attempt migration again\n\
+            Click 'Exit' to close the program",
+            error
+        )
+    };
+
+    let retry_text = if is_chinese_locale() {
+        "重试"
+    } else {
+        "Retry"
+    };
+    let exit_text = if is_chinese_locale() {
+        "退出"
+    } else {
+        "Exit"
+    };
+
+    // 使用 blocking_show 同步等待用户响应
+    // OkCancelCustom: 第一个按钮（重试）返回 true，第二个按钮（退出）返回 false
+    app.dialog()
+        .message(&message)
+        .title(title)
+        .kind(MessageDialogKind::Error)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            retry_text.to_string(),
+            exit_text.to_string(),
+        ))
+        .blocking_show()
 }
