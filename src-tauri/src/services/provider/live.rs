@@ -117,25 +117,8 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
                 .map_err(|e| AppError::io(&config_path, e))?;
         }
         AppType::Gemini => {
-            use crate::gemini_config::{
-                get_gemini_settings_path, json_to_env, write_gemini_env_atomic,
-            };
-
-            // Extract env and config from provider settings
-            let env_value = provider.settings_config.get("env");
-            let config_value = provider.settings_config.get("config");
-
-            // Write env file
-            if let Some(env) = env_value {
-                let env_map = json_to_env(env)?;
-                write_gemini_env_atomic(&env_map)?;
-            }
-
-            // Write settings file
-            if let Some(config) = config_value {
-                let settings_path = get_gemini_settings_path();
-                write_json_file(&settings_path, config)?;
-            }
+            // Delegate to write_gemini_live which handles env file writing correctly
+            write_gemini_live(provider)?;
         }
     }
     Ok(())

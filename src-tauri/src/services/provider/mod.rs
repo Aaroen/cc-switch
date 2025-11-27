@@ -28,7 +28,6 @@ pub use live::{import_default_config, read_live_settings, sync_current_from_db};
 pub(crate) use live::write_live_snapshot;
 
 // Internal re-exports
-use gemini_auth::{detect_gemini_auth_type, ensure_google_oauth_security_flag, GeminiAuthType};
 use live::write_gemini_live;
 use usage::validate_usage_script;
 
@@ -196,22 +195,8 @@ impl ProviderService {
         // Set current
         state.db.set_current_provider(app_type.as_str(), id)?;
 
-        // Sync to live
+        // Sync to live (write_gemini_live handles security flag internally for Gemini)
         write_live_snapshot(&app_type, provider)?;
-
-        // Gemini needs additional security flag handling
-        // - Google Official: uses OAuth authentication
-        // - All others (PackyCode, Generic): use API Key authentication
-        if matches!(app_type, AppType::Gemini) {
-            let auth_type = detect_gemini_auth_type(provider);
-            match auth_type {
-                GeminiAuthType::GoogleOfficial => ensure_google_oauth_security_flag(provider)?,
-                GeminiAuthType::Packycode | GeminiAuthType::Generic => {
-                    // All non-Google providers use API Key mode
-                    crate::gemini_config::write_packycode_settings()?;
-                }
-            }
-        }
 
         // Sync MCP
         McpService::sync_all_enabled(state)?;
