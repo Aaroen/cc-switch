@@ -4,7 +4,6 @@
 
 use crate::error::AppError;
 use crate::provider::Provider;
-use crate::settings;
 
 /// Gemini authentication type enumeration
 ///
@@ -18,10 +17,6 @@ pub(crate) enum GeminiAuthType {
     /// Generic Gemini provider (uses API Key)
     Generic,
 }
-
-// Authentication type constants
-const PACKYCODE_SECURITY_SELECTED_TYPE: &str = "gemini-api-key";
-const GOOGLE_OAUTH_SECURITY_SELECTED_TYPE: &str = "oauth-personal";
 
 // Partner Promotion Key constants
 const PACKYCODE_PARTNER_KEY: &str = "packycode";
@@ -194,59 +189,13 @@ pub(crate) fn is_google_official_gemini(provider: &Provider) -> bool {
     name_lower == "google" || name_lower.starts_with("google ")
 }
 
-/// Ensure PackyCode Gemini provider security flag is correctly set
-///
-/// PackyCode is an official partner using API Key authentication mode.
-///
-/// # Why write to two settings.json files
-///
-/// 1. **`~/.cc-switch/settings.json`** (application-level config):
-///    - CC-Switch application global settings
-///    - Ensures app knows current authentication type
-///    - Used for UI display and other app logic
-///
-/// 2. **`~/.gemini/settings.json`** (Gemini client config):
-///    - Configuration file read by Gemini CLI client
-///    - Directly affects Gemini client authentication behavior
-///    - Ensures Gemini uses correct authentication method to connect API
-///
-/// # Value set
-///
-/// ```json
-/// {
-///   "security": {
-///     "auth": {
-///       "selectedType": "gemini-api-key"
-///     }
-///   }
-/// }
-/// ```
-///
-/// # Error handling
-///
-/// If provider is not PackyCode, function returns `Ok(())` immediately without any operation.
-pub(crate) fn ensure_packycode_security_flag(provider: &Provider) -> Result<(), AppError> {
-    if !is_packycode_gemini(provider) {
-        return Ok(());
-    }
-
-    // Write to application-level settings.json (~/.cc-switch/settings.json)
-    settings::ensure_security_auth_selected_type(PACKYCODE_SECURITY_SELECTED_TYPE)?;
-
-    // Write to Gemini directory settings.json (~/.gemini/settings.json)
-    use crate::gemini_config::write_packycode_settings;
-    write_packycode_settings()?;
-
-    Ok(())
-}
-
 /// Ensure Google Official Gemini provider security flag is correctly set (OAuth mode)
 ///
 /// Google Official Gemini uses OAuth personal authentication, no API Key needed.
 ///
-/// # Why write to two settings.json files
+/// # What it does
 ///
-/// Same as `ensure_packycode_security_flag`, need to configure both app-level and client-level settings.
+/// Writes to **`~/.gemini/settings.json`** (Gemini client config).
 ///
 /// # Value set
 ///
@@ -275,9 +224,6 @@ pub(crate) fn ensure_google_oauth_security_flag(provider: &Provider) -> Result<(
     if !is_google_official_gemini(provider) {
         return Ok(());
     }
-
-    // Write to application-level settings.json (~/.cc-switch/settings.json)
-    settings::ensure_security_auth_selected_type(GOOGLE_OAUTH_SECURITY_SELECTED_TYPE)?;
 
     // Write to Gemini directory settings.json (~/.gemini/settings.json)
     use crate::gemini_config::write_google_oauth_settings;

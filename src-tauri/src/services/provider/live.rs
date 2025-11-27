@@ -15,8 +15,7 @@ use crate::services::mcp::McpService;
 use crate::store::AppState;
 
 use super::gemini_auth::{
-    detect_gemini_auth_type, ensure_google_oauth_security_flag, ensure_packycode_security_flag,
-    GeminiAuthType,
+    detect_gemini_auth_type, ensure_google_oauth_security_flag, GeminiAuthType,
 };
 use super::normalize_claude_models_in_value;
 
@@ -375,10 +374,14 @@ pub(crate) fn write_gemini_live(provider: &Provider) -> Result<(), AppError> {
         write_json_file(&settings_path, &config_value)?;
     }
 
+    // Set security.auth.selectedType based on auth type
+    // - Google Official: OAuth mode
+    // - All others: API Key mode
     match auth_type {
         GeminiAuthType::GoogleOfficial => ensure_google_oauth_security_flag(provider)?,
-        GeminiAuthType::Packycode => ensure_packycode_security_flag(provider)?,
-        GeminiAuthType::Generic => {}
+        GeminiAuthType::Packycode | GeminiAuthType::Generic => {
+            crate::gemini_config::write_packycode_settings()?;
+        }
     }
 
     Ok(())
