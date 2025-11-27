@@ -736,10 +736,35 @@ pub fn run() {
             // Linux 和 Windows 调试模式需要显式注册
             #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
             {
-                if let Err(e) = app.deep_link().register_all() {
-                    log::error!("✗ Failed to register deep link schemes: {}", e);
-                } else {
-                    log::info!("✓ Deep link schemes registered (Linux/Windows)");
+                #[cfg(target_os = "linux")]
+                {
+                    // Use Tauri's path API to get correct path (includes app identifier)
+                    // tauri-plugin-deep-link writes to: ~/.local/share/com.ccswitch.desktop/applications/cc-switch-handler.desktop
+                    // Only register if .desktop file doesn't exist to avoid overwriting user customizations
+                    let should_register = app
+                        .path()
+                        .data_dir()
+                        .map(|d| !d.join("applications/cc-switch-handler.desktop").exists())
+                        .unwrap_or(true);
+
+                    if should_register {
+                        if let Err(e) = app.deep_link().register_all() {
+                            log::error!("✗ Failed to register deep link schemes: {}", e);
+                        } else {
+                            log::info!("✓ Deep link schemes registered (Linux)");
+                        }
+                    } else {
+                        log::info!("⊘ Deep link handler already exists, skipping registration");
+                    }
+                }
+
+                #[cfg(all(debug_assertions, windows))]
+                {
+                    if let Err(e) = app.deep_link().register_all() {
+                        log::error!("✗ Failed to register deep link schemes: {}", e);
+                    } else {
+                        log::info!("✓ Deep link schemes registered (Windows debug)");
+                    }
                 }
             }
 
