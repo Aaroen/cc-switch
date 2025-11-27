@@ -580,7 +580,6 @@ pub fn run() {
                 }
             }
 
-            crate::settings::bind_db(db.clone());
             let app_state = AppState::new(db);
 
             // 检查是否需要首次导入（数据库为空）

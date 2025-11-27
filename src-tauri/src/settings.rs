@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{OnceLock, RwLock};
 
-use crate::database::Database;
+use crate::app_config::AppType;
 use crate::error::AppError;
 
-/// 自定义端点配置
+/// 自定义端点配置（历史兼容，实际存储在 provider.meta.custom_endpoints）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomEndpoint {
@@ -17,10 +16,14 @@ pub struct CustomEndpoint {
     pub last_used: Option<i64>,
 }
 
-/// 应用设置结构，允许覆盖默认配置目录
+/// 应用设置结构
+///
+/// 存储设备级别设置，保存在本地 `~/.cc-switch/settings.json`，不随数据库同步。
+/// 这确保了云同步场景下多设备可以独立运作。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    // ===== 设备级 UI 设置 =====
     #[serde(default = "default_show_in_tray")]
     pub show_in_tray: bool,
     #[serde(default = "default_minimize_to_tray_on_close")]
@@ -28,23 +31,30 @@ pub struct AppSettings {
     /// 是否启用 Claude 插件联动
     #[serde(default)]
     pub enable_claude_plugin_integration: bool,
+    /// 是否开机自启
+    #[serde(default)]
+    pub launch_on_startup: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+
+    // ===== 设备级目录覆盖 =====
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude_config_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codex_config_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gemini_config_dir: Option<String>,
+
+    // ===== 当前供应商 ID（设备级）=====
+    /// 当前 Claude 供应商 ID（本地存储，优先于数据库 is_current）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language: Option<String>,
-    /// 是否开机自启
-    #[serde(default)]
-    pub launch_on_startup: bool,
-    /// Claude 自定义端点列表
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub custom_endpoints_claude: HashMap<String, CustomEndpoint>,
-    /// Codex 自定义端点列表
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub custom_endpoints_codex: HashMap<String, CustomEndpoint>,
+    pub current_provider_claude: Option<String>,
+    /// 当前 Codex 供应商 ID（本地存储，优先于数据库 is_current）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_provider_codex: Option<String>,
+    /// 当前 Gemini 供应商 ID（本地存储，优先于数据库 is_current）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_provider_gemini: Option<String>,
 }
 
 fn default_show_in_tray() -> bool {
@@ -61,13 +71,14 @@ impl Default for AppSettings {
             show_in_tray: true,
             minimize_to_tray_on_close: true,
             enable_claude_plugin_integration: false,
+            launch_on_startup: false,
+            language: None,
             claude_config_dir: None,
             codex_config_dir: None,
             gemini_config_dir: None,
-            language: None,
-            launch_on_startup: false,
-            custom_endpoints_claude: HashMap::new(),
-            custom_endpoints_codex: HashMap::new(),
+            current_provider_claude: None,
+            current_provider_codex: None,
+            current_provider_gemini: None,
         }
     }
 }
@@ -152,60 +163,7 @@ fn save_settings_file(settings: &AppSettings) -> Result<(), AppError> {
 static SETTINGS_STORE: OnceLock<RwLock<AppSettings>> = OnceLock::new();
 
 fn settings_store() -> &'static RwLock<AppSettings> {
-    SETTINGS_STORE.get_or_init(|| RwLock::new(load_initial_settings()))
-}
-
-static SETTINGS_DB: OnceLock<Arc<Database>> = OnceLock::new();
-const APP_SETTINGS_KEY: &str = "app_settings";
-
-pub fn bind_db(db: Arc<Database>) {
-    if SETTINGS_DB.set(db).is_err() {
-        return;
-    }
-
-    if let Some(store) = SETTINGS_STORE.get() {
-        let mut guard = store.write().expect("写入设置锁失败");
-        *guard = load_initial_settings();
-    }
-}
-
-fn load_initial_settings() -> AppSettings {
-    if let Some(db) = SETTINGS_DB.get() {
-        if let Some(from_db) = load_from_db(db.as_ref()) {
-            return from_db;
-        }
-
-        // 从文件迁移一次并写入数据库
-        let file_settings = AppSettings::load_from_file();
-        if let Err(e) = save_to_db(db.as_ref(), &file_settings) {
-            log::warn!("迁移设置到数据库失败，将继续使用内存副本: {e}");
-        }
-        return file_settings;
-    }
-
-    AppSettings::load_from_file()
-}
-
-fn load_from_db(db: &Database) -> Option<AppSettings> {
-    let raw = db.get_setting(APP_SETTINGS_KEY).ok()??;
-    match serde_json::from_str::<AppSettings>(&raw) {
-        Ok(mut settings) => {
-            settings.normalize_paths();
-            Some(settings)
-        }
-        Err(err) => {
-            log::warn!("解析数据库中 app_settings 失败: {err}");
-            None
-        }
-    }
-}
-
-fn save_to_db(db: &Database, settings: &AppSettings) -> Result<(), AppError> {
-    let mut normalized = settings.clone();
-    normalized.normalize_paths();
-    let json =
-        serde_json::to_string(&normalized).map_err(|e| AppError::JsonSerialize { source: e })?;
-    db.set_setting(APP_SETTINGS_KEY, &json)
+    SETTINGS_STORE.get_or_init(|| RwLock::new(AppSettings::load_from_file()))
 }
 
 fn resolve_override_path(raw: &str) -> PathBuf {
@@ -232,21 +190,17 @@ pub fn get_settings() -> AppSettings {
 
 pub fn update_settings(mut new_settings: AppSettings) -> Result<(), AppError> {
     new_settings.normalize_paths();
-    if let Some(db) = SETTINGS_DB.get() {
-        save_to_db(db, &new_settings)?;
-    } else {
-        save_settings_file(&new_settings)?;
-    }
+    save_settings_file(&new_settings)?;
 
     let mut guard = settings_store().write().expect("写入设置锁失败");
     *guard = new_settings;
     Ok(())
 }
 
-/// 从数据库重新加载设置到内存缓存
-/// 用于导入配置等场景，确保内存缓存与数据库同步
+/// 从文件重新加载设置到内存缓存
+/// 用于导入配置等场景，确保内存缓存与文件同步
 pub fn reload_settings() -> Result<(), AppError> {
-    let fresh_settings = load_initial_settings();
+    let fresh_settings = AppSettings::load_from_file();
     let mut guard = settings_store().write().expect("写入设置锁失败");
     *guard = fresh_settings;
     Ok(())
@@ -274,4 +228,35 @@ pub fn get_gemini_override_dir() -> Option<PathBuf> {
         .gemini_config_dir
         .as_ref()
         .map(|p| resolve_override_path(p))
+}
+
+// ===== 当前供应商管理函数 =====
+
+/// 获取指定应用类型的当前供应商 ID（从本地 settings 读取）
+///
+/// 这是设备级别的设置，不随数据库同步。
+/// 如果本地没有设置，调用者应该 fallback 到数据库的 `is_current` 字段。
+pub fn get_current_provider(app_type: &AppType) -> Option<String> {
+    let settings = settings_store().read().ok()?;
+    match app_type {
+        AppType::Claude => settings.current_provider_claude.clone(),
+        AppType::Codex => settings.current_provider_codex.clone(),
+        AppType::Gemini => settings.current_provider_gemini.clone(),
+    }
+}
+
+/// 设置指定应用类型的当前供应商 ID（保存到本地 settings）
+///
+/// 这是设备级别的设置，不随数据库同步。
+/// 传入 `None` 会清除当前供应商设置。
+pub fn set_current_provider(app_type: &AppType, id: Option<&str>) -> Result<(), AppError> {
+    let mut settings = get_settings();
+
+    match app_type {
+        AppType::Claude => settings.current_provider_claude = id.map(|s| s.to_string()),
+        AppType::Codex => settings.current_provider_codex = id.map(|s| s.to_string()),
+        AppType::Gemini => settings.current_provider_gemini = id.map(|s| s.to_string()),
+    }
+
+    update_settings(settings)
 }
