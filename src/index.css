@@ -1,8 +1,7 @@
-/* 引入 Tailwind v4 内建样式与工具 */
-@import "tailwindcss";
-
-/* 覆盖 Tailwind v4 默认的 dark 变体为"类选择器"模式 */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Tailwind CSS v3 指令 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* shadcn/ui 主题变量 - 蓝色主题 */
 @layer base {
