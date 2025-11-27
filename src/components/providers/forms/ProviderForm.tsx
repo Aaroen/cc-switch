@@ -698,6 +698,8 @@ export function ProviderForm({
         name: preset.name,
         websiteUrl: preset.websiteUrl ?? "",
         settingsConfig: JSON.stringify({ auth, config }, null, 2),
+        icon: preset.icon ?? "",
+        iconColor: preset.iconColor ?? "",
       });
       return;
     }
@@ -715,6 +717,8 @@ export function ProviderForm({
         name: preset.name,
         websiteUrl: preset.websiteUrl ?? "",
         settingsConfig: JSON.stringify(preset.settingsConfig, null, 2),
+        icon: preset.icon ?? "",
+        iconColor: preset.iconColor ?? "",
       });
       return;
     }
@@ -729,6 +733,8 @@ export function ProviderForm({
       name: preset.name,
       websiteUrl: preset.websiteUrl ?? "",
       settingsConfig: JSON.stringify(config, null, 2),
+      icon: preset.icon ?? "",
+      iconColor: preset.iconColor ?? "",
     });
   };
 

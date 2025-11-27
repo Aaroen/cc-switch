@@ -76,6 +76,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "deepseek",
+    iconColor: "#1E88E5",
   },
   {
     name: "Zhipu GLM",
@@ -94,6 +96,8 @@ export const providerPresets: ProviderPreset[] = [
     category: "cn_official",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "zhipu", // 促销信息 i18n key
+    icon: "zhipu",
+    iconColor: "#0F62FE",
   },
   {
     name: "Z.ai GLM",
@@ -112,6 +116,8 @@ export const providerPresets: ProviderPreset[] = [
     category: "cn_official",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "zhipu", // 促销信息 i18n key
+    icon: "zhipu",
+    iconColor: "#0F62FE",
   },
   {
     name: "Qwen Coder",
@@ -128,6 +134,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "qwen",
+    iconColor: "#FF6A00",
   },
   {
     name: "Kimi k2",
@@ -143,6 +151,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "kimi",
+    iconColor: "#6366F1",
   },
   {
     name: "Kimi For Coding",
@@ -158,6 +168,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "kimi",
+    iconColor: "#6366F1",
   },
   {
     name: "ModelScope",
@@ -173,6 +185,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "aggregator",
+    icon: "alibaba",
+    iconColor: "#FF6A00",
   },
   {
     name: "KAT-Coder",
@@ -240,6 +254,8 @@ export const providerPresets: ProviderPreset[] = [
       backgroundColor: "#f64551",
       textColor: "#FFFFFF",
     },
+    icon: "minimax",
+    iconColor: "#FF6B6B",
   },
   {
     name: "DouBaoSeed",
@@ -257,6 +273,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "doubao",
+    iconColor: "#3370FF",
   },
   {
     name: "BaiLing",
@@ -272,6 +290,8 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+    icon: "alibaba",
+    iconColor: "#FF6A00",
   },
   {
     name: "AiHubMix",
@@ -321,5 +341,6 @@ export const providerPresets: ProviderPreset[] = [
     category: "third_party",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "packycode", // 促销信息 i18n key
+    icon: "packycode",
   },
 ];

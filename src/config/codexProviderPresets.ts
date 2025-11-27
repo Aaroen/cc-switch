@@ -20,6 +20,9 @@ export interface CodexProviderPreset {
   endpointCandidates?: string[];
   // 新增：视觉主题配置
   theme?: PresetTheme;
+  // 图标配置
+  icon?: string; // 图标名称
+  iconColor?: string; // 图标颜色
 }
 
 /**
@@ -71,6 +74,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       backgroundColor: "#1F2937", // gray-800
       textColor: "#FFFFFF",
     },
+    icon: "openai",
+    iconColor: "#00A67E",
   },
   {
     name: "Azure OpenAI",
@@ -97,6 +102,8 @@ requires_openai_auth = true`,
       backgroundColor: "#0078D4",
       textColor: "#FFFFFF",
     },
+    icon: "azure",
+    iconColor: "#0078D4",
   },
   {
     name: "AiHubMix",
@@ -142,5 +149,6 @@ requires_openai_auth = true`,
     ],
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "packycode", // 促销信息 i18n key
+    icon: "packycode",
   },
 ];

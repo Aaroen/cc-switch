@@ -25,6 +25,9 @@ export interface GeminiProviderPreset {
   partnerPromotionKey?: string;
   endpointCandidates?: string[];
   theme?: GeminiPresetTheme;
+  // 图标配置
+  icon?: string; // 图标名称
+  iconColor?: string; // 图标颜色
 }
 
 export const geminiProviderPresets: GeminiProviderPreset[] = [
@@ -43,6 +46,8 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
       backgroundColor: "#4285F4",
       textColor: "#FFFFFF",
     },
+    icon: "gemini",
+    iconColor: "#4285F4",
   },
   {
     name: "PackyCode",
@@ -64,6 +69,7 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
       "https://api-slb.packyapi.com",
       "https://www.packyapi.com",
     ],
+    icon: "packycode",
   },
   {
     name: "自定义",
