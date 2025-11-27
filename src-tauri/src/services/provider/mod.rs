@@ -22,7 +22,7 @@ use crate::settings::CustomEndpoint;
 use crate::store::AppState;
 
 // Re-export sub-module functions for external access
-pub use live::{import_default_config, read_live_settings, sync_current_from_db};
+pub use live::{import_default_config, read_live_settings, sync_current_to_live};
 
 // Internal re-exports (pub(crate))
 pub(crate) use live::write_live_snapshot;
@@ -94,7 +94,15 @@ impl ProviderService {
     }
 
     /// Get current provider ID
+    ///
+    /// 优先从本地 settings 读取当前供应商，fallback 到数据库的 is_current 字段。
+    /// 这确保了云同步场景下多设备可以独立选择供应商。
     pub fn current(state: &AppState, app_type: AppType) -> Result<String, AppError> {
+        // 优先从本地 settings 读取
+        if let Some(id) = crate::settings::get_current_provider(&app_type) {
+            return Ok(id);
+        }
+        // Fallback 到数据库的默认供应商
         state
             .db
             .get_current_provider(app_type.as_str())
@@ -167,9 +175,9 @@ impl ProviderService {
     /// Switch flow:
     /// 1. Validate target provider exists
     /// 2. **Backfill mechanism**: Backfill current live config to current provider, protect user manual modifications
-    /// 3. Set new current provider
-    /// 4. Write target provider config to live files
-    /// 5. Gemini additional security flag handling
+    /// 3. Update local settings current_provider_xxx (device-level)
+    /// 4. Update database is_current (as default for new devices)
+    /// 5. Write target provider config to live files
     /// 6. Sync MCP configuration
     pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<(), AppError> {
         // Check if provider exists
@@ -179,7 +187,11 @@ impl ProviderService {
             .ok_or_else(|| AppError::Message(format!("供应商 {id} 不存在")))?;
 
         // Backfill: Backfill current live config to current provider
-        if let Some(current_id) = state.db.get_current_provider(app_type.as_str())? {
+        // Use local settings first, fallback to database
+        let current_id = crate::settings::get_current_provider(&app_type)
+            .or_else(|| state.db.get_current_provider(app_type.as_str()).ok().flatten());
+
+        if let Some(current_id) = current_id {
             if current_id != id {
                 // Only backfill when switching to a different provider
                 if let Ok(live_config) = read_live_settings(app_type.clone()) {
@@ -192,7 +204,10 @@ impl ProviderService {
             }
         }
 
-        // Set current
+        // Update local settings (device-level, takes priority)
+        crate::settings::set_current_provider(&app_type, Some(id))?;
+
+        // Update database is_current (as default for new devices)
         state.db.set_current_provider(app_type.as_str(), id)?;
 
         // Sync to live (write_gemini_live handles security flag internally for Gemini)
@@ -204,9 +219,9 @@ impl ProviderService {
         Ok(())
     }
 
-    /// Sync current provider from database to live configuration (re-export)
-    pub fn sync_current_from_db(state: &AppState) -> Result<(), AppError> {
-        sync_current_from_db(state)
+    /// Sync current provider to live configuration (re-export)
+    pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
+        sync_current_to_live(state)
     }
 
     /// Import default configuration from live files (re-export)

@@ -843,21 +843,22 @@ fn sync_gemini_packycode_sets_security_selected_type() {
     ConfigService::sync_current_providers_to_live(&mut config)
         .expect("syncing gemini live should succeed");
 
-    let settings_path = home.join(".cc-switch").join("settings.json");
+    // security field is written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    let gemini_settings = home.join(".gemini").join("settings.json");
     assert!(
-        settings_path.exists(),
-        "settings.json should exist at {}",
-        settings_path.display()
+        gemini_settings.exists(),
+        "Gemini settings.json should exist at {}",
+        gemini_settings.display()
     );
 
-    let raw = std::fs::read_to_string(&settings_path).expect("read settings.json");
-    let value: serde_json::Value = serde_json::from_str(&raw).expect("parse settings.json");
+    let raw = std::fs::read_to_string(&gemini_settings).expect("read gemini settings.json");
+    let value: serde_json::Value = serde_json::from_str(&raw).expect("parse gemini settings.json");
     assert_eq!(
         value
             .pointer("/security/auth/selectedType")
             .and_then(|v| v.as_str()),
         Some("gemini-api-key"),
-        "syncing PackyCode Gemini should enforce security.auth.selectedType"
+        "syncing PackyCode Gemini should enforce security.auth.selectedType in Gemini settings"
     );
 }
 
@@ -893,22 +894,7 @@ fn sync_gemini_google_official_sets_oauth_security() {
     ConfigService::sync_current_providers_to_live(&mut config)
         .expect("syncing google official gemini should succeed");
 
-    let cc_settings = home.join(".cc-switch").join("settings.json");
-    assert!(
-        cc_settings.exists(),
-        "app settings should exist at {}",
-        cc_settings.display()
-    );
-    let cc_raw = std::fs::read_to_string(&cc_settings).expect("read .cc-switch settings");
-    let cc_value: serde_json::Value = serde_json::from_str(&cc_raw).expect("parse app settings");
-    assert_eq!(
-        cc_value
-            .pointer("/security/auth/selectedType")
-            .and_then(|v| v.as_str()),
-        Some("oauth-personal"),
-        "syncing Google official should set oauth-personal in app settings"
-    );
-
+    // security field is written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
     let gemini_settings = home.join(".gemini").join("settings.json");
     assert!(
         gemini_settings.exists(),
@@ -923,7 +909,7 @@ fn sync_gemini_google_official_sets_oauth_security() {
             .pointer("/security/auth/selectedType")
             .and_then(|v| v.as_str()),
         Some("oauth-personal"),
-        "Gemini settings should also record oauth-personal"
+        "Gemini settings should record oauth-personal for Google Official"
     );
 }
 

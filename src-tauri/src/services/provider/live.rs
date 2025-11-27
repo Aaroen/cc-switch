@@ -124,13 +124,28 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
     Ok(())
 }
 
-/// Sync current provider from database to live configuration
-pub fn sync_current_from_db(state: &AppState) -> Result<(), AppError> {
+/// Sync current provider to live configuration
+///
+/// 从本地 settings 获取当前供应商 ID，fallback 到数据库的 is_current 字段。
+/// 这确保了云同步场景下多设备可以独立选择供应商。
+pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
     for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-        let current_id = match state.db.get_current_provider(app_type.as_str())? {
+        // Priority: local settings > database is_current
+        let current_id = match crate::settings::get_current_provider(&app_type) {
             Some(id) => id,
-            None => continue,
+            None => {
+                // Fallback: get from database and update local settings
+                match state.db.get_current_provider(app_type.as_str())? {
+                    Some(id) => {
+                        // Update local settings for future use
+                        let _ = crate::settings::set_current_provider(&app_type, Some(&id));
+                        id
+                    }
+                    None => continue,
+                }
+            }
         };
+
         let providers = state.db.get_all_providers(app_type.as_str())?;
         if let Some(provider) = providers.get(&current_id) {
             write_live_snapshot(&app_type, provider)?;

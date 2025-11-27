@@ -44,7 +44,7 @@ pub async fn import_config_from_file(
 
         // 导入后同步当前供应商到各自的 live 配置
         let app_state = AppState::new(db_for_state);
-        if let Err(err) = ProviderService::sync_current_from_db(&app_state) {
+        if let Err(err) = ProviderService::sync_current_to_live(&app_state) {
             log::warn!("导入后同步 live 配置失败: {err}");
         }
 
@@ -69,7 +69,7 @@ pub async fn sync_current_providers_live(state: State<'_, AppState>) -> Result<V
     let db = state.db.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let app_state = AppState::new(db);
-        ProviderService::sync_current_from_db(&app_state)?;
+        ProviderService::sync_current_to_live(&app_state)?;
         Ok::<_, AppError>(json!({
             "success": true,
             "message": "Live configuration synchronized"

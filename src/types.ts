@@ -97,33 +97,35 @@ export interface ProviderMeta {
 }
 
 // 应用设置类型（用于设置对话框与 Tauri API）
+// 存储在本地 ~/.cc-switch/settings.json，不随数据库同步
 export interface Settings {
+  // ===== 设备级 UI 设置 =====
   // 是否在系统托盘（macOS 菜单栏）显示图标
   showInTray: boolean;
   // 点击关闭按钮时是否最小化到托盘而不是关闭应用
   minimizeToTrayOnClose: boolean;
   // 启用 Claude 插件联动（写入 ~/.claude/config.json 的 primaryApiKey）
   enableClaudePluginIntegration?: boolean;
+  // 是否开机自启
+  launchOnStartup?: boolean;
+  // 首选语言（可选，默认中文）
+  language?: "en" | "zh";
+
+  // ===== 设备级目录覆盖 =====
   // 覆盖 Claude Code 配置目录（可选）
   claudeConfigDir?: string;
   // 覆盖 Codex 配置目录（可选）
   codexConfigDir?: string;
   // 覆盖 Gemini 配置目录（可选）
   geminiConfigDir?: string;
-  // 首选语言（可选，默认中文）
-  language?: "en" | "zh";
-  // 是否开机自启
-  launchOnStartup?: boolean;
-  // Claude 自定义端点列表
-  customEndpointsClaude?: Record<string, CustomEndpoint>;
-  // Codex 自定义端点列表
-  customEndpointsCodex?: Record<string, CustomEndpoint>;
-  // 安全设置（兼容未来扩展）
-  security?: {
-    auth?: {
-      selectedType?: string;
-    };
-  };
+
+  // ===== 当前供应商 ID（设备级）=====
+  // 当前 Claude 供应商 ID（优先于数据库 is_current）
+  currentProviderClaude?: string;
+  // 当前 Codex 供应商 ID（优先于数据库 is_current）
+  currentProviderCodex?: string;
+  // 当前 Gemini 供应商 ID（优先于数据库 is_current）
+  currentProviderGemini?: string;
 }
 
 // MCP 服务器连接参数（宽松：允许扩展字段）
