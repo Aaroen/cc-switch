@@ -833,5 +833,11 @@
     "colorLabel": "Icon Color",
     "selectIcon": "Select Icon",
     "preview": "Preview"
+  },
+  "migration": {
+    "success": "Configuration migrated successfully"
+  },
+  "agents": {
+    "title": "Agents"
   }
 }

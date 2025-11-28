@@ -109,8 +109,8 @@ vi.mock("@/components/ConfirmDialog", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/settings/SettingsDialog", () => ({
-  SettingsDialog: ({ open, onOpenChange, onImportSuccess }: any) =>
+vi.mock("@/components/settings/SettingsPage", () => ({
+  SettingsPage: ({ open, onOpenChange, onImportSuccess }: any) =>
     open ? (
       <div data-testid="settings-dialog">
         <button onClick={() => onImportSuccess?.()}>

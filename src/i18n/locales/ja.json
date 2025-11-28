@@ -833,5 +833,11 @@
     "colorLabel": "アイコンカラー",
     "selectIcon": "アイコンを選択",
     "preview": "プレビュー"
+  },
+  "migration": {
+    "success": "設定の移行が完了しました"
+  },
+  "agents": {
+    "title": "エージェント"
   }
 }

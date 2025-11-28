@@ -833,5 +833,11 @@
     "colorLabel": "图标颜色",
     "selectIcon": "选择图标",
     "preview": "预览"
+  },
+  "migration": {
+    "success": "配置迁移成功"
+  },
+  "agents": {
+    "title": "智能体"
   }
 }

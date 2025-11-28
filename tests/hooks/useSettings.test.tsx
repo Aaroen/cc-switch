@@ -8,6 +8,7 @@ const useSettingsQueryMock = vi.fn();
 const setAppConfigDirOverrideMock = vi.fn();
 const applyClaudePluginConfigMock = vi.fn();
 const syncCurrentProvidersLiveMock = vi.fn();
+const updateTrayMenuMock = vi.fn();
 const toastErrorMock = vi.fn();
 const toastSuccessMock = vi.fn();
 
@@ -51,6 +52,9 @@ vi.mock("@/lib/api", () => ({
       applyClaudePluginConfigMock(...args),
     syncCurrentProvidersLive: (...args: unknown[]) =>
       syncCurrentProvidersLiveMock(...args),
+  },
+  providersApi: {
+    updateTrayMenu: (...args: unknown[]) => updateTrayMenuMock(...args),
   },
 }));
 

@@ -391,7 +391,7 @@ function App() {
                     t("prompts.title", { appName: t(`apps.${activeApp}`) })}
                   {currentView === "skills" && t("skills.title")}
                   {currentView === "mcp" && t("mcp.unifiedPanel.title")}
-                  {currentView === "agents" && "Agents"}
+                  {currentView === "agents" && t("agents.title")}
                 </h1>
               </div>
             ) : (
@@ -512,7 +512,7 @@ function App() {
                     size="sm"
                     onClick={() => setCurrentView("mcp")}
                     className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                    title="MCP"
+                    title={t("mcp.title")}
                   >
                     <Server className="h-4 w-4" />
                   </Button>

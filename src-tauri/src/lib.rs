@@ -71,7 +71,8 @@ impl TrayTexts {
             },
             "ja" => Self {
                 show_main: "メインウィンドウを開く",
-                no_provider_hint: "  (プロバイダーがまだありません。メイン画面から追加してください)",
+                no_provider_hint:
+                    "  (プロバイダーがまだありません。メイン画面から追加してください)",
                 quit: "終了",
             },
             _ => Self {
@@ -521,7 +522,8 @@ pub fn run() {
 
                                 unsafe {
                                     use objc2::msg_send;
-                                    let _: () = msg_send![&*ns_window, setBackgroundColor: &*bg_color];
+                                    let _: () =
+                                        msg_send![&*ns_window, setBackgroundColor: &*bg_color];
                                 }
                             } else {
                                 log::warn!("Failed to retain NSWindow reference");

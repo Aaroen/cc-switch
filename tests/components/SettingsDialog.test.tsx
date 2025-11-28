@@ -35,6 +35,7 @@ interface SettingsMock {
   resetDirectory: ReturnType<typeof vi.fn>;
   resetAppConfigDir: ReturnType<typeof vi.fn>;
   saveSettings: ReturnType<typeof vi.fn>;
+  autoSaveSettings: ReturnType<typeof vi.fn>;
   resetSettings: ReturnType<typeof vi.fn>;
   acknowledgeRestart: ReturnType<typeof vi.fn>;
 }
@@ -66,6 +67,7 @@ const createSettingsMock = (overrides: Partial<SettingsMock> = {}) => {
     resetDirectory: vi.fn(),
     resetAppConfigDir: vi.fn(),
     saveSettings: vi.fn().mockResolvedValue({ requiresRestart: false }),
+    autoSaveSettings: vi.fn().mockResolvedValue({ requiresRestart: false }),
     resetSettings: vi.fn(),
     acknowledgeRestart: vi.fn(),
   };
@@ -247,7 +249,8 @@ describe("SettingsPage Component", () => {
     render(<SettingsPage open={true} onOpenChange={vi.fn()} />);
 
     expect(screen.queryByText("language:zh")).not.toBeInTheDocument();
-    expect(screen.getByText("settings.title")).toBeInTheDocument();
+    // 加载状态下显示 spinner 而不是表单内容
+    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
   });
 
   it("should reset import/export status when dialog transitions to open", () => {
@@ -264,6 +267,7 @@ describe("SettingsPage Component", () => {
 
   it("should render general and advanced tabs and trigger child callbacks", () => {
     const onOpenChange = vi.fn();
+    // 设置 selectedFile 后，按钮显示 settings.import（可执行导入）
     importExportMock = createImportExportMock({
       selectedFile: "/tmp/config.json",
     });
@@ -284,21 +288,20 @@ describe("SettingsPage Component", () => {
     });
 
     fireEvent.click(screen.getByText("settings.tabAdvanced"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "settings.selectConfigFile" }),
-    );
 
-    expect(importExportMock.selectImportFile).toHaveBeenCalled();
+    // 有文件时，点击导入按钮执行 importConfig
+    fireEvent.click(
+      screen.getByRole("button", { name: /settings\.import/ }),
+    );
+    expect(importExportMock.importConfig).toHaveBeenCalled();
 
     fireEvent.click(
       screen.getByRole("button", { name: "settings.exportConfig" }),
     );
     expect(importExportMock.exportConfig).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "settings.import" }));
-    expect(importExportMock.importConfig).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "common.clear" }));
+    // 清除选择按钮
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     expect(importExportMock.clearSelection).toHaveBeenCalled();
   });
 
@@ -330,7 +333,9 @@ describe("SettingsPage Component", () => {
 
     render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
 
-    fireEvent.click(screen.getByText("common.save"));
+    // 保存按钮在 advanced tab 中
+    fireEvent.click(screen.getByText("settings.tabAdvanced"));
+    fireEvent.click(screen.getByRole("button", { name: /common\.save/ }));
 
     await waitFor(() => {
       expect(settingsMock.saveSettings).toHaveBeenCalledTimes(1);
@@ -339,20 +344,6 @@ describe("SettingsPage Component", () => {
       expect(settingsMock.acknowledgeRestart).toHaveBeenCalledTimes(1);
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
-  });
-
-  it("should reset settings and close dialog when clicking cancel", () => {
-    const onOpenChange = vi.fn();
-
-    render(<SettingsPage open={true} onOpenChange={onOpenChange} />);
-
-    fireEvent.click(screen.getByText("common.cancel"));
-
-    expect(settingsMock.resetSettings).toHaveBeenCalledTimes(1);
-    expect(settingsMock.acknowledgeRestart).toHaveBeenCalledTimes(1);
-    expect(importExportMock.clearSelection).toHaveBeenCalledTimes(1);
-    expect(importExportMock.resetStatus).toHaveBeenCalledTimes(2);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("should show restart prompt and allow immediate restart after save", async () => {

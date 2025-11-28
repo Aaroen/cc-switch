@@ -264,7 +264,7 @@ describe("SettingsPage integration", () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
     const cancelMessage = toastErrorMock.mock.calls.at(-1)?.[0] as string;
     expect(cancelMessage).toMatch(
-      /settings\.selectFileFailed|选择保存位置失败/,
+      /settings\.selectFileFailed|请选择.*保存路径/,
     );
 
     toastErrorMock.mockClear();
