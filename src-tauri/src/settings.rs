@@ -118,7 +118,7 @@ impl AppSettings {
             .language
             .as_ref()
             .map(|s| s.trim())
-            .filter(|s| matches!(*s, "en" | "zh"))
+            .filter(|s| matches!(*s, "en" | "zh" | "ja"))
             .map(|s| s.to_string());
     }
 

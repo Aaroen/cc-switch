@@ -69,6 +69,11 @@ impl TrayTexts {
                 no_provider_hint: "  (No providers yet, please add them from the main window)",
                 quit: "Quit",
             },
+            "ja" => Self {
+                show_main: "メインウィンドウを開く",
+                no_provider_hint: "  (プロバイダーがまだありません。メイン画面から追加してください)",
+                quit: "終了",
+            },
             _ => Self {
                 show_main: "打开主界面",
                 no_provider_hint: "  (无供应商，请在主界面添加)",

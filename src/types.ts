@@ -109,7 +109,7 @@ export interface Settings {
   // 是否开机自启
   launchOnStartup?: boolean;
   // 首选语言（可选，默认中文）
-  language?: "en" | "zh";
+  language?: "en" | "zh" | "ja";
 
   // ===== 设备级目录覆盖 =====
   // 覆盖 Claude Code 配置目录（可选）

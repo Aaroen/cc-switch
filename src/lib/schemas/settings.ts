@@ -13,7 +13,7 @@ export const settingsSchema = z.object({
   minimizeToTrayOnClose: z.boolean(),
   enableClaudePluginIntegration: z.boolean().optional(),
   launchOnStartup: z.boolean().optional(),
-  language: z.enum(["en", "zh"]).optional(),
+  language: z.enum(["en", "zh", "ja"]).optional(),
 
   // 设备级目录覆盖
   claudeConfigDir: directorySchema.nullable().optional(),
