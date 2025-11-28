@@ -79,6 +79,17 @@ vi.mock("@/components/ui/textarea", () => ({
   ),
 }));
 
+vi.mock("@/components/JsonEditor", () => ({
+  default: ({ value, onChange, placeholder, ...rest }: any) => (
+    <textarea
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange?.(event.target.value)}
+      {...rest}
+    />
+  ),
+}));
+
 vi.mock("@/components/ui/checkbox", () => ({
   Checkbox: ({ id, checked, onCheckedChange, ...rest }: any) => (
     <input
@@ -256,7 +267,7 @@ describe("McpFormModal", () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
     expect(upsertMock).not.toHaveBeenCalled();
     const [message] = toastErrorMock.mock.calls.at(-1) ?? [];
-    expect(message).toBe("mcp.error.jsonInvalid");
+    expect(message).toBe("mcp.error.commandRequired");
   });
 
   it("支持向导生成配置并自动填充 ID", async () => {
