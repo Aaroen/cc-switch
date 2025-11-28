@@ -184,9 +184,7 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: "ZhipuAI/GLM-4.6",
       },
     },
-    category: "aggregator",
-    icon: "alibaba",
-    iconColor: "#FF6A00",
+    category: "aggregator"
   },
   {
     name: "KAT-Coder",
@@ -249,7 +247,33 @@ export const providerPresets: ProviderPreset[] = [
     },
     category: "cn_official",
     isPartner: true,
-    partnerPromotionKey: "minimax",
+    partnerPromotionKey: "minimax_cn",
+    theme: {
+      backgroundColor: "#f64551",
+      textColor: "#FFFFFF",
+    },
+    icon: "minimax",
+    iconColor: "#FF6B6B",
+  },
+  {
+    name: "MiniMax en",
+    websiteUrl: "https://platform.minimaxi.io",
+    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
+    settingsConfig: {
+      env: {
+        ANTHROPIC_BASE_URL: "https://api.minimaxi.io/anthropic",
+        ANTHROPIC_AUTH_TOKEN: "",
+        API_TIMEOUT_MS: "3000000",
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+        ANTHROPIC_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2",
+      },
+    },
+    category: "cn_official",
+    isPartner: true,
+    partnerPromotionKey: "minimax_en",
     theme: {
       backgroundColor: "#f64551",
       textColor: "#FFFFFF",
@@ -289,9 +313,7 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: "Ling-1T",
       },
     },
-    category: "cn_official",
-    icon: "alibaba",
-    iconColor: "#FF6A00",
+    category: "cn_official"
   },
   {
     name: "AiHubMix",
