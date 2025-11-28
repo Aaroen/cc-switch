@@ -176,6 +176,12 @@ impl PromptService {
         state: &AppState,
         app: AppType,
     ) -> Result<usize, AppError> {
+        // 幂等性保护：该应用已有提示词则跳过
+        let existing = state.db.get_prompts(app.as_str())?;
+        if !existing.is_empty() {
+            return Ok(0);
+        }
+
         let file_path = prompt_file_path(&app)?;
 
         // 检查文件是否存在

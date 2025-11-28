@@ -86,7 +86,7 @@ pub fn switch_provider(
         .map_err(|e| e.to_string())
 }
 
-fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result<(), AppError> {
+fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result<bool, AppError> {
     ProviderService::import_default_config(state, app_type)
 }
 
@@ -94,7 +94,7 @@ fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result
 pub fn import_default_config_test_hook(
     state: &AppState,
     app_type: AppType,
-) -> Result<(), AppError> {
+) -> Result<bool, AppError> {
     import_default_config_internal(state, app_type)
 }
 
@@ -102,9 +102,7 @@ pub fn import_default_config_test_hook(
 #[tauri::command]
 pub fn import_default_config(state: State<'_, AppState>, app: String) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    import_default_config_internal(&state, app_type)
-        .map(|_| true)
-        .map_err(Into::into)
+    import_default_config_internal(&state, app_type).map_err(Into::into)
 }
 
 /// 查询供应商用量

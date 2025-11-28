@@ -115,28 +115,21 @@ impl Database {
         Ok(db)
     }
 
-    /// 检查数据库是否为空（需要首次导入）
-    ///
-    /// 通过检查是否有任何 MCP 服务器、提示词、Skills 仓库或供应商来判断
-    pub fn is_empty_for_first_import(&self) -> Result<bool, AppError> {
+    /// 检查 MCP 服务器表是否为空
+    pub fn is_mcp_table_empty(&self) -> Result<bool, AppError> {
         let conn = lock_conn!(self.conn);
-
-        let mcp_count: i64 = conn
+        let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM mcp_servers", [], |row| row.get(0))
             .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(count == 0)
+    }
 
-        let prompt_count: i64 = conn
+    /// 检查提示词表是否为空
+    pub fn is_prompts_table_empty(&self) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM prompts", [], |row| row.get(0))
             .map_err(|e| AppError::Database(e.to_string()))?;
-
-        let skill_repo_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM skill_repos", [], |row| row.get(0))
-            .map_err(|e| AppError::Database(e.to_string()))?;
-
-        let provider_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM providers", [], |row| row.get(0))
-            .map_err(|e| AppError::Database(e.to_string()))?;
-
-        Ok(mcp_count == 0 && prompt_count == 0 && skill_repo_count == 0 && provider_count == 0)
+        Ok(count == 0)
     }
 }

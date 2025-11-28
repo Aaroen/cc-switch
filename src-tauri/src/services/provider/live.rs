@@ -215,11 +215,14 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
 }
 
 /// Import default configuration from live files
-pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<(), AppError> {
+///
+/// Returns `Ok(true)` if a provider was actually imported,
+/// `Ok(false)` if skipped (providers already exist for this app).
+pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool, AppError> {
     {
         let providers = state.db.get_all_providers(app_type.as_str())?;
         if !providers.is_empty() {
-            return Ok(());
+            return Ok(false); // 已有供应商，跳过
         }
     }
 
@@ -298,7 +301,7 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<(), 
         .db
         .set_current_provider(app_type.as_str(), &provider.id)?;
 
-    Ok(())
+    Ok(true) // 真正导入了
 }
 
 /// Write Gemini live configuration with authentication handling

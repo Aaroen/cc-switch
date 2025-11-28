@@ -225,7 +225,9 @@ impl ProviderService {
     }
 
     /// Import default configuration from live files (re-export)
-    pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<(), AppError> {
+    ///
+    /// Returns `Ok(true)` if imported, `Ok(false)` if skipped.
+    pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool, AppError> {
         import_default_config(state, app_type)
     }
 
