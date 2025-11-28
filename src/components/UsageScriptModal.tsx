@@ -349,14 +349,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       footer={footer}
     >
       <div className="glass rounded-xl border border-white/10 px-6 py-4 flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-sm font-medium leading-none text-foreground">
-            {t("usageScript.enableUsageQuery")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t("usageScript.autoQueryIntervalHint")}
-          </p>
-        </div>
+        <p className="text-base font-medium leading-none text-foreground">
+          {t("usageScript.enableUsageQuery")}
+        </p>
         <Switch
           checked={script.enabled}
           onCheckedChange={(checked) =>
@@ -370,14 +365,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         <div className="space-y-6">
           {/* 预设模板选择 */}
           <div className="space-y-4 glass rounded-xl border border-white/10 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-base font-medium">
-                {t("usageScript.presetTemplate")}
-              </Label>
-              <span className="text-xs text-muted-foreground">
-                {t("usageScript.variablesHint")}
-              </span>
-            </div>
+            <Label className="text-base font-medium">
+              {t("usageScript.presetTemplate")}
+            </Label>
             <div className="flex gap-2 flex-wrap">
               {Object.keys(PRESET_TEMPLATES).map((name) => {
                 const isSelected = selectedTemplate === name;
@@ -447,7 +437,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="usage-base-url">Base URL</Label>
+                        <Label htmlFor="usage-base-url">
+                          {t("usageScript.baseUrl")}
+                        </Label>
                         <Input
                           id="usage-base-url"
                           type="text"
@@ -466,7 +458,9 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {selectedTemplate === TEMPLATE_KEYS.NEW_API && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="usage-newapi-base-url">Base URL</Label>
+                        <Label htmlFor="usage-newapi-base-url">
+                          {t("usageScript.baseUrl")}
+                        </Label>
                         <Input
                           id="usage-newapi-base-url"
                           type="text"
@@ -545,141 +539,36 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 </div>
               </div>
             )}
-          </div>
 
-          {/* 脚本配置 */}
-          <div className="space-y-4 glass rounded-xl border border-white/10 p-6">
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-medium text-foreground">
-                {t("usageScript.scriptConfig")}
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                {t("usageScript.variablesHint")}
-              </p>
-            </div>
-
-            <div className="grid gap-4">
+            {/* 通用配置（始终显示） */}
+            <div className="grid gap-4 md:grid-cols-2 pt-4 border-t border-white/10">
+              {/* 超时时间 */}
               <div className="space-y-2">
-                <Label htmlFor="usage-request-url">
-                  {t("usageScript.requestUrl")}
+                <Label htmlFor="usage-timeout">
+                  {t("usageScript.timeoutSeconds")}
                 </Label>
                 <Input
-                  id="usage-request-url"
-                  type="text"
-                  value={script.request?.url || ""}
-                  onChange={(e) => {
+                  id="usage-timeout"
+                  type="number"
+                  min={0}
+                  value={script.timeout ?? 10}
+                  onChange={(e) =>
                     setScript({
                       ...script,
-                      request: { ...script.request, url: e.target.value },
-                    });
-                  }}
-                  placeholder={t("usageScript.requestUrlPlaceholder")}
+                      timeout: validateTimeout(e.target.value),
+                    })
+                  }
+                  onBlur={(e) =>
+                    setScript({
+                      ...script,
+                      timeout: validateTimeout(e.target.value),
+                    })
+                  }
                   className="border-white/10"
                 />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="usage-method">
-                    {t("usageScript.method")}
-                  </Label>
-                  <Input
-                    id="usage-method"
-                    type="text"
-                    value={script.request?.method || "GET"}
-                    onChange={(e) => {
-                      setScript({
-                        ...script,
-                        request: {
-                          ...script.request,
-                          method: e.target.value.toUpperCase(),
-                        },
-                      });
-                    }}
-                    placeholder="GET / POST"
-                    className="border-white/10"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="usage-timeout">
-                    {t("usageScript.timeoutSeconds")}
-                  </Label>
-                  <Input
-                    id="usage-timeout"
-                    type="number"
-                    min={0}
-                    value={script.timeout ?? 10}
-                    onChange={(e) =>
-                      setScript({
-                        ...script,
-                        timeout: validateTimeout(e.target.value),
-                      })
-                    }
-                    onBlur={(e) =>
-                      setScript({
-                        ...script,
-                        timeout: validateTimeout(e.target.value),
-                      })
-                    }
-                    className="border-white/10"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="usage-headers">
-                  {t("usageScript.headers")}
-                </Label>
-                <JsonEditor
-                  id="usage-headers"
-                  value={
-                    script.request?.headers
-                      ? JSON.stringify(script.request.headers, null, 2)
-                      : "{}"
-                  }
-                  onChange={(value) => {
-                    try {
-                      const parsed = JSON.parse(value || "{}");
-                      setScript({
-                        ...script,
-                        request: { ...script.request, headers: parsed },
-                      });
-                    } catch (error) {
-                      console.error("Invalid headers JSON", error);
-                    }
-                  }}
-                  height={180}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="usage-body">{t("usageScript.body")}</Label>
-                <JsonEditor
-                  id="usage-body"
-                  value={
-                    script.request?.body
-                      ? JSON.stringify(script.request.body, null, 2)
-                      : "{}"
-                  }
-                  onChange={(value) => {
-                    try {
-                      const parsed =
-                        value?.trim() === "" ? undefined : JSON.parse(value);
-                      setScript({
-                        ...script,
-                        request: { ...script.request, body: parsed },
-                      });
-                    } catch (error) {
-                      toast.error(
-                        t("usageScript.invalidJson") || "Body 必须是合法 JSON",
-                      );
-                    }
-                  }}
-                  height={220}
-                />
-              </div>
-
+              {/* 自动查询间隔 */}
               <div className="space-y-2">
                 <Label htmlFor="usage-interval">
                   {t("usageScript.autoIntervalMinutes")}
@@ -708,9 +597,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   }
                   className="border-white/10"
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t("usageScript.autoQueryIntervalHint")}
-                </p>
               </div>
             </div>
           </div>
