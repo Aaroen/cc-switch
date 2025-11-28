@@ -7,7 +7,14 @@ fn get_auto_launch() -> Result<AutoLaunch, AppError> {
     let app_path =
         std::env::current_exe().map_err(|e| AppError::Message(format!("无法获取应用路径: {e}")))?;
 
+    // Windows 平台的 AutoLaunch::new 只接受 3 个参数
+    // Linux/macOS 平台需要 4 个参数（包含 hidden 参数）
+    #[cfg(target_os = "windows")]
+    let auto_launch = AutoLaunch::new(app_name, &app_path.to_string_lossy(), &[] as &[&str]);
+
+    #[cfg(not(target_os = "windows"))]
     let auto_launch = AutoLaunch::new(app_name, &app_path.to_string_lossy(), false, &[] as &[&str]);
+
     Ok(auto_launch)
 }
 
