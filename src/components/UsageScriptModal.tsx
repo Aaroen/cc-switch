@@ -176,10 +176,16 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
     () => {
       const existingScript = provider.meta?.usage_script;
+      // 检测 NEW_API 模板（有 accessToken 或 userId）
       if (existingScript?.accessToken || existingScript?.userId) {
         return TEMPLATE_KEYS.NEW_API;
       }
-      return null;
+      // 检测 GENERAL 模板（有 apiKey 或 baseUrl）
+      if (existingScript?.apiKey || existingScript?.baseUrl) {
+        return TEMPLATE_KEYS.GENERAL;
+      }
+      // 新配置或无凭证：默认使用 GENERAL（与默认代码模板一致）
+      return TEMPLATE_KEYS.GENERAL;
     },
   );
 
