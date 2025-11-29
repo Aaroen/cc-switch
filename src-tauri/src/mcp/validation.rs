@@ -50,49 +50,6 @@ pub fn validate_server_spec(spec: &Value) -> Result<(), AppError> {
     Ok(())
 }
 
-#[allow(dead_code)] // v3.7.0: 旧的验证逻辑，保留用于未来可能的迁移
-pub fn validate_mcp_entry(entry: &Value) -> Result<(), AppError> {
-    let obj = entry
-        .as_object()
-        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目必须为 JSON 对象".into()))?;
-
-    let server = obj
-        .get("server")
-        .ok_or_else(|| AppError::McpValidation("MCP 服务器条目缺少 server 字段".into()))?;
-    validate_server_spec(server)?;
-
-    for key in ["name", "description", "homepage", "docs"] {
-        if let Some(val) = obj.get(key) {
-            if !val.is_string() {
-                return Err(AppError::McpValidation(format!(
-                    "MCP 服务器 {key} 必须为字符串"
-                )));
-            }
-        }
-    }
-
-    if let Some(tags) = obj.get("tags") {
-        let arr = tags
-            .as_array()
-            .ok_or_else(|| AppError::McpValidation("MCP 服务器 tags 必须为字符串数组".into()))?;
-        if !arr.iter().all(|item| item.is_string()) {
-            return Err(AppError::McpValidation(
-                "MCP 服务器 tags 必须为字符串数组".into(),
-            ));
-        }
-    }
-
-    if let Some(enabled) = obj.get("enabled") {
-        if !enabled.is_boolean() {
-            return Err(AppError::McpValidation(
-                "MCP 服务器 enabled 必须为布尔值".into(),
-            ));
-        }
-    }
-
-    Ok(())
-}
-
 /// 从 MCP 条目中提取服务器规范
 pub fn extract_server_spec(entry: &Value) -> Result<Value, AppError> {
     let obj = entry

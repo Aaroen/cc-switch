@@ -38,16 +38,6 @@ fn write_json_value(path: &Path, value: &Value) -> Result<(), AppError> {
     atomic_write(path, json.as_bytes())
 }
 
-/// 读取 Gemini MCP 配置文件的完整 JSON 文本
-pub fn read_mcp_json() -> Result<Option<String>, AppError> {
-    let path = user_config_path();
-    if !path.exists() {
-        return Ok(None);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?;
-    Ok(Some(content))
-}
-
 /// 读取 Gemini settings.json 中的 mcpServers 映射
 ///
 /// 执行反向格式转换以保持与统一 MCP 结构的兼容性：
