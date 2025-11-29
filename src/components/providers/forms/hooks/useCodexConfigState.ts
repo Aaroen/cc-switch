@@ -162,7 +162,7 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
   // 处理 Codex Base URL 变化
   const handleCodexBaseUrlChange = useCallback(
     (url: string) => {
-      const sanitized = url.trim().replace(/\/+$/, "");
+      const sanitized = url.trim();
       setCodexBaseUrl(sanitized);
 
       if (!sanitized) {

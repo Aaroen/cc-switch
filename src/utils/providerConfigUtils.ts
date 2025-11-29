@@ -453,7 +453,7 @@ export const setCodexBaseUrl = (
   // 归一化原文本中的引号（既能匹配，也能输出稳定格式）
   const normalizedText = normalizeQuotes(configText);
 
-  const normalizedUrl = trimmed.replace(/\s+/g, "").replace(/\/+$/, "");
+  const normalizedUrl = trimmed.replace(/\s+/g, "");
   const replacementLine = `base_url = "${normalizedUrl}"`;
   const pattern = /base_url\s*=\s*(["'])([^"']+)\1/;
 

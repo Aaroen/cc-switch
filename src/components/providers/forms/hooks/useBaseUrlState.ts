@@ -41,7 +41,7 @@ export function useBaseUrlState({
     try {
       const config = JSON.parse(settingsConfig || "{}");
       const envUrl: unknown = config?.env?.ANTHROPIC_BASE_URL;
-      if (typeof envUrl === "string" && envUrl && envUrl !== baseUrl) {
+      if (typeof envUrl === "string" && envUrl && envUrl.trim() !== baseUrl) {
         setBaseUrl(envUrl.trim());
       }
     } catch {
@@ -73,8 +73,7 @@ export function useBaseUrlState({
     try {
       const config = JSON.parse(settingsConfig || "{}");
       const envUrl: unknown = config?.env?.GOOGLE_GEMINI_BASE_URL;
-      const nextUrl =
-        typeof envUrl === "string" ? envUrl.trim().replace(/\/+$/, "") : "";
+      const nextUrl = typeof envUrl === "string" ? envUrl.trim() : "";
       if (nextUrl !== geminiBaseUrl) {
         setGeminiBaseUrl(nextUrl);
         setBaseUrl(nextUrl); // 也更新 baseUrl 用于 UI
@@ -87,7 +86,7 @@ export function useBaseUrlState({
   // 处理 Claude Base URL 变化
   const handleClaudeBaseUrlChange = useCallback(
     (url: string) => {
-      const sanitized = url.trim().replace(/\/+$/, "");
+      const sanitized = url.trim();
       setBaseUrl(sanitized);
       isUpdatingRef.current = true;
 
@@ -112,7 +111,7 @@ export function useBaseUrlState({
   // 处理 Codex Base URL 变化
   const handleCodexBaseUrlChange = useCallback(
     (url: string) => {
-      const sanitized = url.trim().replace(/\/+$/, "");
+      const sanitized = url.trim();
       setCodexBaseUrl(sanitized);
 
       if (!sanitized || !onCodexConfigChange) {
@@ -136,7 +135,7 @@ export function useBaseUrlState({
   // 处理 Gemini Base URL 变化
   const handleGeminiBaseUrlChange = useCallback(
     (url: string) => {
-      const sanitized = url.trim().replace(/\/+$/, "");
+      const sanitized = url.trim();
       setGeminiBaseUrl(sanitized);
       setBaseUrl(sanitized); // 也更新 baseUrl 用于 UI
       isUpdatingRef.current = true;
