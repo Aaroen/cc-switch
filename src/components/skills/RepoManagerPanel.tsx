@@ -90,7 +90,7 @@ export function RepoManagerPanel({
       onClose={onClose}
     >
       {/* 添加仓库表单 */}
-      <div className="space-y-4 glass rounded-xl p-6 border border-white/10">
+      <div className="space-y-4 glass-card rounded-xl p-6">
         <h3 className="text-base font-semibold text-foreground">
           添加技能仓库
         </h3>
@@ -139,7 +139,7 @@ export function RepoManagerPanel({
           {t("skills.repo.list")}
         </h3>
         {repos.length === 0 ? (
-          <div className="text-center py-12 glass rounded-xl border border-white/10">
+          <div className="text-center py-12 glass-card rounded-xl">
             <p className="text-sm text-muted-foreground">
               {t("skills.repo.empty")}
             </p>
@@ -149,7 +149,7 @@ export function RepoManagerPanel({
             {repos.map((repo) => (
               <div
                 key={`${repo.owner}/${repo.name}`}
-                className="flex items-center justify-between rounded-xl border border-white/10 bg-gray-900/40 px-4 py-3"
+                className="flex items-center justify-between glass-card rounded-xl px-4 py-3"
               >
                 <div>
                   <div className="text-sm font-medium text-foreground">
