@@ -40,11 +40,7 @@ export function ConfirmDialog({
         }
       }}
     >
-      <DialogContent
-        className="max-w-sm"
-        zIndex="alert"
-        overlayClassName="bg-background/80"
-      >
+      <DialogContent className="max-w-sm" zIndex="alert">
         <DialogHeader className="space-y-3 border-b-0 bg-transparent pb-0">
           <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <AlertTriangle className="h-5 w-5 text-destructive" />

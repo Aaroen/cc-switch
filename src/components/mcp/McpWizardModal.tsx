@@ -228,7 +228,6 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
       <DialogContent
         className="max-w-2xl max-h-[90vh] flex flex-col"
         zIndex="alert"
-        overlayClassName="bg-background/80"
       >
         <DialogHeader className="space-y-3 border-b-0 bg-transparent pb-0">
           <DialogTitle className="text-lg font-semibold">
