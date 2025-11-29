@@ -263,19 +263,19 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
                       <SelectContent className="bg-card text-foreground shadow-lg">
                         <SelectItem
                           value="all"
-                          className="text-left pr-3 [&[data-state=checked]>span]:hidden"
+                          className="text-left pr-3 [&[data-state=checked]>span:first-child]:hidden"
                         >
                           {t("skills.filter.all")}
                         </SelectItem>
                         <SelectItem
                           value="installed"
-                          className="text-left pr-3 [&[data-state=checked]>span]:hidden"
+                          className="text-left pr-3 [&[data-state=checked]>span:first-child]:hidden"
                         >
                           {t("skills.filter.installed")}
                         </SelectItem>
                         <SelectItem
                           value="uninstalled"
-                          className="text-left pr-3 [&[data-state=checked]>span]:hidden"
+                          className="text-left pr-3 [&[data-state=checked]>span:first-child]:hidden"
                         >
                           {t("skills.filter.uninstalled")}
                         </SelectItem>
