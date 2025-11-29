@@ -116,9 +116,7 @@ export function ProviderCard({
       className={cn(
         "glass-card relative overflow-hidden rounded-xl p-4 transition-all duration-300",
         "group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] hover:border-primary/50",
-        isCurrent
-          ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-          : "hover:scale-[1.01]",
+        isCurrent ? "glass-card-active" : "hover:scale-[1.01]",
         dragHandleProps?.isDragging &&
           "cursor-grabbing border-primary shadow-lg scale-105 z-10",
       )}
