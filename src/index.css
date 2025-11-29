@@ -71,7 +71,6 @@
 }
 
 /* Glassmorphism Utilities */
-/* Glassmorphism Utilities */
 .glass {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
@@ -131,6 +130,8 @@
 /* 全局基础样式 */
 * {
   box-sizing: border-box;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
 }
 
 html {
@@ -156,16 +157,6 @@ html.dark {
 /* 滚动条样式 - 完全隐藏（支持所有浏览器） */
 ::-webkit-scrollbar {
   display: none;
-}
-
-/* Firefox */
-* {
-  scrollbar-width: none;
-}
-
-/* IE 10+ */
-* {
-  -ms-overflow-style: none;
 }
 
 /* 焦点样式 */
