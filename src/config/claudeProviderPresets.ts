@@ -232,7 +232,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimax.com/subscribe/coding-plan",
+    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
