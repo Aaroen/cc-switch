@@ -525,7 +525,6 @@ impl ProviderService {
             }
         }
     }
-
 }
 
 /// Normalize Claude model keys in a JSON value

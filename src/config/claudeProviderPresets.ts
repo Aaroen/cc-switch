@@ -184,7 +184,7 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: "ZhipuAI/GLM-4.6",
       },
     },
-    category: "aggregator"
+    category: "aggregator",
   },
   {
     name: "KAT-Coder",
@@ -313,7 +313,7 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: "Ling-1T",
       },
     },
-    category: "cn_official"
+    category: "cn_official",
   },
   {
     name: "AiHubMix",
