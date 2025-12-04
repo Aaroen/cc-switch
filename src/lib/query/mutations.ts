@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import type { Provider, Settings } from "@/types";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { generateUUID } from "@/utils/uuid";
 
 export const useAddProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
@@ -13,7 +14,7 @@ export const useAddProviderMutation = (appId: AppId) => {
     mutationFn: async (providerInput: Omit<Provider, "id">) => {
       const newProvider: Provider = {
         ...providerInput,
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         createdAt: Date.now(),
       };
       await providersApi.add(newProvider, appId);
