@@ -74,6 +74,7 @@ function App() {
     switchProvider,
     deleteProvider,
     saveUsageScript,
+    setProxyTarget,
   } = useProviderActions(activeApp);
 
   // 监听来自托盘菜单的切换事件
@@ -313,6 +314,7 @@ function App() {
                   appId={activeApp}
                   isLoading={isLoading}
                   onSwitch={switchProvider}
+                  onSetProxyTarget={setProxyTarget}
                   onEdit={setEditingProvider}
                   onDelete={setConfirmDelete}
                   onDuplicate={handleDuplicateProvider}

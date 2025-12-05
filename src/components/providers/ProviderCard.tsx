@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { ProviderActions } from "@/components/providers/ProviderActions";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import UsageFooter from "@/components/UsageFooter";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface DragHandleProps {
   attributes: DraggableAttributes;
@@ -28,6 +30,10 @@ interface ProviderCardProps {
   onConfigureUsage: (provider: Provider) => void;
   onOpenWebsite: (url: string) => void;
   onDuplicate: (provider: Provider) => void;
+  onTest?: (provider: Provider) => void;
+  isTesting?: boolean;
+  onSetProxyTarget: (provider: Provider) => void;
+  isProxyRunning: boolean;
   dragHandleProps?: DragHandleProps;
 }
 
@@ -76,6 +82,10 @@ export function ProviderCard({
   onConfigureUsage,
   onOpenWebsite,
   onDuplicate,
+  onTest,
+  isTesting,
+  onSetProxyTarget,
+  isProxyRunning,
   dragHandleProps,
 }: ProviderCardProps) {
   const { t } = useTranslation();
@@ -164,14 +174,44 @@ export function ProviderCard({
                     ⭐
                   </span>
                 )}
-              <span
-                className={cn(
-                  "rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500 dark:text-green-400 transition-opacity duration-200",
-                  isCurrent ? "opacity-100" : "opacity-0 pointer-events-none",
-                )}
-              >
-                {t("provider.currentlyUsing")}
-              </span>
+
+              {/* 代理目标开关 - 仅在代理服务运行时显示 */}
+              {isProxyRunning && (
+                <div
+                  className="flex items-center gap-2 ml-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Switch
+                    id={`proxy-target-switch-${provider.id}`}
+                    checked={provider.isProxyTarget || false}
+                    onCheckedChange={(checked) => {
+                      if (checked && !provider.isProxyTarget) {
+                        onSetProxyTarget(provider);
+                      }
+                    }}
+                    disabled={provider.isProxyTarget}
+                    className="scale-75 data-[state=checked]:bg-purple-500"
+                  />
+                  {provider.isProxyTarget && (
+                    <Label
+                      htmlFor={`proxy-target-switch-${provider.id}`}
+                      className="text-xs font-medium text-purple-500 dark:text-purple-400 cursor-pointer"
+                    >
+                      {t("provider.proxyTarget", { defaultValue: "代理目标" })}
+                    </Label>
+                  )}
+                  {!provider.isProxyTarget && (
+                    <Label
+                      htmlFor={`proxy-target-switch-${provider.id}`}
+                      className="text-xs text-muted-foreground cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {t("provider.setAsProxyTarget", {
+                        defaultValue: "设为代理",
+                      })}
+                    </Label>
+                  )}
+                </div>
+              )}
             </div>
 
             {displayUrl && (
@@ -208,9 +248,11 @@ export function ProviderCard({
           <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-all duration-200 translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
             <ProviderActions
               isCurrent={isCurrent}
+              isTesting={isTesting}
               onSwitch={() => onSwitch(provider)}
               onEdit={() => onEdit(provider)}
               onDuplicate={() => onDuplicate(provider)}
+              onTest={onTest ? () => onTest(provider) : undefined}
               onConfigureUsage={() => onConfigureUsage(provider)}
               onDelete={() => onDelete(provider)}
             />

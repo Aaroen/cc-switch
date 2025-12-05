@@ -31,11 +31,18 @@ impl Database {
                 icon_color TEXT,
                 meta TEXT NOT NULL DEFAULT '{}',
                 is_current BOOLEAN NOT NULL DEFAULT 0,
+                is_proxy_target BOOLEAN NOT NULL DEFAULT 0,
                 PRIMARY KEY (id, app_type)
             )",
             [],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 尝试添加 is_proxy_target 列（如果表已存在但缺少该列）
+        let _ = conn.execute(
+            "ALTER TABLE providers ADD COLUMN is_proxy_target BOOLEAN NOT NULL DEFAULT 0",
+            [],
+        );
 
         // 2. Provider Endpoints 表
         conn.execute(
@@ -120,6 +127,215 @@ impl Database {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
+        // 8. Proxy Config 表 (代理服务器配置)
+        // 代理配置表（单例）
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS proxy_config (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0,
+                listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
+                listen_port INTEGER NOT NULL DEFAULT 5000,
+                max_retries INTEGER NOT NULL DEFAULT 3,
+                request_timeout INTEGER NOT NULL DEFAULT 300,
+                enable_logging INTEGER NOT NULL DEFAULT 1,
+                target_app TEXT NOT NULL DEFAULT 'claude',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 尝试添加 target_app 列（如果表已存在但缺少该列）
+        // 忽略 "duplicate column name" 错误
+        let _ = conn.execute(
+            "ALTER TABLE proxy_config ADD COLUMN target_app TEXT NOT NULL DEFAULT 'claude'",
+            [],
+        );
+
+        // 9. Provider Health 表 (Provider健康状态)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS provider_health (
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                is_healthy INTEGER NOT NULL DEFAULT 1,
+                consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                last_success_at TEXT,
+                last_failure_at TEXT,
+                last_error TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (provider_id, app_type),
+                FOREIGN KEY (provider_id, app_type) REFERENCES providers(id, app_type) ON DELETE CASCADE
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 10. Proxy Usage 表 (代理使用统计，可选)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS proxy_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                request_tokens INTEGER,
+                response_tokens INTEGER,
+                status_code INTEGER NOT NULL,
+                latency_ms INTEGER NOT NULL,
+                error TEXT,
+                timestamp TEXT NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 为 proxy_usage 创建索引
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_proxy_usage_timestamp
+             ON proxy_usage(timestamp)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_proxy_usage_provider
+             ON proxy_usage(provider_id, app_type)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 11. Proxy Request Logs 表 (详细请求日志)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS proxy_request_logs (
+                request_id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+                input_cost_usd TEXT NOT NULL DEFAULT '0',
+                output_cost_usd TEXT NOT NULL DEFAULT '0',
+                cache_read_cost_usd TEXT NOT NULL DEFAULT '0',
+                cache_creation_cost_usd TEXT NOT NULL DEFAULT '0',
+                total_cost_usd TEXT NOT NULL DEFAULT '0',
+                latency_ms INTEGER NOT NULL,
+                first_token_ms INTEGER,
+                duration_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                error_message TEXT,
+                session_id TEXT,
+                provider_type TEXT,
+                is_streaming INTEGER NOT NULL DEFAULT 0,
+                cost_multiplier TEXT NOT NULL DEFAULT '1.0',
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_request_logs_provider
+             ON proxy_request_logs(provider_id, app_type)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_request_logs_created_at
+             ON proxy_request_logs(created_at)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_request_logs_model
+             ON proxy_request_logs(model)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_request_logs_session
+             ON proxy_request_logs(session_id)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_request_logs_status
+             ON proxy_request_logs(status_code)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 12. Model Pricing 表 (模型定价)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_pricing (
+                model_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                input_cost_per_million TEXT NOT NULL,
+                output_cost_per_million TEXT NOT NULL,
+                cache_read_cost_per_million TEXT NOT NULL DEFAULT '0',
+                cache_creation_cost_per_million TEXT NOT NULL DEFAULT '0'
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 13. Usage Daily Stats 表 (每日聚合统计)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS usage_daily_stats (
+                date TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_cost_usd TEXT NOT NULL DEFAULT '0',
+                success_count INTEGER NOT NULL DEFAULT 0,
+                error_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (date, provider_id, app_type, model)
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        // 14. Model Test Logs 表 (模型测试日志，独立于代理使用统计)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_test_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                provider_name TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                success INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                response_time_ms INTEGER,
+                http_status INTEGER,
+                tested_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_model_test_logs_provider
+             ON model_test_logs(provider_id, app_type)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_model_test_logs_tested_at
+             ON model_test_logs(tested_at DESC)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
         Ok(())
     }
 
@@ -150,7 +366,12 @@ impl Database {
                     0 => {
                         log::info!("检测到 user_version=0，迁移到 1（补齐缺失列并设置版本）");
                         Self::migrate_v0_to_v1(conn)?;
-                        Self::set_user_version(conn, SCHEMA_VERSION)?;
+                        Self::set_user_version(conn, 1)?;
+                    }
+                    1 => {
+                        log::info!("迁移数据库从 v1 到 v2（添加使用统计表和完整字段）");
+                        Self::migrate_v1_to_v2(conn)?;
+                        Self::set_user_version(conn, 2)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -234,6 +455,250 @@ impl Database {
         Self::add_column_if_missing(conn, "skill_repos", "enabled", "BOOLEAN NOT NULL DEFAULT 1")?;
         // 注意: skills_path 字段已被移除，因为现在支持全仓库递归扫描
 
+        Ok(())
+    }
+
+    /// v1 -> v2 迁移：添加使用统计表和完整字段
+    fn migrate_v1_to_v2(conn: &Connection) -> Result<(), AppError> {
+        // providers 表字段
+        Self::add_column_if_missing(
+            conn,
+            "providers",
+            "cost_multiplier",
+            "TEXT NOT NULL DEFAULT '1.0'",
+        )?;
+        Self::add_column_if_missing(conn, "providers", "limit_daily_usd", "TEXT")?;
+        Self::add_column_if_missing(conn, "providers", "limit_monthly_usd", "TEXT")?;
+        Self::add_column_if_missing(conn, "providers", "provider_type", "TEXT")?;
+
+        // proxy_request_logs 表（包含所有字段）
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS proxy_request_logs (
+                request_id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+                input_cost_usd TEXT NOT NULL DEFAULT '0',
+                output_cost_usd TEXT NOT NULL DEFAULT '0',
+                cache_read_cost_usd TEXT NOT NULL DEFAULT '0',
+                cache_creation_cost_usd TEXT NOT NULL DEFAULT '0',
+                total_cost_usd TEXT NOT NULL DEFAULT '0',
+                latency_ms INTEGER NOT NULL,
+                first_token_ms INTEGER,
+                duration_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                error_message TEXT,
+                session_id TEXT,
+                provider_type TEXT,
+                is_streaming INTEGER NOT NULL DEFAULT 0,
+                cost_multiplier TEXT NOT NULL DEFAULT '1.0',
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
+        // 为已存在的表添加新字段
+        Self::add_column_if_missing(conn, "proxy_request_logs", "provider_type", "TEXT")?;
+        Self::add_column_if_missing(
+            conn,
+            "proxy_request_logs",
+            "is_streaming",
+            "INTEGER NOT NULL DEFAULT 0",
+        )?;
+        Self::add_column_if_missing(
+            conn,
+            "proxy_request_logs",
+            "cost_multiplier",
+            "TEXT NOT NULL DEFAULT '1.0'",
+        )?;
+        Self::add_column_if_missing(conn, "proxy_request_logs", "first_token_ms", "INTEGER")?;
+        Self::add_column_if_missing(conn, "proxy_request_logs", "duration_ms", "INTEGER")?;
+
+        // model_pricing 表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_pricing (
+                model_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                input_cost_per_million TEXT NOT NULL,
+                output_cost_per_million TEXT NOT NULL,
+                cache_read_cost_per_million TEXT NOT NULL DEFAULT '0',
+                cache_creation_cost_per_million TEXT NOT NULL DEFAULT '0'
+            )",
+            [],
+        )?;
+
+        // usage_daily_stats 表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS usage_daily_stats (
+                date TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                app_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_cost_usd TEXT NOT NULL DEFAULT '0',
+                success_count INTEGER NOT NULL DEFAULT 0,
+                error_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (date, provider_id, app_type, model)
+            )",
+            [],
+        )?;
+
+        // 清空并重新插入模型定价
+        conn.execute("DELETE FROM model_pricing", [])
+            .map_err(|e| AppError::Database(format!("清空模型定价失败: {e}")))?;
+        Self::seed_model_pricing(conn)?;
+
+        Ok(())
+    }
+
+    /// 插入默认模型定价数据
+    /// 格式: (model_id, display_name, input, output, cache_read, cache_creation)
+    /// 注意: model_id 使用短横线格式（如 claude-haiku-4-5），与 API 返回的模型名称标准化后一致
+    fn seed_model_pricing(conn: &Connection) -> Result<(), AppError> {
+        let pricing_data = [
+            // Claude 4.5 系列
+            (
+                "claude-opus-4-5",
+                "Claude Opus 4.5",
+                "5",
+                "25",
+                "0.50",
+                "6.25",
+            ),
+            (
+                "claude-sonnet-4-5",
+                "Claude Sonnet 4.5",
+                "3",
+                "15",
+                "0.30",
+                "3.75",
+            ),
+            (
+                "claude-haiku-4-5",
+                "Claude Haiku 4.5",
+                "1",
+                "5",
+                "0.10",
+                "1.25",
+            ),
+            // Claude 4.1 系列
+            (
+                "claude-opus-4-1",
+                "Claude Opus 4.1",
+                "15",
+                "75",
+                "1.50",
+                "18.75",
+            ),
+            (
+                "claude-sonnet-4-1",
+                "Claude Sonnet 4.1",
+                "3",
+                "15",
+                "0.30",
+                "3.75",
+            ),
+            // Claude 3.7 系列
+            (
+                "claude-sonnet-3-7",
+                "Claude Sonnet 3.7",
+                "3",
+                "15",
+                "0.30",
+                "3.75",
+            ),
+            // Claude 3.5 系列
+            (
+                "claude-sonnet-3-5",
+                "Claude Sonnet 3.5",
+                "3",
+                "15",
+                "0.30",
+                "3.75",
+            ),
+            (
+                "claude-haiku-3-5",
+                "Claude Haiku 3.5",
+                "0.80",
+                "4",
+                "0.08",
+                "1",
+            ),
+            // GPT-5 系列（model_id 使用短横线格式）
+            ("gpt-5", "GPT-5", "1.25", "10", "0.125", "0"),
+            ("gpt-5-1", "GPT-5.1", "1.25", "10", "0.125", "0"),
+            ("gpt-5-codex", "GPT-5 Codex", "1.25", "10", "0.125", "0"),
+            ("gpt-5-1-codex", "GPT-5.1 Codex", "1.25", "10", "0.125", "0"),
+            // Gemini 3 系列
+            (
+                "gemini-3-pro-preview",
+                "Gemini 3 Pro Preview",
+                "2",
+                "12",
+                "0",
+                "0",
+            ),
+            // Gemini 2.5 系列（model_id 使用短横线格式）
+            (
+                "gemini-2-5-pro",
+                "Gemini 2.5 Pro",
+                "1.25",
+                "10",
+                "0.125",
+                "0",
+            ),
+            (
+                "gemini-2-5-flash",
+                "Gemini 2.5 Flash",
+                "0.3",
+                "2.5",
+                "0.03",
+                "0",
+            ),
+        ];
+
+        for (model_id, display_name, input, output, cache_read, cache_creation) in pricing_data {
+            conn.execute(
+                "INSERT OR REPLACE INTO model_pricing (
+                    model_id, display_name, input_cost_per_million, output_cost_per_million,
+                    cache_read_cost_per_million, cache_creation_cost_per_million
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![
+                    model_id,
+                    display_name,
+                    input,
+                    output,
+                    cache_read,
+                    cache_creation
+                ],
+            )
+            .map_err(|e| AppError::Database(format!("插入模型定价失败: {e}")))?;
+        }
+
+        log::info!("已插入 {} 条默认模型定价数据", pricing_data.len());
+        Ok(())
+    }
+
+    /// 确保模型定价表具备默认数据
+    pub fn ensure_model_pricing_seeded(&self) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        Self::ensure_model_pricing_seeded_on_conn(&conn)
+    }
+
+    fn ensure_model_pricing_seeded_on_conn(conn: &Connection) -> Result<(), AppError> {
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM model_pricing", [], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("统计模型定价数据失败: {e}")))?;
+
+        if count == 0 {
+            Self::seed_model_pricing(conn)?;
+        }
         Ok(())
     }
 
