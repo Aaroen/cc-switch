@@ -635,11 +635,8 @@ pub fn run() {
             commands::restore_env_backup,
             // Skill management
             commands::get_skills,
-            commands::get_skills_for_app,
             commands::install_skill,
-            commands::install_skill_for_app,
             commands::uninstall_skill,
-            commands::uninstall_skill_for_app,
             commands::get_skill_repos,
             commands::add_skill_repo,
             commands::remove_skill_repo,
@@ -653,6 +650,14 @@ pub fn run() {
             commands::get_proxy_config,
             commands::update_proxy_config,
             commands::is_proxy_running,
+            // Proxy failover commands
+            commands::get_proxy_targets,
+            commands::set_proxy_target,
+            commands::get_provider_health,
+            commands::reset_circuit_breaker,
+            commands::get_circuit_breaker_config,
+            commands::update_circuit_breaker_config,
+            commands::get_circuit_breaker_stats,
             // Usage statistics
             commands::get_usage_summary,
             commands::get_usage_trends,
@@ -671,6 +676,7 @@ pub fn run() {
             commands::save_model_test_config,
             commands::get_model_test_logs,
             commands::cleanup_model_test_logs,
+            commands::get_tool_versions,
         ]);
 
     let app = builder

@@ -19,17 +19,11 @@ import { RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { SkillCard } from "./SkillCard";
 import { RepoManagerPanel } from "./RepoManagerPanel";
-import {
-  skillsApi,
-  type Skill,
-  type SkillRepo,
-  type AppType,
-} from "@/lib/api/skills";
+import { skillsApi, type Skill, type SkillRepo } from "@/lib/api/skills";
 import { formatSkillError } from "@/lib/errors/skillErrorParser";
 
 interface SkillsPageProps {
   onClose?: () => void;
-  initialApp?: AppType;
 }
 
 export interface SkillsPageHandle {
@@ -38,7 +32,7 @@ export interface SkillsPageHandle {
 }
 
 export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
-  ({ onClose: _onClose, initialApp = "claude" }, ref) => {
+  ({ onClose: _onClose }, ref) => {
     const { t } = useTranslation();
     const [skills, setSkills] = useState<Skill[]>([]);
     const [repos, setRepos] = useState<SkillRepo[]>([]);
@@ -48,13 +42,11 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
     const [filterStatus, setFilterStatus] = useState<
       "all" | "installed" | "uninstalled"
     >("all");
-    // 使用 initialApp，不允许切换
-    const selectedApp = initialApp;
 
     const loadSkills = async (afterLoad?: (data: Skill[]) => void) => {
       try {
         setLoading(true);
-        const data = await skillsApi.getAll(selectedApp);
+        const data = await skillsApi.getAll();
         setSkills(data);
         if (afterLoad) {
           afterLoad(data);
@@ -92,7 +84,6 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
 
     useEffect(() => {
       Promise.all([loadSkills(), loadRepos()]);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -102,7 +93,7 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
 
     const handleInstall = async (directory: string) => {
       try {
-        await skillsApi.install(directory, selectedApp);
+        await skillsApi.install(directory);
         toast.success(t("skills.installSuccess", { name: directory }));
         await loadSkills();
       } catch (error) {
@@ -131,7 +122,7 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
 
     const handleUninstall = async (directory: string) => {
       try {
-        await skillsApi.uninstall(directory, selectedApp);
+        await skillsApi.uninstall(directory);
         toast.success(t("skills.uninstallSuccess", { name: directory }));
         await loadSkills();
       } catch (error) {
