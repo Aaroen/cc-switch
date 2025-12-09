@@ -120,8 +120,8 @@ pub async fn get_tool_versions() -> Result<Vec<ToolVersion>, String> {
         // 2. 获取远程最新版本
         let latest_version = match tool {
             "claude" => fetch_npm_latest_version(&client, "@anthropic-ai/claude-code").await,
-            "codex" => fetch_github_latest_release(&client, "openai/openai-python").await,
-            "gemini" => fetch_npm_latest_version(&client, "@google/gemini-cli").await, // 修正：使用 npm 官方包 @google/gemini-cli
+            "codex" => fetch_npm_latest_version(&client, "@openai/codex").await,
+            "gemini" => fetch_npm_latest_version(&client, "@google/gemini-cli").await,
             _ => None,
         };
 
@@ -134,24 +134,6 @@ pub async fn get_tool_versions() -> Result<Vec<ToolVersion>, String> {
     }
 
     Ok(results)
-}
-
-/// Helper function to fetch latest version from GitHub Release
-async fn fetch_github_latest_release(client: &reqwest::Client, repo: &str) -> Option<String> {
-    let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    // GitHub API 需要 user-agent
-    match client.get(&url).send().await {
-        Ok(resp) => {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                json.get("tag_name")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
-    }
 }
 
 /// Helper function to fetch latest version from npm registry
