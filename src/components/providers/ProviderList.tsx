@@ -5,7 +5,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useMemo } from "react";
 import type { CSSProperties } from "react";
 import type { Provider } from "@/types";
 import type { AppId } from "@/lib/api";
@@ -52,27 +51,6 @@ export function ProviderList({
 
   // 模型测试
   const { testProvider, isTesting } = useModelTest(appId);
-
-  // 计算代理目标的实际优先级映射 (P1, P2, P3...)
-  const proxyPriorityMap = useMemo(() => {
-    // 获取所有启用代理目标的供应商
-    const proxyTargets = sortedProviders.filter((p) => p.isProxyTarget);
-
-    // 按 sortIndex 排序
-    const sortedTargets = proxyTargets.sort((a, b) => {
-      const indexA = a.sortIndex ?? Number.MAX_SAFE_INTEGER;
-      const indexB = b.sortIndex ?? Number.MAX_SAFE_INTEGER;
-      return indexA - indexB;
-    });
-
-    // 创建优先级映射
-    const map = new Map<string, number>();
-    sortedTargets.forEach((provider, index) => {
-      map.set(provider.id, index + 1); // P1, P2, P3...
-    });
-
-    return map;
-  }, [sortedProviders]);
 
   const handleTest = (provider: Provider) => {
     testProvider(provider.id, provider.name);
@@ -125,8 +103,6 @@ export function ProviderList({
               isTesting={isTesting(provider.id)}
               isProxyRunning={isProxyRunning}
               isProxyTakeover={isProxyTakeover}
-              proxyPriority={proxyPriorityMap.get(provider.id)}
-              allProviders={sortedProviders}
             />
           ))}
         </div>
@@ -149,8 +125,6 @@ interface SortableProviderCardProps {
   isTesting: boolean;
   isProxyRunning: boolean;
   isProxyTakeover: boolean;
-  proxyPriority?: number; // 代理目标的实际优先级 (1, 2, 3...)
-  allProviders?: Provider[]; // 所有供应商列表
 }
 
 function SortableProviderCard({
@@ -167,8 +141,6 @@ function SortableProviderCard({
   isTesting,
   isProxyRunning,
   isProxyTakeover,
-  proxyPriority,
-  allProviders,
 }: SortableProviderCardProps) {
   const {
     setNodeRef,
@@ -202,8 +174,6 @@ function SortableProviderCard({
         isTesting={isTesting}
         isProxyRunning={isProxyRunning}
         isProxyTakeover={isProxyTakeover}
-        proxyPriority={proxyPriority}
-        allProviders={allProviders}
         dragHandleProps={{
           attributes,
           listeners,

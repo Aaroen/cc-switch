@@ -11,13 +11,10 @@ import { cn } from "@/lib/utils";
 import { ProviderActions } from "@/components/providers/ProviderActions";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import UsageFooter from "@/components/UsageFooter";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
 import {
   useProviderHealth,
   useResetCircuitBreaker,
-  useSetProxyTarget,
 } from "@/lib/query/failover";
 import { toast } from "sonner";
 
@@ -41,8 +38,6 @@ interface ProviderCardProps {
   isTesting?: boolean;
   isProxyRunning: boolean;
   isProxyTakeover?: boolean; // 代理接管模式（Live配置已被接管，切换为热切换）
-  proxyPriority?: number; // 代理目标的实际优先级 (1, 2, 3...)
-  allProviders?: Provider[]; // 所有供应商列表，用于计算开启后的优先级
   dragHandleProps?: DragHandleProps;
 }
 
@@ -95,8 +90,6 @@ export function ProviderCard({
   isTesting,
   isProxyRunning,
   isProxyTakeover = false,
-  proxyPriority,
-  allProviders,
   dragHandleProps,
 }: ProviderCardProps) {
   const { t } = useTranslation();
@@ -104,76 +97,8 @@ export function ProviderCard({
   // 获取供应商健康状态
   const { data: health } = useProviderHealth(provider.id, appId);
 
-  // 设置代理目标
-  const setProxyTargetMutation = useSetProxyTarget();
-
   // 重置熔断器
   const resetCircuitBreaker = useResetCircuitBreaker();
-
-  const handleSetProxyTarget = async (enabled: boolean) => {
-    try {
-      await setProxyTargetMutation.mutateAsync({
-        providerId: provider.id,
-        appType: appId,
-        enabled,
-      });
-
-      // 计算实际优先级（开启时）
-      let actualPriority: number | undefined;
-      if (enabled && allProviders) {
-        // 模拟开启后的状态：获取所有将要启用代理的 providers
-        const futureProxyTargets = allProviders.filter((p) => {
-          // 包括：已经是代理目标的 或 当前要开启的这个
-          if (p.id === provider.id) return true;
-          return p.isProxyTarget;
-        });
-
-        // 按 sortIndex 排序
-        const sortedTargets = futureProxyTargets.sort((a, b) => {
-          const indexA = a.sortIndex ?? Number.MAX_SAFE_INTEGER;
-          const indexB = b.sortIndex ?? Number.MAX_SAFE_INTEGER;
-          return indexA - indexB;
-        });
-
-        // 找到当前 provider 的位置
-        const position = sortedTargets.findIndex((p) => p.id === provider.id);
-        actualPriority = position >= 0 ? position + 1 : undefined;
-      }
-
-      const message = enabled
-        ? actualPriority
-          ? t("provider.proxyTargetEnabled", {
-              defaultValue: `已启用代理目标（优先级：P${actualPriority}）`,
-            })
-          : t("provider.proxyTargetEnabled", {
-              defaultValue: "已启用代理目标",
-            })
-        : t("provider.proxyTargetDisabled", {
-            defaultValue: "已禁用代理目标",
-          });
-
-      const description = enabled
-        ? t("provider.proxyTargetEnabledDesc", {
-            defaultValue: "下次请求将按优先级自动选择此供应商",
-          })
-        : t("provider.proxyTargetDisabledDesc", {
-            defaultValue: "后续请求将使用其他可用供应商",
-          });
-
-      toast.success(message, {
-        description,
-        duration: 4000,
-      });
-    } catch (error) {
-      toast.error(
-        t("provider.setProxyTargetFailed", {
-          defaultValue: "操作失败",
-        }) +
-          ": " +
-          String(error),
-      );
-    }
-  };
 
   const handleResetCircuitBreaker = async () => {
     try {
@@ -277,25 +202,10 @@ export function ProviderCard({
               </h3>
 
               {/* 健康状态徽章和优先级 */}
-              {isProxyRunning && (
-                <div className="flex items-center gap-1.5">
-                  {/* 健康徽章：代理目标启用时始终显示，没有健康数据时默认为正常(0失败) */}
-                  {(provider.isProxyTarget || health) && (
-                    <ProviderHealthBadge
-                      consecutiveFailures={health?.consecutive_failures ?? 0}
-                      isProxyTarget={provider.isProxyTarget ?? false}
-                    />
-                  )}
-                  {/* 优先级：仅在代理目标启用时显示 */}
-                  {provider.isProxyTarget && proxyPriority && (
-                    <span
-                      className="text-xs text-muted-foreground"
-                      title={`代理队列优先级：第${proxyPriority}位`}
-                    >
-                      P{proxyPriority}
-                    </span>
-                  )}
-                </div>
+              {isProxyRunning && health && (
+                <ProviderHealthBadge
+                  consecutiveFailures={health.consecutive_failures}
+                />
               )}
 
               {provider.category === "third_party" &&
@@ -309,42 +219,6 @@ export function ProviderCard({
                     ⭐
                   </span>
                 )}
-
-              {/* 代理目标开关 - 仅在代理服务运行时显示 */}
-              {isProxyRunning && (
-                <div
-                  className="flex items-center gap-2 ml-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Switch
-                    id={`proxy-target-switch-${provider.id}`}
-                    checked={provider.isProxyTarget || false}
-                    onCheckedChange={(checked) => {
-                      handleSetProxyTarget(checked);
-                    }}
-                    disabled={setProxyTargetMutation.isPending}
-                    className="scale-75 data-[state=checked]:bg-green-500"
-                  />
-                  {provider.isProxyTarget && (
-                    <Label
-                      htmlFor={`proxy-target-switch-${provider.id}`}
-                      className="text-xs font-medium text-green-600 dark:text-green-400 cursor-pointer"
-                    >
-                      {t("provider.proxyTarget", { defaultValue: "代理目标" })}
-                    </Label>
-                  )}
-                  {!provider.isProxyTarget && (
-                    <Label
-                      htmlFor={`proxy-target-switch-${provider.id}`}
-                      className="text-xs text-muted-foreground cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      {t("provider.setAsProxyTarget", {
-                        defaultValue: "设为代理",
-                      })}
-                    </Label>
-                  )}
-                </div>
-              )}
             </div>
 
             {displayUrl && (

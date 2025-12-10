@@ -206,14 +206,17 @@ impl ProviderService {
                 id
             );
 
-            // Update database is_current (proxy server reads this)
+            // Update database is_current
             state.db.set_current_provider(app_type.as_str(), id)?;
+
+            // 同时更新 is_proxy_target（代理路由器使用此字段选择供应商）
+            state.db.set_proxy_target_provider(app_type.as_str(), id)?;
 
             // Update local settings for consistency
             crate::settings::set_current_provider(&app_type, Some(id))?;
 
             // Note: No Live config write, no MCP sync
-            // The proxy server will route requests to the new provider
+            // The proxy server will route requests to the new provider via is_proxy_target
             return Ok(());
         }
 

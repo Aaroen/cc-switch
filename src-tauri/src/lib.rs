@@ -530,7 +530,7 @@ pub fn run() {
                     Ok(config) => {
                         if config.enabled {
                             log::info!("代理服务配置为启用，正在启动...");
-                            match state.proxy_service.start().await {
+                            match state.proxy_service.start_with_takeover().await {
                                 Ok(info) => log::info!(
                                     "代理服务器自动启动成功: {}:{}",
                                     info.address,
