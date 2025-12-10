@@ -648,11 +648,15 @@ pub fn run() {
             commands::get_auto_launch_status,
             // Proxy server management
             commands::start_proxy_server,
+            commands::start_proxy_with_takeover,
             commands::stop_proxy_server,
+            commands::stop_proxy_with_restore,
             commands::get_proxy_status,
             commands::get_proxy_config,
             commands::update_proxy_config,
             commands::is_proxy_running,
+            commands::is_live_takeover_active,
+            commands::switch_proxy_provider,
             // Proxy failover commands
             commands::get_proxy_targets,
             commands::set_proxy_target,

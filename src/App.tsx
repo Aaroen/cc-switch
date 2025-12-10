@@ -33,6 +33,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { UpdateBadge } from "@/components/UpdateBadge";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
+import { ProxyToggle } from "@/components/proxy/ProxyToggle";
 import UsageScriptModal from "@/components/UsageScriptModal";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
@@ -63,7 +64,7 @@ function App() {
     "bg-orange-500 hover:bg-orange-600 dark:bg-orange-500 dark:hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 dark:shadow-orange-500/40 rounded-full w-8 h-8";
 
   // 获取代理服务状态
-  const { isRunning: isProxyRunning } = useProxyStatus();
+  const { isRunning: isProxyRunning, isTakeoverActive } = useProxyStatus();
 
   // 获取供应商列表，当代理服务运行时自动刷新
   const { data, isLoading, refetch } = useProvidersQuery(activeApp, {
@@ -321,6 +322,7 @@ function App() {
                   appId={activeApp}
                   isLoading={isLoading}
                   isProxyRunning={isProxyRunning}
+                  isProxyTakeover={isProxyRunning && isTakeoverActive}
                   onSwitch={switchProvider}
                   onEdit={setEditingProvider}
                   onDelete={setConfirmDelete}
@@ -482,6 +484,8 @@ function App() {
             )}
             {currentView === "providers" && (
               <>
+                <ProxyToggle />
+
                 <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
 
                 <div className="bg-muted p-1 rounded-xl flex items-center gap-1">

@@ -18,8 +18,11 @@ export interface AutoFailoverConfigPanelProps {
 
 export function AutoFailoverConfigPanel({
   enabled,
-  onEnabledChange,
+  onEnabledChange: _onEnabledChange,
 }: AutoFailoverConfigPanelProps) {
+  // Note: onEnabledChange is currently unused but kept in the interface
+  // for potential future use by parent components
+  void _onEnabledChange;
   const { t } = useTranslation();
   const { data: config, isLoading, error } = useCircuitBreakerConfig();
   const updateConfig = useUpdateCircuitBreakerConfig();
@@ -262,7 +265,7 @@ export function AutoFailoverConfigPanel({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={updateConfig.isPending || !formData.enabled}
+            disabled={updateConfig.isPending || !enabled}
           >
             {updateConfig.isPending ? (
               <>

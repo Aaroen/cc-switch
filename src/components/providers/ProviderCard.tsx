@@ -40,6 +40,7 @@ interface ProviderCardProps {
   onTest?: (provider: Provider) => void;
   isTesting?: boolean;
   isProxyRunning: boolean;
+  isProxyTakeover?: boolean; // 代理接管模式（Live配置已被接管，切换为热切换）
   proxyPriority?: number; // 代理目标的实际优先级 (1, 2, 3...)
   allProviders?: Provider[]; // 所有供应商列表，用于计算开启后的优先级
   dragHandleProps?: DragHandleProps;
@@ -93,6 +94,7 @@ export function ProviderCard({
   onTest,
   isTesting,
   isProxyRunning,
+  isProxyTakeover = false,
   proxyPriority,
   allProviders,
   dragHandleProps,
@@ -231,7 +233,12 @@ export function ProviderCard({
       className={cn(
         "relative overflow-hidden rounded-xl border border-border p-4 transition-all duration-300",
         "bg-card text-card-foreground group hover:border-border-active",
-        isCurrent ? "border-primary/50 shadow-sm" : "hover:shadow-sm",
+        // 代理接管模式下当前供应商使用绿色边框
+        isProxyTakeover && isCurrent
+          ? "border-emerald-500/60 shadow-sm shadow-emerald-500/10"
+          : isCurrent
+            ? "border-primary/50 shadow-sm"
+            : "hover:shadow-sm",
         dragHandleProps?.isDragging &&
           "cursor-grabbing border-primary shadow-lg scale-105 z-10",
       )}
