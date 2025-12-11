@@ -5,6 +5,7 @@
 use crate::app_config::AppType;
 use crate::config::{get_claude_settings_path, read_json_file, write_json_file};
 use crate::database::Database;
+use crate::provider::Provider;
 use crate::proxy::server::ProxyServer;
 use crate::proxy::types::*;
 use serde_json::{json, Value};
@@ -432,6 +433,49 @@ impl ProxyService {
             .is_live_takeover_active()
             .await
             .map_err(|e| format!("检查接管状态失败: {e}"))
+    }
+
+    /// 从供应商配置更新 Live 备份（用于代理模式下的热切换）
+    ///
+    /// 与 backup_live_configs() 不同，此方法从供应商的 settings_config 生成备份，
+    /// 而不是从 Live 文件读取（因为 Live 文件已被代理接管）。
+    pub async fn update_live_backup_from_provider(
+        &self,
+        app_type: &str,
+        provider: &Provider,
+    ) -> Result<(), String> {
+        let backup_json = match app_type {
+            "claude" => {
+                // Claude: settings_config 直接作为备份
+                serde_json::to_string(&provider.settings_config)
+                    .map_err(|e| format!("序列化 Claude 配置失败: {e}"))?
+            }
+            "codex" => {
+                // Codex: settings_config 包含 {"auth": ..., "config": ...}，直接使用
+                serde_json::to_string(&provider.settings_config)
+                    .map_err(|e| format!("序列化 Codex 配置失败: {e}"))?
+            }
+            "gemini" => {
+                // Gemini: 只提取 env 字段（与原始备份格式一致）
+                // proxy.rs 的 read_gemini_live() 返回 {"env": {...}}
+                let env_backup = if let Some(env) = provider.settings_config.get("env") {
+                    json!({ "env": env })
+                } else {
+                    json!({ "env": {} })
+                };
+                serde_json::to_string(&env_backup)
+                    .map_err(|e| format!("序列化 Gemini 配置失败: {e}"))?
+            }
+            _ => return Err(format!("未知的应用类型: {app_type}")),
+        };
+
+        self.db
+            .save_live_backup(app_type, &backup_json)
+            .await
+            .map_err(|e| format!("更新 {app_type} 备份失败: {e}"))?;
+
+        log::info!("已更新 {app_type} Live 备份（热切换）");
+        Ok(())
     }
 
     /// 代理模式下切换供应商（热切换，不写 Live）
