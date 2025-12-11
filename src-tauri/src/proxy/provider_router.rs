@@ -31,16 +31,15 @@ impl ProviderRouter {
     /// 返回按优先级排序的可用供应商列表
     pub async fn select_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
         // 直接获取当前选中的供应商（基于 is_current 字段）
-        let current_id = self.db.get_current_provider(app_type)?
-            .ok_or_else(|| AppError::Config(
-                format!("No current provider for {}", app_type)
-            ))?;
+        let current_id = self
+            .db
+            .get_current_provider(app_type)?
+            .ok_or_else(|| AppError::Config(format!("No current provider for {}", app_type)))?;
 
         let providers = self.db.get_all_providers(app_type)?;
-        let provider = providers.get(&current_id)
-            .ok_or_else(|| AppError::Config(
-                format!("Current provider {} not found", current_id)
-            ))?
+        let provider = providers
+            .get(&current_id)
+            .ok_or_else(|| AppError::Config(format!("Current provider {} not found", current_id)))?
             .clone();
 
         log::info!(
@@ -59,9 +58,10 @@ impl ProviderRouter {
                 "Provider {} is unavailable (circuit breaker open)",
                 provider.id
             );
-            return Err(AppError::Config(
-                format!("Current provider {} is unavailable (circuit breaker open)", provider.name)
-            ));
+            return Err(AppError::Config(format!(
+                "Current provider {} is unavailable (circuit breaker open)",
+                provider.name
+            )));
         }
 
         // 返回单个供应商（保留 Vec 接口以兼容现有代码）

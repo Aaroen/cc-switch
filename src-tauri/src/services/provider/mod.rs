@@ -223,9 +223,7 @@ impl ProviderService {
         // Normal mode: full switch with Live config write
         // Also clear stale takeover flag if proxy is not running but flag was set
         if is_takeover_flag && !is_proxy_running {
-            log::warn!(
-                "检测到代理接管标志残留（代理已停止），清除标志并执行正常切换"
-            );
+            log::warn!("检测到代理接管标志残留（代理已停止），清除标志并执行正常切换");
             // Clear stale takeover flag
             let _ = futures::executor::block_on(state.db.set_live_takeover_active(false));
         }
