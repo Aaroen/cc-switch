@@ -32,19 +32,6 @@ export function useProxyStatus() {
     queryFn: () => invoke<boolean>("is_live_takeover_active"),
   });
 
-  // 启动服务器（普通模式）
-  const startMutation = useMutation({
-    mutationFn: () => invoke<ProxyServerInfo>("start_proxy_server"),
-    onSuccess: (info) => {
-      toast.success(`代理服务已启动 - ${info.address}:${info.port}`);
-      queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });
-    },
-    onError: (error: Error) => {
-      const detail = extractErrorMessage(error) || "未知错误";
-      toast.error(`启动失败: ${detail}`);
-    },
-  });
-
   // 启动服务器（带 Live 配置接管）
   const startWithTakeoverMutation = useMutation({
     mutationFn: () => invoke<ProxyServerInfo>("start_proxy_with_takeover"),
@@ -64,19 +51,6 @@ export function useProxyStatus() {
           defaultValue: `启动失败: ${detail}`,
         }),
       );
-    },
-  });
-
-  // 停止服务器（普通模式）
-  const stopMutation = useMutation({
-    mutationFn: () => invoke("stop_proxy_server"),
-    onSuccess: () => {
-      toast.success("代理服务已停止");
-      queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });
-    },
-    onError: (error: Error) => {
-      const detail = extractErrorMessage(error) || "未知错误";
-      toast.error(`停止失败: ${detail}`);
     },
   });
 
@@ -144,11 +118,7 @@ export function useProxyStatus() {
     isRunning: status?.running || false,
     isTakeoverActive: isTakeoverActive || false,
 
-    // 普通模式
-    start: startMutation.mutateAsync,
-    stop: stopMutation.mutateAsync,
-
-    // 接管模式（推荐使用）
+    // 启动/停止（接管模式）
     startWithTakeover: startWithTakeoverMutation.mutateAsync,
     stopWithRestore: stopWithRestoreMutation.mutateAsync,
 
@@ -160,12 +130,9 @@ export function useProxyStatus() {
     checkTakeoverActive,
 
     // 加载状态
-    isStarting: startMutation.isPending || startWithTakeoverMutation.isPending,
-    isStopping: stopMutation.isPending || stopWithRestoreMutation.isPending,
+    isStarting: startWithTakeoverMutation.isPending,
+    isStopping: stopWithRestoreMutation.isPending,
     isPending:
-      startMutation.isPending ||
-      stopMutation.isPending ||
-      startWithTakeoverMutation.isPending ||
-      stopWithRestoreMutation.isPending,
+      startWithTakeoverMutation.isPending || stopWithRestoreMutation.isPending,
   };
 }

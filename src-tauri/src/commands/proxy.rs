@@ -7,26 +7,12 @@ use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
 use crate::store::AppState;
 
-/// 启动代理服务器
-#[tauri::command]
-pub async fn start_proxy_server(
-    state: tauri::State<'_, AppState>,
-) -> Result<ProxyServerInfo, String> {
-    state.proxy_service.start().await
-}
-
 /// 启动代理服务器（带 Live 配置接管）
 #[tauri::command]
 pub async fn start_proxy_with_takeover(
     state: tauri::State<'_, AppState>,
 ) -> Result<ProxyServerInfo, String> {
     state.proxy_service.start_with_takeover().await
-}
-
-/// 停止代理服务器
-#[tauri::command]
-pub async fn stop_proxy_server(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.proxy_service.stop().await
 }
 
 /// 停止代理服务器（恢复 Live 配置）
