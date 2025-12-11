@@ -11,6 +11,7 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
+use tokio::task::JoinHandle;
 use tower_http::cors::{Any, CorsLayer};
 
 /// 代理服务器状态（共享）
@@ -29,6 +30,8 @@ pub struct ProxyServer {
     config: ProxyConfig,
     state: ProxyState,
     shutdown_tx: Arc<RwLock<Option<oneshot::Sender<()>>>>,
+    /// 服务器任务句柄，用于等待服务器实际关闭
+    server_handle: Arc<RwLock<Option<JoinHandle<()>>>>,
 }
 
 impl ProxyServer {
@@ -45,6 +48,7 @@ impl ProxyServer {
             config,
             state,
             shutdown_tx: Arc::new(RwLock::new(None)),
+            server_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -87,7 +91,7 @@ impl ProxyServer {
 
         // 启动服务器
         let state = self.state.clone();
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             axum::serve(listener, app)
                 .with_graceful_shutdown(async {
                     shutdown_rx.await.ok();
@@ -100,6 +104,9 @@ impl ProxyServer {
             *state.start_time.write().await = None;
         });
 
+        // 保存服务器任务句柄
+        *self.server_handle.write().await = Some(handle);
+
         Ok(ProxyServerInfo {
             address: self.config.listen_address.clone(),
             port: self.config.listen_port,
@@ -108,12 +115,23 @@ impl ProxyServer {
     }
 
     pub async fn stop(&self) -> Result<(), ProxyError> {
+        // 1. 发送关闭信号
         if let Some(tx) = self.shutdown_tx.write().await.take() {
             let _ = tx.send(());
-            Ok(())
         } else {
-            Err(ProxyError::NotRunning)
+            return Err(ProxyError::NotRunning);
         }
+
+        // 2. 等待服务器任务结束（带 5 秒超时保护）
+        if let Some(handle) = self.server_handle.write().await.take() {
+            match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
+                Ok(Ok(())) => log::info!("代理服务器已完全停止"),
+                Ok(Err(e)) => log::warn!("代理服务器任务异常终止: {e}"),
+                Err(_) => log::warn!("代理服务器停止超时（5秒），强制继续"),
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn get_status(&self) -> ProxyStatus {

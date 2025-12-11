@@ -39,8 +39,8 @@ pub use mcp::{
 };
 pub use provider::{Provider, ProviderMeta};
 pub use services::{
-    ConfigService, EndpointLatency, McpService, PromptService, ProviderService, SkillService,
-    SpeedtestService,
+    ConfigService, EndpointLatency, McpService, PromptService, ProviderService, ProxyService,
+    SkillService, SpeedtestService,
 };
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
@@ -697,6 +697,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 cleanup_before_exit(&app_handle).await;
                 log::info!("清理完成，退出应用");
+
+                // 短暂等待确保所有 I/O 操作（如数据库写入）刷新到磁盘
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
                 // 使用 std::process::exit 避免再次触发 ExitRequested
                 std::process::exit(0);
             });
