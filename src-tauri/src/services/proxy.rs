@@ -260,6 +260,13 @@ impl ProxyService {
                 .stop()
                 .await
                 .map_err(|e| format!("停止代理服务器失败: {e}"))?;
+
+            // 将 enabled 设为 false，避免下次启动时自动开启
+            if let Ok(mut config) = self.db.get_proxy_config().await {
+                config.enabled = false;
+                let _ = self.db.update_proxy_config(config).await;
+            }
+
             log::info!("代理服务器已停止");
             Ok(())
         } else {
