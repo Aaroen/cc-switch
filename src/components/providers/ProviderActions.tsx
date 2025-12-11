@@ -59,7 +59,7 @@ export function ProviderActions({
           // 代理接管模式下启用按钮使用绿色
           !isCurrent &&
             isProxyTakeover &&
-            "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700",
+            "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
         )}
       >
         {isCurrent ? (
@@ -124,7 +124,8 @@ export function ProviderActions({
         </Button>
 
         {/* 重置熔断器按钮 - 代理目标启用时显示 */}
-        {onResetCircuitBreaker && isProxyTarget && (
+        {/* TODO: 暂时隐藏，后续根据故障转移功能启用 */}
+        {/* {onResetCircuitBreaker && isProxyTarget && (
           <Button
             size="icon"
             variant="ghost"
@@ -147,7 +148,7 @@ export function ProviderActions({
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
-        )}
+        )} */}
 
         <Button
           size="icon"
@@ -157,7 +158,7 @@ export function ProviderActions({
           className={cn(
             iconButtonClass,
             !isCurrent && "hover:text-red-500 dark:hover:text-red-400",
-            isCurrent && "opacity-40 cursor-not-allowed text-muted-foreground",
+            isCurrent && "opacity-40 cursor-not-allowed text-muted-foreground"
           )}
         >
           <Trash2 className="h-4 w-4" />

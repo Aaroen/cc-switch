@@ -248,7 +248,7 @@ export function ProviderCard({
         </div>
 
         <div className="relative flex items-center ml-auto">
-          <div className="ml-auto transition-transform duration-200 group-hover:-translate-x-[12.25rem] group-focus-within:-translate-x-[12.25rem] sm:group-hover:-translate-x-[14.25rem] sm:group-focus-within:-translate-x-[14.25rem]">
+          <div className="ml-auto transition-transform duration-300 ease-out group-hover:-translate-x-[14.5rem] group-focus-within:-translate-x-[14.5rem] sm:group-hover:-translate-x-[16.5rem] sm:group-focus-within:-translate-x-[16.5rem]">
             <UsageFooter
               provider={provider}
               providerId={provider.id}
@@ -259,7 +259,7 @@ export function ProviderCard({
             />
           </div>
 
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-all duration-200 translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-all duration-300 ease-out translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
             <ProviderActions
               isCurrent={isCurrent}
               isTesting={isTesting}
