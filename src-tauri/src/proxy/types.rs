@@ -108,20 +108,6 @@ pub struct ProviderHealth {
     pub updated_at: String,
 }
 
-/// 使用统计记录
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProxyUsageRecord {
-    pub provider_id: String,
-    pub app_type: String,
-    pub endpoint: String,
-    pub request_tokens: Option<i32>,
-    pub response_tokens: Option<i32>,
-    pub status_code: u16,
-    pub latency_ms: u64,
-    pub error: Option<String>,
-    pub timestamp: String,
-}
-
 /// Live 配置备份记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveBackup {

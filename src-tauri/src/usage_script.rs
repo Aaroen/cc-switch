@@ -535,14 +535,8 @@ fn validate_request_url(request_url: &str, base_url: &str) -> Result<(), AppErro
         (Some(request_port), Some(base_port)) => {
             return Err(AppError::localized(
                 "usage_script.request_port_mismatch",
-                format!(
-                    "请求端口 {} 必须与 base_url 端口 {} 匹配",
-                    request_port, base_port
-                ),
-                format!(
-                    "Request port {} must match base_url port {}",
-                    request_port, base_port
-                ),
+                format!("请求端口 {request_port} 必须与 base_url 端口 {base_port} 匹配"),
+                format!("Request port {request_port} must match base_url port {base_port}"),
             ));
         }
         _ => {

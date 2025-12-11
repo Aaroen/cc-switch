@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 import type { Provider } from "@/types";
 import type { AppId } from "@/lib/api";
 import { useDragSort } from "@/hooks/useDragSort";
-import { useModelTest } from "@/hooks/useModelTest";
+import { useStreamCheck } from "@/hooks/useStreamCheck";
 import { ProviderCard } from "@/components/providers/ProviderCard";
 import { ProviderEmptyState } from "@/components/providers/ProviderEmptyState";
 
@@ -49,11 +49,11 @@ export function ProviderList({
     appId,
   );
 
-  // 模型测试
-  const { testProvider, isTesting } = useModelTest(appId);
+  // 流式健康检查
+  const { checkProvider, isChecking } = useStreamCheck(appId);
 
   const handleTest = (provider: Provider) => {
-    testProvider(provider.id, provider.name);
+    checkProvider(provider.id, provider.name);
   };
 
   if (isLoading) {
@@ -100,7 +100,7 @@ export function ProviderList({
               onConfigureUsage={onConfigureUsage}
               onOpenWebsite={onOpenWebsite}
               onTest={handleTest}
-              isTesting={isTesting(provider.id)}
+              isTesting={isChecking(provider.id)}
               isProxyRunning={isProxyRunning}
               isProxyTakeover={isProxyTakeover}
             />
