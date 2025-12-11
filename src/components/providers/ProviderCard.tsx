@@ -157,7 +157,9 @@ export function ProviderCard({
     <div
       className={cn(
         "relative overflow-hidden rounded-xl border border-border p-4 transition-all duration-300",
-        "bg-card text-card-foreground group hover:border-border-active",
+        "bg-card text-card-foreground group",
+        // 代理接管模式下 hover 使用绿色边框，否则使用蓝色
+        isProxyTakeover ? "hover:border-emerald-500/50" : "hover:border-border-active",
         // 代理接管模式下当前供应商使用绿色边框
         isProxyTakeover && isCurrent
           ? "border-emerald-500/60 shadow-sm shadow-emerald-500/10"
@@ -168,7 +170,12 @@ export function ProviderCard({
           "cursor-grabbing border-primary shadow-lg scale-105 z-10",
       )}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className={cn(
+        "absolute inset-0 bg-gradient-to-r to-transparent transition-opacity duration-500 pointer-events-none",
+        // 代理接管模式下使用绿色渐变，否则使用蓝色主色调
+        isProxyTakeover && isCurrent ? "from-emerald-500/10" : "from-primary/10",
+        isCurrent ? "opacity-100" : "opacity-0"
+      )} />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
           <button
@@ -256,6 +263,7 @@ export function ProviderCard({
             <ProviderActions
               isCurrent={isCurrent}
               isTesting={isTesting}
+              isProxyTakeover={isProxyTakeover}
               onSwitch={() => onSwitch(provider)}
               onEdit={() => onEdit(provider)}
               onDuplicate={() => onDuplicate(provider)}

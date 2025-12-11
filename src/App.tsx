@@ -25,6 +25,7 @@ import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { cn } from "@/lib/utils";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
@@ -417,7 +418,12 @@ function App() {
                     href="https://github.com/farion1231/cc-switch"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xl font-semibold text-blue-500 transition-colors hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                    className={cn(
+                      "text-xl font-semibold transition-colors",
+                      isProxyRunning && isTakeoverActive
+                        ? "text-emerald-500 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+                        : "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                    )}
                   >
                     CC Switch
                   </a>
