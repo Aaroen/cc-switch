@@ -686,6 +686,13 @@ pub fn run() {
             commands::get_circuit_breaker_config,
             commands::update_circuit_breaker_config,
             commands::get_circuit_breaker_stats,
+            // Failover queue management
+            commands::get_failover_queue,
+            commands::get_available_providers_for_failover,
+            commands::add_to_failover_queue,
+            commands::remove_from_failover_queue,
+            commands::reorder_failover_queue,
+            commands::set_failover_item_enabled,
             // Usage statistics
             commands::get_usage_summary,
             commands::get_usage_trends,

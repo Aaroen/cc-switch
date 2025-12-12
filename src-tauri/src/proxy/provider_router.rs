@@ -28,44 +28,92 @@ impl ProviderRouter {
     }
 
     /// 选择可用的供应商（支持故障转移）
-    /// 返回按优先级排序的可用供应商列表
+    ///
+    /// 返回按优先级排序的可用供应商列表：
+    /// 1. 当前供应商（is_current=true）始终第一位
+    /// 2. 故障转移队列中的其他供应商（按 queue_order 排序）
+    /// 3. 只返回熔断器未打开的供应商
     pub async fn select_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
-        // 直接获取当前选中的供应商（基于 is_current 字段）
-        let current_id = self
-            .db
-            .get_current_provider(app_type)?
-            .ok_or_else(|| AppError::Config(format!("No current provider for {}", app_type)))?;
+        let mut result = Vec::new();
+        let all_providers = self.db.get_all_providers(app_type)?;
 
-        let providers = self.db.get_all_providers(app_type)?;
-        let provider = providers
-            .get(&current_id)
-            .ok_or_else(|| AppError::Config(format!("Current provider {} not found", current_id)))?
-            .clone();
+        // 1. 当前供应商始终第一位
+        if let Some(current_id) = self.db.get_current_provider(app_type)? {
+            if let Some(current) = all_providers.get(&current_id) {
+                let circuit_key = format!("{}:{}", app_type, current.id);
+                let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
-        log::info!(
-            "[{}] Selected current provider: {} ({})",
-            app_type,
-            provider.name,
-            provider.id
-        );
+                if breaker.allow_request().await {
+                    log::info!(
+                        "[{}] Current provider available: {} ({})",
+                        app_type,
+                        current.name,
+                        current.id
+                    );
+                    result.push(current.clone());
+                } else {
+                    log::warn!(
+                        "[{}] Current provider {} circuit breaker open, checking failover queue",
+                        app_type,
+                        current.name
+                    );
+                }
+            }
+        }
 
-        // 检查熔断器状态
-        let circuit_key = format!("{}:{}", app_type, provider.id);
-        let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+        // 2. 获取故障转移队列中的供应商
+        let queue = self.db.get_failover_queue(app_type)?;
 
-        if !breaker.allow_request().await {
-            log::warn!(
-                "Provider {} is unavailable (circuit breaker open)",
-                provider.id
-            );
+        for item in queue {
+            // 跳过已添加的当前供应商
+            if result.iter().any(|p| p.id == item.provider_id) {
+                continue;
+            }
+
+            // 跳过禁用的队列项
+            if !item.enabled {
+                continue;
+            }
+
+            // 获取供应商信息
+            if let Some(provider) = all_providers.get(&item.provider_id) {
+                // 检查熔断器状态
+                let circuit_key = format!("{}:{}", app_type, provider.id);
+                let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+
+                if breaker.allow_request().await {
+                    log::info!(
+                        "[{}] Failover provider available: {} ({}) at queue position {}",
+                        app_type,
+                        provider.name,
+                        provider.id,
+                        item.queue_order
+                    );
+                    result.push(provider.clone());
+                } else {
+                    log::debug!(
+                        "[{}] Failover provider {} circuit breaker open, skipping",
+                        app_type,
+                        provider.name
+                    );
+                }
+            }
+        }
+
+        if result.is_empty() {
             return Err(AppError::Config(format!(
-                "Current provider {} is unavailable (circuit breaker open)",
-                provider.name
+                "No available provider for {} (all circuit breakers open or no providers configured)",
+                app_type
             )));
         }
 
-        // 返回单个供应商（保留 Vec 接口以兼容现有代码）
-        Ok(vec![provider])
+        log::info!(
+            "[{}] Failover chain: {} provider(s) available",
+            app_type,
+            result.len()
+        );
+
+        Ok(result)
     }
 
     /// 记录供应商请求结果
