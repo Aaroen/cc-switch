@@ -435,6 +435,30 @@ impl ProxyService {
             .map_err(|e| format!("检查接管状态失败: {e}"))
     }
 
+    /// 从异常退出中恢复（启动时调用）
+    ///
+    /// 检测到 live_takeover_active=true 但代理未运行时调用此方法。
+    /// 会恢复 Live 配置、清除接管标志、删除备份。
+    pub async fn recover_from_crash(&self) -> Result<(), String> {
+        // 1. 恢复 Live 配置
+        self.restore_live_configs().await?;
+
+        // 2. 清除接管标志
+        self.db
+            .set_live_takeover_active(false)
+            .await
+            .map_err(|e| format!("清除接管状态失败: {e}"))?;
+
+        // 3. 删除备份
+        self.db
+            .delete_all_live_backups()
+            .await
+            .map_err(|e| format!("删除备份失败: {e}"))?;
+
+        log::info!("已从异常退出中恢复 Live 配置");
+        Ok(())
+    }
+
     /// 从供应商配置更新 Live 备份（用于代理模式下的热切换）
     ///
     /// 与 backup_live_configs() 不同，此方法从供应商的 settings_config 生成备份，

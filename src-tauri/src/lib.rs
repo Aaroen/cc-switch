@@ -522,10 +522,33 @@ pub fn run() {
                 }
             }
 
-            // 自动启动代理服务器
+            // 异常退出恢复 + 自动启动代理服务器
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
+
+                // 1. 检测异常退出并恢复 Live 配置
+                match state.db.is_live_takeover_active().await {
+                    Ok(true) => {
+                        // 接管标志为 true 但代理未运行 → 上次异常退出
+                        if !state.proxy_service.is_running().await {
+                            log::warn!("检测到上次异常退出，正在恢复 Live 配置...");
+                            if let Err(e) = state.proxy_service.recover_from_crash().await {
+                                log::error!("恢复 Live 配置失败: {e}");
+                            } else {
+                                log::info!("Live 配置已从异常退出中恢复");
+                            }
+                        }
+                    }
+                    Ok(false) => {
+                        // 正常状态，无需恢复
+                    }
+                    Err(e) => {
+                        log::error!("检查接管状态失败: {e}");
+                    }
+                }
+
+                // 2. 自动启动代理服务器（如果配置为启用）
                 match state.db.get_proxy_config().await {
                     Ok(config) => {
                         if config.enabled {
