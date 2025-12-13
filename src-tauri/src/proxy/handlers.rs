@@ -84,7 +84,13 @@ pub async fn handle_messages(
     // 转发请求
     let forwarder = ctx.create_forwarder(&state);
     let response = forwarder
-        .forward_with_retry(&AppType::Claude, "/v1/messages", body.clone(), headers)
+        .forward_with_retry(
+            &AppType::Claude,
+            "/v1/messages",
+            body.clone(),
+            headers,
+            ctx.get_providers(),
+        )
         .await?;
 
     let status = response.status();
@@ -299,7 +305,13 @@ pub async fn handle_chat_completions(
 
     let forwarder = ctx.create_forwarder(&state);
     let response = forwarder
-        .forward_with_retry(&AppType::Codex, "/v1/chat/completions", body, headers)
+        .forward_with_retry(
+            &AppType::Codex,
+            "/v1/chat/completions",
+            body,
+            headers,
+            ctx.get_providers(),
+        )
         .await?;
 
     log::info!("[Codex] 上游响应状态: {}", response.status());
@@ -317,7 +329,13 @@ pub async fn handle_responses(
 
     let forwarder = ctx.create_forwarder(&state);
     let response = forwarder
-        .forward_with_retry(&AppType::Codex, "/v1/responses", body, headers)
+        .forward_with_retry(
+            &AppType::Codex,
+            "/v1/responses",
+            body,
+            headers,
+            ctx.get_providers(),
+        )
         .await?;
 
     log::info!("[Codex] 上游响应状态: {}", response.status());
@@ -351,7 +369,13 @@ pub async fn handle_gemini(
 
     let forwarder = ctx.create_forwarder(&state);
     let response = forwarder
-        .forward_with_retry(&AppType::Gemini, endpoint, body, headers)
+        .forward_with_retry(
+            &AppType::Gemini,
+            endpoint,
+            body,
+            headers,
+            ctx.get_providers(),
+        )
         .await?;
 
     log::info!("[Gemini] 上游响应状态: {}", response.status());

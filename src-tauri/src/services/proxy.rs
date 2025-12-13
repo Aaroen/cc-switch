@@ -681,4 +681,41 @@ impl ProxyService {
     pub async fn is_running(&self) -> bool {
         self.server.read().await.is_some()
     }
+
+    /// 热更新熔断器配置
+    ///
+    /// 如果代理服务器正在运行，将新配置应用到所有已创建的熔断器实例
+    pub async fn update_circuit_breaker_configs(
+        &self,
+        config: crate::proxy::CircuitBreakerConfig,
+    ) -> Result<(), String> {
+        if let Some(server) = self.server.read().await.as_ref() {
+            server.update_circuit_breaker_configs(config).await;
+            log::info!("已热更新运行中的熔断器配置");
+        } else {
+            log::debug!("代理服务器未运行，熔断器配置将在下次启动时生效");
+        }
+        Ok(())
+    }
+
+    /// 重置指定 Provider 的熔断器
+    ///
+    /// 如果代理服务器正在运行，立即重置内存中的熔断器状态
+    pub async fn reset_provider_circuit_breaker(
+        &self,
+        provider_id: &str,
+        app_type: &str,
+    ) -> Result<(), String> {
+        if let Some(server) = self.server.read().await.as_ref() {
+            server
+                .reset_provider_circuit_breaker(provider_id, app_type)
+                .await;
+            log::info!(
+                "已重置 Provider {} (app: {}) 的熔断器",
+                provider_id,
+                app_type
+            );
+        }
+        Ok(())
+    }
 }

@@ -2,7 +2,7 @@
 //!
 //! 基于Axum的HTTP服务器，处理代理请求
 
-use super::{handlers, types::*, ProxyError};
+use super::{handlers, provider_router::ProviderRouter, types::*, ProxyError};
 use crate::database::Database;
 use axum::{
     routing::{get, post},
@@ -23,6 +23,8 @@ pub struct ProxyState {
     pub start_time: Arc<RwLock<Option<std::time::Instant>>>,
     /// 每个应用类型当前使用的 provider (app_type -> (provider_id, provider_name))
     pub current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
+    /// 共享的 ProviderRouter（持有熔断器状态，跨请求保持）
+    pub provider_router: Arc<ProviderRouter>,
 }
 
 /// 代理HTTP服务器
@@ -36,12 +38,16 @@ pub struct ProxyServer {
 
 impl ProxyServer {
     pub fn new(config: ProxyConfig, db: Arc<Database>) -> Self {
+        // 创建共享的 ProviderRouter（熔断器状态将跨所有请求保持）
+        let provider_router = Arc::new(ProviderRouter::new(db.clone()));
+
         let state = ProxyState {
             db,
             config: Arc::new(RwLock::new(config.clone())),
             status: Arc::new(RwLock::new(ProxyStatus::default())),
             start_time: Arc::new(RwLock::new(None)),
             current_providers: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            provider_router,
         };
 
         Self {
@@ -191,5 +197,23 @@ impl ProxyServer {
     /// 在不重启服务的情况下更新运行时配置
     pub async fn apply_runtime_config(&self, config: &ProxyConfig) {
         *self.state.config.write().await = config.clone();
+    }
+
+    /// 热更新熔断器配置
+    ///
+    /// 将新配置应用到所有已创建的熔断器实例
+    pub async fn update_circuit_breaker_configs(
+        &self,
+        config: super::circuit_breaker::CircuitBreakerConfig,
+    ) {
+        self.state.provider_router.update_all_configs(config).await;
+    }
+
+    /// 重置指定 Provider 的熔断器
+    pub async fn reset_provider_circuit_breaker(&self, provider_id: &str, app_type: &str) {
+        self.state
+            .provider_router
+            .reset_provider_breaker(provider_id, app_type)
+            .await;
     }
 }

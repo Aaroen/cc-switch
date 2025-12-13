@@ -5,7 +5,7 @@
 use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
-use crate::proxy::circuit_breaker::CircuitBreaker;
+use crate::proxy::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -124,7 +124,11 @@ impl ProviderRouter {
         success: bool,
         error_msg: Option<String>,
     ) -> Result<(), AppError> {
-        // 1. 更新熔断器状态
+        // 1. 获取熔断器配置（用于更新健康状态和判断是否禁用）
+        let config = self.db.get_circuit_breaker_config().await.ok();
+        let failure_threshold = config.map(|c| c.failure_threshold).unwrap_or(5);
+
+        // 2. 更新熔断器状态
         let circuit_key = format!("{app_type}:{provider_id}");
         let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
@@ -140,18 +144,20 @@ impl ProviderRouter {
             );
         }
 
-        // 2. 更新数据库健康状态
+        // 3. 更新数据库健康状态（使用配置的阈值）
         self.db
-            .update_provider_health(provider_id, app_type, success, error_msg.clone())
+            .update_provider_health_with_threshold(
+                provider_id,
+                app_type,
+                success,
+                error_msg.clone(),
+                failure_threshold,
+            )
             .await?;
 
-        // 3. 如果连续失败达到熔断阈值，自动禁用代理目标
+        // 4. 如果连续失败达到熔断阈值，自动禁用代理目标
         if !success {
             let health = self.db.get_provider_health(provider_id, app_type).await?;
-
-            // 获取熔断器配置
-            let config = self.db.get_circuit_breaker_config().await.ok();
-            let failure_threshold = config.map(|c| c.failure_threshold).unwrap_or(5);
 
             // 如果连续失败达到阈值，自动关闭该供应商的代理开关
             if health.consecutive_failures >= failure_threshold {
@@ -171,13 +177,33 @@ impl ProviderRouter {
     }
 
     /// 重置熔断器（手动恢复）
-    #[allow(dead_code)]
     pub async fn reset_circuit_breaker(&self, circuit_key: &str) {
         let breakers = self.circuit_breakers.read().await;
         if let Some(breaker) = breakers.get(circuit_key) {
             log::info!("Manually resetting circuit breaker for {circuit_key}");
             breaker.reset().await;
         }
+    }
+
+    /// 重置指定供应商的熔断器
+    pub async fn reset_provider_breaker(&self, provider_id: &str, app_type: &str) {
+        let circuit_key = format!("{app_type}:{provider_id}");
+        self.reset_circuit_breaker(&circuit_key).await;
+    }
+
+    /// 更新所有熔断器的配置（热更新）
+    ///
+    /// 当用户在 UI 中修改熔断器配置后调用此方法，
+    /// 所有现有的熔断器会立即使用新配置
+    pub async fn update_all_configs(&self, config: CircuitBreakerConfig) {
+        let breakers = self.circuit_breakers.read().await;
+        let count = breakers.len();
+
+        for breaker in breakers.values() {
+            breaker.update_config(config.clone()).await;
+        }
+
+        log::info!("已更新 {} 个熔断器的配置", count);
     }
 
     /// 获取熔断器状态

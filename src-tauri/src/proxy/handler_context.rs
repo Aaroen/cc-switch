@@ -5,8 +5,7 @@
 use crate::app_config::AppType;
 use crate::provider::Provider;
 use crate::proxy::{
-    forwarder::RequestForwarder, router::ProviderRouter, server::ProxyState, types::ProxyConfig,
-    ProxyError,
+    forwarder::RequestForwarder, server::ProxyState, types::ProxyConfig, ProxyError,
 };
 use std::time::Instant;
 
@@ -15,7 +14,7 @@ use std::time::Instant;
 /// 贯穿整个请求生命周期，包含：
 /// - 计时信息
 /// - 代理配置
-/// - 选中的 Provider
+/// - 选中的 Provider 列表（用于故障转移）
 /// - 请求模型名称
 /// - 日志标签
 pub struct RequestContext {
@@ -23,8 +22,10 @@ pub struct RequestContext {
     pub start_time: Instant,
     /// 代理配置快照
     pub config: ProxyConfig,
-    /// 选中的 Provider
+    /// 选中的 Provider（故障转移链的第一个）
     pub provider: Provider,
+    /// 完整的 Provider 列表（用于故障转移）
+    providers: Vec<Provider>,
     /// 请求中的模型名称
     pub request_model: String,
     /// 日志标签（如 "Claude"、"Codex"、"Gemini"）
@@ -65,21 +66,32 @@ impl RequestContext {
             .unwrap_or("unknown")
             .to_string();
 
-        // Provider 选择
-        let router = ProviderRouter::new(state.db.clone());
-        let provider = router.select_provider(&app_type, &[]).await?;
+        // 使用共享的 ProviderRouter 选择 Provider（熔断器状态跨请求保持）
+        // 注意：只在这里调用一次，结果传递给 forwarder，避免重复消耗 HalfOpen 名额
+        let providers = state
+            .provider_router
+            .select_providers(app_type_str)
+            .await
+            .map_err(|e| ProxyError::DatabaseError(e.to_string()))?;
+
+        let provider = providers
+            .first()
+            .cloned()
+            .ok_or(ProxyError::NoAvailableProvider)?;
 
         log::info!(
-            "[{}] Provider: {}, model: {}",
+            "[{}] Provider: {}, model: {}, failover chain: {} providers",
             tag,
             provider.name,
-            request_model
+            request_model,
+            providers.len()
         );
 
         Ok(Self {
             start_time,
             config,
             provider,
+            providers,
             request_model,
             tag,
             app_type_str,
@@ -110,14 +122,23 @@ impl RequestContext {
     }
 
     /// 创建 RequestForwarder
+    ///
+    /// 使用共享的 ProviderRouter，确保熔断器状态跨请求保持
     pub fn create_forwarder(&self, state: &ProxyState) -> RequestForwarder {
         RequestForwarder::new(
-            state.db.clone(),
+            state.provider_router.clone(),
             self.config.request_timeout,
             self.config.max_retries,
             state.status.clone(),
             state.current_providers.clone(),
         )
+    }
+
+    /// 获取 Provider 列表（用于故障转移）
+    ///
+    /// 返回在创建上下文时已选择的 providers，避免重复调用 select_providers()
+    pub fn get_providers(&self) -> Vec<Provider> {
+        self.providers.clone()
     }
 
     /// 计算请求延迟（毫秒）
