@@ -210,13 +210,13 @@ impl ProxyService {
             }
         }
 
-        // Gemini: 同步 GOOGLE_API_KEY
+        // Gemini: 同步 GEMINI_API_KEY
         if let Ok(live_config) = self.read_gemini_live() {
             if let Some(provider_id) = self.db.get_current_provider("gemini").ok().flatten() {
                 if let Ok(Some(mut provider)) = self.db.get_provider_by_id(&provider_id, "gemini") {
                     // 从 live 配置提取 token
                     if let Some(env) = live_config.get("env") {
-                        if let Some(token) = env.get("GOOGLE_API_KEY").and_then(|v| v.as_str()) {
+                        if let Some(token) = env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) {
                             if !token.is_empty() {
                                 // 更新 provider 的 settings_config
                                 if let Some(env_obj) = provider
@@ -224,10 +224,10 @@ impl ProxyService {
                                     .get_mut("env")
                                     .and_then(|v| v.as_object_mut())
                                 {
-                                    env_obj.insert("GOOGLE_API_KEY".to_string(), json!(token));
+                                    env_obj.insert("GEMINI_API_KEY".to_string(), json!(token));
                                 } else {
                                     provider.settings_config["env"] = json!({
-                                        "GOOGLE_API_KEY": token
+                                        "GEMINI_API_KEY": token
                                     });
                                 }
                                 // 保存到数据库
@@ -368,27 +368,35 @@ impl ProxyService {
             log::info!("Claude Live 配置已接管，代理地址: {}", proxy_url);
         }
 
-        // Codex: 修改 OPENAI_BASE_URL，使用占位符替代真实 Token（代理会注入真实 Token）
+        // Codex: 修改 config.toml 的 base_url，auth.json 的 OPENAI_API_KEY（代理会注入真实 Token）
         if let Ok(mut live_config) = self.read_codex_live() {
+            // 1. 修改 auth.json 中的 OPENAI_API_KEY（使用占位符）
             if let Some(auth) = live_config.get_mut("auth").and_then(|v| v.as_object_mut()) {
-                auth.insert("OPENAI_BASE_URL".to_string(), json!(&proxy_url));
-                // 使用占位符，避免显示缺少 key 的警告
                 auth.insert("OPENAI_API_KEY".to_string(), json!("PROXY_MANAGED"));
             }
+
+            // 2. 修改 config.toml 中的 base_url
+            let config_str = live_config
+                .get("config")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let updated_config = Self::update_toml_base_url(config_str, &proxy_url);
+            live_config["config"] = json!(updated_config);
+
             self.write_codex_live(&live_config)?;
             log::info!("Codex Live 配置已接管，代理地址: {}", proxy_url);
         }
 
-        // Gemini: 修改 GEMINI_API_BASE，使用占位符替代真实 Token（代理会注入真实 Token）
+        // Gemini: 修改 GOOGLE_GEMINI_BASE_URL，使用占位符替代真实 Token（代理会注入真实 Token）
         if let Ok(mut live_config) = self.read_gemini_live() {
             if let Some(env) = live_config.get_mut("env").and_then(|v| v.as_object_mut()) {
-                env.insert("GEMINI_API_BASE".to_string(), json!(&proxy_url));
+                env.insert("GOOGLE_GEMINI_BASE_URL".to_string(), json!(&proxy_url));
                 // 使用占位符，避免显示缺少 key 的警告
-                env.insert("GOOGLE_API_KEY".to_string(), json!("PROXY_MANAGED"));
+                env.insert("GEMINI_API_KEY".to_string(), json!("PROXY_MANAGED"));
             } else {
                 live_config["env"] = json!({
-                    "GEMINI_API_BASE": &proxy_url,
-                    "GOOGLE_API_KEY": "PROXY_MANAGED"
+                    "GOOGLE_GEMINI_BASE_URL": &proxy_url,
+                    "GEMINI_API_KEY": "PROXY_MANAGED"
                 });
             }
             self.write_gemini_live(&live_config)?;
@@ -525,6 +533,19 @@ impl ProxyService {
     }
 
     // ==================== Live 配置读写辅助方法 ====================
+
+    /// 更新 TOML 字符串中的 base_url
+    fn update_toml_base_url(toml_str: &str, new_url: &str) -> String {
+        use toml_edit::DocumentMut;
+
+        let mut doc = toml_str
+            .parse::<DocumentMut>()
+            .unwrap_or_else(|_| DocumentMut::new());
+
+        doc["base_url"] = toml_edit::value(new_url);
+
+        doc.to_string()
+    }
 
     fn read_claude_live(&self) -> Result<Value, String> {
         let path = get_claude_settings_path();

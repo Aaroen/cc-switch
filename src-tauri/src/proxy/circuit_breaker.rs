@@ -115,6 +115,8 @@ impl CircuitBreaker {
                             "Circuit breaker transitioning from Open to HalfOpen (timeout reached)"
                         );
                         self.transition_to_half_open().await;
+                        // 增加计数，确保 record_success/record_failure 减计数时不会下溢
+                        self.half_open_requests.fetch_add(1, Ordering::SeqCst);
                         return true;
                     }
                 }
