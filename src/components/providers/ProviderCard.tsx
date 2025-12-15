@@ -227,7 +227,7 @@ export function ProviderCard({
           </div>
 
           <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2 min-h-[20px]">
+            <div className="flex flex-wrap items-center gap-2 min-h-7">
               <h3 className="text-base font-semibold leading-none">
                 {provider.name}
               </h3>
