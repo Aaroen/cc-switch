@@ -230,6 +230,17 @@ impl Database {
         Ok(())
     }
 
+    /// 清空所有Provider健康状态（代理停止时调用）
+    pub async fn clear_all_provider_health(&self) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+
+        conn.execute("DELETE FROM provider_health", [])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        log::debug!("Cleared all provider health records");
+        Ok(())
+    }
+
     // ==================== Circuit Breaker Config ====================
 
     /// 获取熔断器配置

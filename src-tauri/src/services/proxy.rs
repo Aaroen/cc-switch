@@ -306,6 +306,12 @@ impl ProxyService {
             .await
             .map_err(|e| format!("删除备份失败: {e}"))?;
 
+        // 5. 重置健康状态（让健康徽章恢复为正常）
+        self.db
+            .clear_all_provider_health()
+            .await
+            .map_err(|e| format!("重置健康状态失败: {e}"))?;
+
         log::info!("代理已停止，Live 配置已恢复");
         Ok(())
     }
