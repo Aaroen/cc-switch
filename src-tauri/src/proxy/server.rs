@@ -2,7 +2,10 @@
 //!
 //! 基于Axum的HTTP服务器，处理代理请求
 
-use super::{handlers, provider_router::ProviderRouter, types::*, ProxyError};
+use super::{
+    failover_switch::FailoverSwitchManager, handlers, provider_router::ProviderRouter, types::*,
+    ProxyError,
+};
 use crate::database::Database;
 use axum::{
     routing::{get, post},
@@ -25,6 +28,10 @@ pub struct ProxyState {
     pub current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
     /// 共享的 ProviderRouter（持有熔断器状态，跨请求保持）
     pub provider_router: Arc<ProviderRouter>,
+    /// AppHandle，用于发射事件和更新托盘菜单
+    pub app_handle: Option<tauri::AppHandle>,
+    /// 故障转移切换管理器
+    pub failover_manager: Arc<FailoverSwitchManager>,
 }
 
 /// 代理HTTP服务器
@@ -37,9 +44,15 @@ pub struct ProxyServer {
 }
 
 impl ProxyServer {
-    pub fn new(config: ProxyConfig, db: Arc<Database>) -> Self {
+    pub fn new(
+        config: ProxyConfig,
+        db: Arc<Database>,
+        app_handle: Option<tauri::AppHandle>,
+    ) -> Self {
         // 创建共享的 ProviderRouter（熔断器状态将跨所有请求保持）
         let provider_router = Arc::new(ProviderRouter::new(db.clone()));
+        // 创建故障转移切换管理器
+        let failover_manager = Arc::new(FailoverSwitchManager::new(db.clone()));
 
         let state = ProxyState {
             db,
@@ -48,6 +61,8 @@ impl ProxyServer {
             start_time: Arc::new(RwLock::new(None)),
             current_providers: Arc::new(RwLock::new(std::collections::HashMap::new())),
             provider_router,
+            app_handle,
+            failover_manager,
         };
 
         Self {

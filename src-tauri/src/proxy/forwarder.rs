@@ -4,6 +4,7 @@
 
 use super::{
     error::*,
+    failover_switch::FailoverSwitchManager,
     provider_router::ProviderRouter,
     providers::{get_adapter, ProviderAdapter},
     types::ProxyStatus,
@@ -24,6 +25,10 @@ pub struct RequestForwarder {
     max_retries: u8,
     status: Arc<RwLock<ProxyStatus>>,
     current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
+    /// 故障转移切换管理器
+    failover_manager: Arc<FailoverSwitchManager>,
+    /// AppHandle，用于发射事件和更新托盘
+    app_handle: Option<tauri::AppHandle>,
 }
 
 impl RequestForwarder {
@@ -33,6 +38,8 @@ impl RequestForwarder {
         max_retries: u8,
         status: Arc<RwLock<ProxyStatus>>,
         current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
+        failover_manager: Arc<FailoverSwitchManager>,
+        app_handle: Option<tauri::AppHandle>,
     ) -> Self {
         let mut client_builder = Client::builder();
         if timeout_secs > 0 {
@@ -49,6 +56,8 @@ impl RequestForwarder {
             max_retries,
             status,
             current_providers,
+            failover_manager,
+            app_handle,
         }
     }
 
@@ -201,6 +210,20 @@ impl RequestForwarder {
                                 provider.name,
                                 latency
                             );
+
+                            // 异步触发供应商切换，更新 UI 和托盘菜单
+                            let fm = self.failover_manager.clone();
+                            let ah = self.app_handle.clone();
+                            let pid = provider.id.clone();
+                            let pname = provider.name.clone();
+                            let at = app_type_str.to_string();
+
+                            tokio::spawn(async move {
+                                if let Err(e) = fm.try_switch(ah.as_ref(), &at, &pid, &pname).await
+                                {
+                                    log::error!("[Failover] 切换供应商失败: {e}");
+                                }
+                            });
                         }
                         // 重新计算成功率
                         if status.total_requests > 0 {

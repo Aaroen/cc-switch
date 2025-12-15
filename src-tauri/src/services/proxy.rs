@@ -17,6 +17,8 @@ use tokio::sync::RwLock;
 pub struct ProxyService {
     db: Arc<Database>,
     server: Arc<RwLock<Option<ProxyServer>>>,
+    /// AppHandle，用于传递给 ProxyServer 以支持故障转移时的 UI 更新
+    app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
 impl ProxyService {
@@ -24,7 +26,15 @@ impl ProxyService {
         Self {
             db,
             server: Arc::new(RwLock::new(None)),
+            app_handle: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// 设置 AppHandle（在应用初始化时调用）
+    pub fn set_app_handle(&self, handle: tauri::AppHandle) {
+        futures::executor::block_on(async {
+            *self.app_handle.write().await = Some(handle);
+        });
     }
 
     /// 启动代理服务器
@@ -45,7 +55,8 @@ impl ProxyService {
         }
 
         // 4. 创建并启动服务器
-        let server = ProxyServer::new(config.clone(), self.db.clone());
+        let app_handle = self.app_handle.read().await.clone();
+        let server = ProxyServer::new(config.clone(), self.db.clone(), app_handle);
         let info = server
             .start()
             .await
@@ -682,7 +693,8 @@ impl ProxyService {
                     .map_err(|e| format!("重启前停止代理服务器失败: {e}"))?;
             }
 
-            let new_server = ProxyServer::new(new_config, self.db.clone());
+            let app_handle = self.app_handle.read().await.clone();
+            let new_server = ProxyServer::new(new_config, self.db.clone(), app_handle);
             new_server
                 .start()
                 .await

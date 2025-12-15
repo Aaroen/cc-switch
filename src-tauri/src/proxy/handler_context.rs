@@ -131,6 +131,8 @@ impl RequestContext {
             self.config.max_retries,
             state.status.clone(),
             state.current_providers.clone(),
+            state.failover_manager.clone(),
+            state.app_handle.clone(),
         )
     }
 
