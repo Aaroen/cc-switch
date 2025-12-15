@@ -88,7 +88,10 @@ impl RequestForwarder {
                 tokio::time::sleep(Duration::from_millis(delay_ms)).await;
             }
 
-            match self.forward(provider, endpoint, body, headers, adapter).await {
+            match self
+                .forward(provider, endpoint, body, headers, adapter)
+                .await
+            {
                 Ok(response) => return Ok(response),
                 Err(e) => {
                     let category = self.categorize_proxy_error(&e);
@@ -452,24 +455,22 @@ impl RequestForwarder {
     /// 分类ProxyError
     ///
     /// 决定哪些错误应该触发故障转移到下一个 Provider
+    ///
+    /// 设计原则：既然用户配置了多个供应商，就应该让所有供应商都尝试一遍。
+    /// 只有明确是客户端中断的情况才不重试。
     fn categorize_proxy_error(&self, error: &ProxyError) -> ErrorCategory {
         match error {
+            // 网络和上游错误：都应该尝试下一个供应商
             ProxyError::Timeout(_) => ErrorCategory::Retryable,
             ProxyError::ForwardFailed(_) => ErrorCategory::Retryable,
-            ProxyError::UpstreamError { status, .. } => {
-                match *status {
-                    // 速率限制 - 应该尝试其他 Provider
-                    429 => ErrorCategory::Retryable,
-                    // 请求超时
-                    408 => ErrorCategory::Retryable,
-                    // 服务器错误
-                    s if s >= 500 => ErrorCategory::Retryable,
-                    // 其他 4xx 错误（认证失败、参数错误等）不应重试
-                    _ => ErrorCategory::NonRetryable,
-                }
-            }
             ProxyError::ProviderUnhealthy(_) => ErrorCategory::Retryable,
+            // 上游 HTTP 错误：无论状态码如何，都尝试下一个供应商
+            // 原因：不同供应商有不同的限制和认证，一个供应商的 4xx 错误
+            // 不代表其他供应商也会失败
+            ProxyError::UpstreamError { .. } => ErrorCategory::Retryable,
+            // 无可用供应商：所有供应商都试过了，无法重试
             ProxyError::NoAvailableProvider => ErrorCategory::NonRetryable,
+            // 其他错误（配置错误、数据库错误等）：不是供应商问题，无需重试
             _ => ErrorCategory::NonRetryable,
         }
     }
