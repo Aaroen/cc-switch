@@ -13,6 +13,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// 用于接管 Live 配置时的占位符（避免客户端提示缺少 key，同时不泄露真实 Token）
+const PROXY_TOKEN_PLACEHOLDER: &str = "PROXY_MANAGED";
+
 #[derive(Clone)]
 pub struct ProxyService {
     db: Arc<Database>,
@@ -110,41 +113,77 @@ impl ProxyService {
     /// 在清空 Live Token 之前调用，确保数据库中的 Provider 配置有最新的 Token。
     /// 这样代理才能从数据库读取到正确的认证信息。
     async fn sync_live_to_providers(&self) -> Result<(), String> {
-        // Claude: 同步 ANTHROPIC_AUTH_TOKEN
+        // Claude: 同步 Token（Live 属于本机配置，因此优先使用设备级 effective current）
         if let Ok(live_config) = self.read_claude_live() {
-            if let Some(provider_id) = self.db.get_current_provider("claude").ok().flatten() {
+            let provider_id =
+                crate::settings::get_effective_current_provider(&self.db, &AppType::Claude)
+                    .map_err(|e| format!("获取 Claude 当前供应商失败: {e}"))?;
+
+            if let Some(provider_id) = provider_id {
                 if let Ok(Some(mut provider)) = self.db.get_provider_by_id(&provider_id, "claude") {
-                    // 从 live 配置提取 token
-                    if let Some(env) = live_config.get("env") {
-                        if let Some(token) =
-                            env.get("ANTHROPIC_AUTH_TOKEN").and_then(|v| v.as_str())
-                        {
-                            if !token.is_empty() {
-                                // 更新 provider 的 settings_config
-                                if let Some(env_obj) = provider
-                                    .settings_config
-                                    .get_mut("env")
-                                    .and_then(|v| v.as_object_mut())
-                                {
-                                    env_obj
-                                        .insert("ANTHROPIC_AUTH_TOKEN".to_string(), json!(token));
-                                } else {
+                    if let Some(env) = live_config.get("env").and_then(|v| v.as_object()) {
+                        let token_pair = [
+                            "ANTHROPIC_AUTH_TOKEN",
+                            "ANTHROPIC_API_KEY",
+                            "OPENROUTER_API_KEY",
+                            "OPENAI_API_KEY",
+                        ]
+                        .into_iter()
+                        .find_map(|key| {
+                            env.get(key)
+                                .and_then(|v| v.as_str())
+                                .map(|s| (key, s.trim()))
+                        })
+                        .filter(|(_, token)| {
+                            !token.is_empty() && *token != PROXY_TOKEN_PLACEHOLDER
+                        });
+
+                        if let Some((token_key, token)) = token_pair {
+                            let env_obj = provider
+                                .settings_config
+                                .get_mut("env")
+                                .and_then(|v| v.as_object_mut());
+
+                            match env_obj {
+                                Some(obj) => {
+                                    obj.insert(token_key.to_string(), json!(token));
+                                    // ANTHROPIC_AUTH_TOKEN 与 ANTHROPIC_API_KEY 视为同义字段，保持一致
+                                    if token_key == "ANTHROPIC_AUTH_TOKEN"
+                                        || token_key == "ANTHROPIC_API_KEY"
+                                    {
+                                        obj.insert(
+                                            "ANTHROPIC_AUTH_TOKEN".to_string(),
+                                            json!(token),
+                                        );
+                                        obj.insert("ANTHROPIC_API_KEY".to_string(), json!(token));
+                                    }
+                                }
+                                None => {
+                                    // 至少写入一份可用的 Token
                                     provider.settings_config["env"] = json!({
-                                        "ANTHROPIC_AUTH_TOKEN": token
+                                        token_key: token
                                     });
+                                    if token_key == "ANTHROPIC_AUTH_TOKEN"
+                                        || token_key == "ANTHROPIC_API_KEY"
+                                    {
+                                        provider.settings_config["env"]["ANTHROPIC_AUTH_TOKEN"] =
+                                            json!(token);
+                                        provider.settings_config["env"]["ANTHROPIC_API_KEY"] =
+                                            json!(token);
+                                    }
                                 }
-                                // 保存到数据库
-                                if let Err(e) = self.db.update_provider_settings_config(
-                                    "claude",
-                                    &provider_id,
-                                    &provider.settings_config,
-                                ) {
-                                    log::warn!("同步 Claude Token 到数据库失败: {e}");
-                                } else {
-                                    log::info!(
-                                        "已同步 Claude Token 到数据库 (provider: {provider_id})"
-                                    );
-                                }
+                            }
+
+                            if let Err(e) = self.db.update_provider_settings_config(
+                                "claude",
+                                &provider_id,
+                                &provider.settings_config,
+                            ) {
+                                log::warn!("同步 Claude Token 到数据库失败: {e}");
+                            } else {
+                                log::info!(
+                                    "已同步 Claude Token 到数据库 (provider: {provider_id})"
+                                );
                             }
                         }
                     }
@@ -152,78 +191,82 @@ impl ProxyService {
             }
         }
 
-        // Codex: 同步 OPENAI_API_KEY
+        // Codex: 同步 OPENAI_API_KEY（忽略占位符）
         if let Ok(live_config) = self.read_codex_live() {
-            if let Some(provider_id) = self.db.get_current_provider("codex").ok().flatten() {
+            let provider_id =
+                crate::settings::get_effective_current_provider(&self.db, &AppType::Codex)
+                    .map_err(|e| format!("获取 Codex 当前供应商失败: {e}"))?;
+
+            if let Some(provider_id) = provider_id {
                 if let Ok(Some(mut provider)) = self.db.get_provider_by_id(&provider_id, "codex") {
-                    // 从 live 配置提取 token
-                    if let Some(auth) = live_config.get("auth") {
-                        if let Some(token) = auth.get("OPENAI_API_KEY").and_then(|v| v.as_str()) {
-                            if !token.is_empty() {
-                                // 更新 provider 的 settings_config
-                                if let Some(auth_obj) = provider
-                                    .settings_config
-                                    .get_mut("auth")
-                                    .and_then(|v| v.as_object_mut())
-                                {
-                                    auth_obj.insert("OPENAI_API_KEY".to_string(), json!(token));
-                                } else {
-                                    provider.settings_config["auth"] = json!({
-                                        "OPENAI_API_KEY": token
-                                    });
-                                }
-                                // 保存到数据库
-                                if let Err(e) = self.db.update_provider_settings_config(
-                                    "codex",
-                                    &provider_id,
-                                    &provider.settings_config,
-                                ) {
-                                    log::warn!("同步 Codex Token 到数据库失败: {e}");
-                                } else {
-                                    log::info!(
-                                        "已同步 Codex Token 到数据库 (provider: {provider_id})"
-                                    );
-                                }
-                            }
+                    if let Some(token) = live_config
+                        .get("auth")
+                        .and_then(|v| v.get("OPENAI_API_KEY"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty() && *s != PROXY_TOKEN_PLACEHOLDER)
+                    {
+                        if let Some(auth_obj) = provider
+                            .settings_config
+                            .get_mut("auth")
+                            .and_then(|v| v.as_object_mut())
+                        {
+                            auth_obj.insert("OPENAI_API_KEY".to_string(), json!(token));
+                        } else {
+                            provider.settings_config["auth"] = json!({
+                                "OPENAI_API_KEY": token
+                            });
+                        }
+
+                        if let Err(e) = self.db.update_provider_settings_config(
+                            "codex",
+                            &provider_id,
+                            &provider.settings_config,
+                        ) {
+                            log::warn!("同步 Codex Token 到数据库失败: {e}");
+                        } else {
+                            log::info!("已同步 Codex Token 到数据库 (provider: {provider_id})");
                         }
                     }
                 }
             }
         }
 
-        // Gemini: 同步 GEMINI_API_KEY
+        // Gemini: 同步 GEMINI_API_KEY（忽略占位符）
         if let Ok(live_config) = self.read_gemini_live() {
-            if let Some(provider_id) = self.db.get_current_provider("gemini").ok().flatten() {
+            let provider_id =
+                crate::settings::get_effective_current_provider(&self.db, &AppType::Gemini)
+                    .map_err(|e| format!("获取 Gemini 当前供应商失败: {e}"))?;
+
+            if let Some(provider_id) = provider_id {
                 if let Ok(Some(mut provider)) = self.db.get_provider_by_id(&provider_id, "gemini") {
-                    // 从 live 配置提取 token
-                    if let Some(env) = live_config.get("env") {
-                        if let Some(token) = env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) {
-                            if !token.is_empty() {
-                                // 更新 provider 的 settings_config
-                                if let Some(env_obj) = provider
-                                    .settings_config
-                                    .get_mut("env")
-                                    .and_then(|v| v.as_object_mut())
-                                {
-                                    env_obj.insert("GEMINI_API_KEY".to_string(), json!(token));
-                                } else {
-                                    provider.settings_config["env"] = json!({
-                                        "GEMINI_API_KEY": token
-                                    });
-                                }
-                                // 保存到数据库
-                                if let Err(e) = self.db.update_provider_settings_config(
-                                    "gemini",
-                                    &provider_id,
-                                    &provider.settings_config,
-                                ) {
-                                    log::warn!("同步 Gemini Token 到数据库失败: {e}");
-                                } else {
-                                    log::info!(
-                                        "已同步 Gemini Token 到数据库 (provider: {provider_id})"
-                                    );
-                                }
-                            }
+                    if let Some(token) = live_config
+                        .get("env")
+                        .and_then(|v| v.get("GEMINI_API_KEY"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty() && *s != PROXY_TOKEN_PLACEHOLDER)
+                    {
+                        if let Some(env_obj) = provider
+                            .settings_config
+                            .get_mut("env")
+                            .and_then(|v| v.as_object_mut())
+                        {
+                            env_obj.insert("GEMINI_API_KEY".to_string(), json!(token));
+                        } else {
+                            provider.settings_config["env"] = json!({
+                                "GEMINI_API_KEY": token
+                            });
+                        }
+
+                        if let Err(e) = self.db.update_provider_settings_config(
+                            "gemini",
+                            &provider_id,
+                            &provider.settings_config,
+                        ) {
+                            log::warn!("同步 Gemini Token 到数据库失败: {e}");
+                        } else {
+                            log::info!("已同步 Gemini Token 到数据库 (provider: {provider_id})");
                         }
                     }
                 }
@@ -342,12 +385,33 @@ impl ProxyService {
         if let Ok(mut live_config) = self.read_claude_live() {
             if let Some(env) = live_config.get_mut("env").and_then(|v| v.as_object_mut()) {
                 env.insert("ANTHROPIC_BASE_URL".to_string(), json!(&proxy_url));
-                // 使用占位符，避免 Claude Code 显示缺少 key 的警告
-                env.insert("ANTHROPIC_AUTH_TOKEN".to_string(), json!("PROXY_MANAGED"));
+                // 仅覆盖已存在的 Token 字段，避免新增字段导致用户困惑；
+                // 若完全没有 Token 字段，则写入 ANTHROPIC_AUTH_TOKEN 占位符用于避免客户端警告。
+                let token_keys = [
+                    "ANTHROPIC_AUTH_TOKEN",
+                    "ANTHROPIC_API_KEY",
+                    "OPENROUTER_API_KEY",
+                    "OPENAI_API_KEY",
+                ];
+
+                let mut replaced_any = false;
+                for key in token_keys {
+                    if env.contains_key(key) {
+                        env.insert(key.to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
+                        replaced_any = true;
+                    }
+                }
+
+                if !replaced_any {
+                    env.insert(
+                        "ANTHROPIC_AUTH_TOKEN".to_string(),
+                        json!(PROXY_TOKEN_PLACEHOLDER),
+                    );
+                }
             } else {
                 live_config["env"] = json!({
                     "ANTHROPIC_BASE_URL": &proxy_url,
-                    "ANTHROPIC_AUTH_TOKEN": "PROXY_MANAGED"
+                    "ANTHROPIC_AUTH_TOKEN": PROXY_TOKEN_PLACEHOLDER
                 });
             }
             self.write_claude_live(&live_config)?;
@@ -358,7 +422,7 @@ impl ProxyService {
         if let Ok(mut live_config) = self.read_codex_live() {
             // 1. 修改 auth.json 中的 OPENAI_API_KEY（使用占位符）
             if let Some(auth) = live_config.get_mut("auth").and_then(|v| v.as_object_mut()) {
-                auth.insert("OPENAI_API_KEY".to_string(), json!("PROXY_MANAGED"));
+                auth.insert("OPENAI_API_KEY".to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
             }
 
             // 2. 修改 config.toml 中的 base_url
@@ -378,11 +442,11 @@ impl ProxyService {
             if let Some(env) = live_config.get_mut("env").and_then(|v| v.as_object_mut()) {
                 env.insert("GOOGLE_GEMINI_BASE_URL".to_string(), json!(&proxy_url));
                 // 使用占位符，避免显示缺少 key 的警告
-                env.insert("GEMINI_API_KEY".to_string(), json!("PROXY_MANAGED"));
+                env.insert("GEMINI_API_KEY".to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
             } else {
                 live_config["env"] = json!({
                     "GOOGLE_GEMINI_BASE_URL": &proxy_url,
-                    "GEMINI_API_KEY": "PROXY_MANAGED"
+                    "GEMINI_API_KEY": PROXY_TOKEN_PLACEHOLDER
                 });
             }
             self.write_gemini_live(&live_config)?;
@@ -568,17 +632,27 @@ impl ProxyService {
     }
 
     fn write_codex_live(&self, config: &Value) -> Result<(), String> {
-        use crate::codex_config::{get_codex_auth_path, get_codex_config_path};
+        use crate::codex_config::{
+            get_codex_auth_path, get_codex_config_path, write_codex_live_atomic,
+        };
 
-        if let Some(auth) = config.get("auth") {
-            let auth_path = get_codex_auth_path();
-            write_json_file(&auth_path, auth).map_err(|e| format!("写入 Codex auth 失败: {e}"))?;
-        }
+        let auth = config.get("auth");
+        let config_str = config.get("config").and_then(|v| v.as_str());
 
-        if let Some(config_str) = config.get("config").and_then(|v| v.as_str()) {
-            let config_path = get_codex_config_path();
-            std::fs::write(&config_path, config_str)
-                .map_err(|e| format!("写入 Codex config 失败: {e}"))?;
+        match (auth, config_str) {
+            (Some(auth), Some(cfg)) => write_codex_live_atomic(auth, Some(cfg))
+                .map_err(|e| format!("写入 Codex 配置失败: {e}"))?,
+            (Some(auth), None) => {
+                let auth_path = get_codex_auth_path();
+                write_json_file(&auth_path, auth)
+                    .map_err(|e| format!("写入 Codex auth 失败: {e}"))?;
+            }
+            (None, Some(cfg)) => {
+                let config_path = get_codex_config_path();
+                crate::config::write_text_file(&config_path, cfg)
+                    .map_err(|e| format!("写入 Codex config 失败: {e}"))?;
+            }
+            (None, None) => {}
         }
 
         Ok(())
@@ -673,6 +747,16 @@ impl ProxyService {
 
             *server_guard = Some(new_server);
             log::info!("代理配置已更新，服务器已自动重启应用最新配置");
+
+            // 如果当前处于 Live 接管模式，需要同步更新 Live 中的代理地址（否则客户端仍指向旧端口）
+            drop(server_guard);
+            if previous.live_takeover_active {
+                // takeover_live_configs 只会写入代理地址与占位符，不会破坏备份
+                self.takeover_live_configs().await?;
+                log::info!("已同步更新 Live 配置中的代理地址");
+            }
+
+            return Ok(());
         } else if let Some(server) = server_guard.as_ref() {
             server.apply_runtime_config(&new_config).await;
             log::info!("代理配置已实时应用，无需重启代理服务器");

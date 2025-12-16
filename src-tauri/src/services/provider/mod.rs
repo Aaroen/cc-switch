@@ -144,9 +144,32 @@ impl ProviderService {
         state.db.save_provider(app_type.as_str(), &provider)?;
 
         if is_current {
-            write_live_snapshot(&app_type, &provider)?;
-            // Sync MCP
-            McpService::sync_all_enabled(state)?;
+            // 如果代理接管模式处于激活状态，并且代理服务正在运行：
+            // - 不写 Live 配置（否则会破坏接管）
+            // - 仅更新 Live 备份（保证关闭代理时能恢复到最新配置）
+            let is_takeover_flag =
+                futures::executor::block_on(state.db.is_live_takeover_active()).unwrap_or(false);
+            let is_proxy_running = futures::executor::block_on(state.proxy_service.is_running());
+            let should_skip_live_write = is_takeover_flag && is_proxy_running;
+
+            if should_skip_live_write {
+                futures::executor::block_on(
+                    state
+                        .proxy_service
+                        .update_live_backup_from_provider(app_type.as_str(), &provider),
+                )
+                .map_err(|e| AppError::Message(format!("更新 Live 备份失败: {e}")))?;
+            } else {
+                // 如果检测到接管标志残留但代理未运行，清理标志后再执行正常写入
+                if is_takeover_flag && !is_proxy_running {
+                    log::warn!("检测到代理接管标志残留（代理已停止），清除标志并写入 Live 配置");
+                    let _ = futures::executor::block_on(state.db.set_live_takeover_active(false));
+                }
+
+                write_live_snapshot(&app_type, &provider)?;
+                // Sync MCP
+                McpService::sync_all_enabled(state)?;
+            }
         }
 
         Ok(true)
