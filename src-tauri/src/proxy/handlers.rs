@@ -8,14 +8,13 @@
 //! - Claude 的格式转换逻辑保留在此文件（独有功能）
 
 use super::{
+    error_mapper::{get_error_message, map_proxy_error_to_status},
     handler_config::{
         CLAUDE_PARSER_CONFIG, CODEX_PARSER_CONFIG, GEMINI_PARSER_CONFIG, OPENAI_PARSER_CONFIG,
     },
     handler_context::RequestContext,
     providers::{get_adapter, streaming::create_anthropic_sse_stream, transform},
-    response_processor::{
-        create_logged_passthrough_stream, process_response, SseUsageCollector,
-    },
+    response_processor::{create_logged_passthrough_stream, process_response, SseUsageCollector},
     server::ProxyState,
     types::*,
     usage::parser::TokenUsage,
@@ -62,8 +61,7 @@ pub async fn handle_messages(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
-    let ctx =
-        RequestContext::new(&state, &body, AppType::Claude, "Claude", "claude").await?;
+    let ctx = RequestContext::new(&state, &body, AppType::Claude, "Claude", "claude").await?;
 
     // 检查是否需要格式转换（OpenRouter 等中转服务）
     let adapter = get_adapter(&AppType::Claude);
@@ -83,7 +81,7 @@ pub async fn handle_messages(
 
     // 转发请求
     let forwarder = ctx.create_forwarder(&state);
-    let response = forwarder
+    let response = match forwarder
         .forward_with_retry(
             &AppType::Claude,
             "/v1/messages",
@@ -91,7 +89,14 @@ pub async fn handle_messages(
             headers,
             ctx.get_providers(),
         )
-        .await?;
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            log_forward_error(&state, &ctx, is_stream, &e);
+            return Err(e);
+        }
+    };
 
     let status = response.status();
     log::info!("[Claude] 上游响应状态: {status}");
@@ -304,7 +309,7 @@ pub async fn handle_chat_completions(
     );
 
     let forwarder = ctx.create_forwarder(&state);
-    let response = forwarder
+    let response = match forwarder
         .forward_with_retry(
             &AppType::Codex,
             "/v1/chat/completions",
@@ -312,7 +317,14 @@ pub async fn handle_chat_completions(
             headers,
             ctx.get_providers(),
         )
-        .await?;
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            log_forward_error(&state, &ctx, is_stream, &e);
+            return Err(e);
+        }
+    };
 
     log::info!("[Codex] 上游响应状态: {}", response.status());
 
@@ -327,8 +339,13 @@ pub async fn handle_responses(
 ) -> Result<axum::response::Response, ProxyError> {
     let ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
+    let is_stream = body
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     let forwarder = ctx.create_forwarder(&state);
-    let response = forwarder
+    let response = match forwarder
         .forward_with_retry(
             &AppType::Codex,
             "/v1/responses",
@@ -336,7 +353,14 @@ pub async fn handle_responses(
             headers,
             ctx.get_providers(),
         )
-        .await?;
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            log_forward_error(&state, &ctx, is_stream, &e);
+            return Err(e);
+        }
+    };
 
     log::info!("[Codex] 上游响应状态: {}", response.status());
 
@@ -365,10 +389,15 @@ pub async fn handle_gemini(
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
 
-    log::info!("[Gemini] 请求端点: {}", endpoint);
+    log::info!("[Gemini] 请求端点: {endpoint}");
+
+    let is_stream = body
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     let forwarder = ctx.create_forwarder(&state);
-    let response = forwarder
+    let response = match forwarder
         .forward_with_retry(
             &AppType::Gemini,
             endpoint,
@@ -376,7 +405,14 @@ pub async fn handle_gemini(
             headers,
             ctx.get_providers(),
         )
-        .await?;
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            log_forward_error(&state, &ctx, is_stream, &e);
+            return Err(e);
+        }
+    };
 
     log::info!("[Gemini] 上游响应状态: {}", response.status());
 
@@ -386,6 +422,35 @@ pub async fn handle_gemini(
 // ============================================================================
 // 使用量记录（保留用于 Claude 转换逻辑）
 // ============================================================================
+
+fn log_forward_error(
+    state: &ProxyState,
+    ctx: &RequestContext,
+    is_streaming: bool,
+    error: &ProxyError,
+) {
+    use super::usage::logger::UsageLogger;
+
+    let logger = UsageLogger::new(&state.db);
+    let status_code = map_proxy_error_to_status(error);
+    let error_message = get_error_message(error);
+    let request_id = uuid::Uuid::new_v4().to_string();
+
+    if let Err(e) = logger.log_error_with_context(
+        request_id.clone(),
+        ctx.provider.id.clone(),
+        ctx.app_type_str.to_string(),
+        ctx.request_model.clone(),
+        status_code,
+        error_message,
+        ctx.latency_ms(),
+        is_streaming,
+        Some(request_id),
+        None,
+    ) {
+        log::warn!("记录失败请求日志失败: {e}");
+    }
+}
 
 /// 记录请求使用量
 #[allow(clippy::too_many_arguments)]
