@@ -1,50 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { failoverApi } from "@/lib/api/failover";
 
-// ========== 旧版代理目标 Hooks（保留向后兼容）==========
-
-/**
- * 获取代理目标列表
- */
-export function useProxyTargets(appType: string) {
-  return useQuery({
-    queryKey: ["proxyTargets", appType],
-    queryFn: () => failoverApi.getProxyTargets(appType),
-    enabled: !!appType,
-  });
-}
-
-/**
- * 设置代理目标
- */
-export function useSetProxyTarget() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      providerId,
-      appType,
-      enabled,
-    }: {
-      providerId: string;
-      appType: string;
-      enabled: boolean;
-    }) => failoverApi.setProxyTarget(providerId, appType, enabled),
-    onSuccess: (_, variables) => {
-      // 刷新代理目标列表
-      queryClient.invalidateQueries({
-        queryKey: ["proxyTargets", variables.appType],
-      });
-      // 刷新供应商列表
-      queryClient.invalidateQueries({ queryKey: ["providers"] });
-      // 刷新健康状态
-      queryClient.invalidateQueries({
-        queryKey: ["providerHealth", variables.providerId, variables.appType],
-      });
-    },
-  });
-}
-
 // ========== 熔断器 Hooks ==========
 
 /**

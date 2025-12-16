@@ -12,11 +12,7 @@ import { ProviderActions } from "@/components/providers/ProviderActions";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import UsageFooter from "@/components/UsageFooter";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
-import {
-  useProviderHealth,
-  useResetCircuitBreaker,
-} from "@/lib/query/failover";
-import { toast } from "sonner";
+import { useProviderHealth } from "@/lib/query/failover";
 import { useUsageQuery } from "@/lib/query/queries";
 
 interface DragHandleProps {
@@ -97,32 +93,6 @@ export function ProviderCard({
 
   // 获取供应商健康状态
   const { data: health } = useProviderHealth(provider.id, appId);
-
-  // 重置熔断器
-  const resetCircuitBreaker = useResetCircuitBreaker();
-
-  const handleResetCircuitBreaker = async () => {
-    try {
-      await resetCircuitBreaker.mutateAsync({
-        providerId: provider.id,
-        appType: appId,
-      });
-      toast.success(
-        t("provider.circuitBreakerReset", {
-          defaultValue: "熔断器已重置",
-        }),
-        { closeButton: true },
-      );
-    } catch (error) {
-      toast.error(
-        t("provider.circuitBreakerResetFailed", {
-          defaultValue: "重置失败",
-        }) +
-          ": " +
-          String(error),
-      );
-    }
-  };
 
   const fallbackUrlText = t("provider.notConfigured", {
     defaultValue: "未配置接口地址",
@@ -338,13 +308,6 @@ export function ProviderCard({
               onTest={onTest ? () => onTest(provider) : undefined}
               onConfigureUsage={() => onConfigureUsage(provider)}
               onDelete={() => onDelete(provider)}
-              onResetCircuitBreaker={
-                isProxyRunning && provider.isProxyTarget
-                  ? handleResetCircuitBreaker
-                  : undefined
-              }
-              isProxyTarget={provider.isProxyTarget}
-              consecutiveFailures={health?.consecutive_failures ?? 0}
             />
           </div>
         </div>

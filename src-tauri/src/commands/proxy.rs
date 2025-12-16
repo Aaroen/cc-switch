@@ -2,7 +2,6 @@
 //!
 //! 提供前端调用的 API 接口
 
-use crate::provider::Provider;
 use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
 use crate::store::AppState;
@@ -68,47 +67,6 @@ pub async fn switch_proxy_provider(
 }
 
 // ==================== 故障转移相关命令 ====================
-
-/// 获取代理目标列表
-#[tauri::command]
-pub async fn get_proxy_targets(
-    state: tauri::State<'_, AppState>,
-    app_type: String,
-) -> Result<Vec<Provider>, String> {
-    let db = &state.db;
-    db.get_proxy_targets(&app_type)
-        .await
-        .map_err(|e| e.to_string())
-        .map(|providers| providers.into_values().collect())
-}
-
-/// 设置代理目标
-#[tauri::command]
-pub async fn set_proxy_target(
-    state: tauri::State<'_, AppState>,
-    provider_id: String,
-    app_type: String,
-    enabled: bool,
-) -> Result<(), String> {
-    let db = &state.db;
-
-    // 设置代理目标状态
-    db.set_proxy_target(&provider_id, &app_type, enabled)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // 如果是禁用代理目标，重置健康状态
-    if !enabled {
-        log::info!(
-            "Resetting health status for provider {provider_id} (app: {app_type}) after disabling proxy target"
-        );
-        if let Err(e) = db.reset_provider_health(&provider_id, &app_type).await {
-            log::warn!("Failed to reset provider health: {e}");
-        }
-    }
-
-    Ok(())
-}
 
 /// 获取供应商健康状态
 #[tauri::command]

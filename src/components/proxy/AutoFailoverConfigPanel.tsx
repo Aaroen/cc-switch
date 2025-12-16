@@ -101,7 +101,7 @@ export function AutoFailoverConfigPanel({
           <AlertDescription className="text-sm">
             {t(
               "proxy.autoFailover.info",
-              "当启用多个代理目标时，系统会按优先级顺序依次尝试。当某个供应商连续失败达到阈值时，熔断器会自动打开，跳过该供应商。",
+              "当故障转移队列中配置了多个供应商时，系统会在请求失败时按优先级顺序依次尝试。当某个供应商连续失败达到阈值时，熔断器会打开并在一段时间内跳过该供应商。",
             )}
           </AlertDescription>
         </Alert>

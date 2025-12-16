@@ -77,25 +77,22 @@ impl ProxyService {
 
     /// 启动代理服务器（带 Live 配置接管）
     pub async fn start_with_takeover(&self) -> Result<ProxyServerInfo, String> {
-        // 1. 自动将各应用当前选中的供应商设置为代理目标
-        self.setup_proxy_targets().await?;
-
-        // 2. 备份各应用的 Live 配置
+        // 1. 备份各应用的 Live 配置
         self.backup_live_configs().await?;
 
-        // 3. 同步 Live 配置中的 Token 到数据库（确保代理能读到最新的 Token）
+        // 2. 同步 Live 配置中的 Token 到数据库（确保代理能读到最新的 Token）
         self.sync_live_to_providers().await?;
 
-        // 4. 接管各应用的 Live 配置（写入代理地址，清空 Token）
+        // 3. 接管各应用的 Live 配置（写入代理地址，清空 Token）
         self.takeover_live_configs().await?;
 
-        // 5. 设置接管状态
+        // 4. 设置接管状态
         self.db
             .set_live_takeover_active(true)
             .await
             .map_err(|e| format!("设置接管状态失败: {e}"))?;
 
-        // 6. 启动代理服务器
+        // 5. 启动代理服务器
         match self.start().await {
             Ok(info) => Ok(info),
             Err(e) => {
@@ -106,31 +103,6 @@ impl ProxyService {
                 Err(e)
             }
         }
-    }
-
-    /// 自动设置代理目标：将各应用当前选中的供应商设置为代理目标
-    async fn setup_proxy_targets(&self) -> Result<(), String> {
-        let app_types = ["claude", "codex", "gemini"];
-
-        for app_type in app_types {
-            // 获取当前选中的供应商
-            if let Ok(Some(provider_id)) = self.db.get_current_provider(app_type) {
-                // 设置为代理目标
-                if let Err(e) = self.db.set_proxy_target(&provider_id, app_type, true).await {
-                    log::warn!("设置 {} 的代理目标 {} 失败: {}", app_type, provider_id, e);
-                } else {
-                    log::info!(
-                        "已将 {} 的当前供应商 {} 设置为代理目标",
-                        app_type,
-                        provider_id
-                    );
-                }
-            } else {
-                log::debug!("{} 没有当前供应商，跳过代理目标设置", app_type);
-            }
-        }
-
-        Ok(())
     }
 
     /// 同步 Live 配置中的 Token 到数据库

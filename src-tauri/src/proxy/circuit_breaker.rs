@@ -99,6 +99,36 @@ impl CircuitBreaker {
         log::debug!("Circuit breaker config updated");
     }
 
+    /// 判断当前 Provider 是否“可被纳入候选链路”
+    ///
+    /// 这个方法不会占用 HalfOpen 探测名额，仅用于路由选择阶段的“可用性判断”：
+    /// - Closed / HalfOpen：可用（返回 true）
+    /// - Open：若超时到达则切到 HalfOpen 并返回 true，否则返回 false
+    ///
+    /// 注意：真正发起请求前仍需调用 `allow_request()` 来获取 HalfOpen 探测名额，
+    /// 并在请求结束后通过 `record_success()` / `record_failure()` 释放。
+    pub async fn is_available(&self) -> bool {
+        let state = *self.state.read().await;
+        let config = self.config.read().await;
+
+        match state {
+            CircuitState::Closed | CircuitState::HalfOpen => true,
+            CircuitState::Open => {
+                if let Some(opened_at) = *self.last_opened_at.read().await {
+                    if opened_at.elapsed().as_secs() >= config.timeout_seconds {
+                        drop(config); // 释放读锁再转换状态
+                        log::info!(
+                            "Circuit breaker transitioning from Open to HalfOpen (timeout reached)"
+                        );
+                        self.transition_to_half_open().await;
+                        return true;
+                    }
+                }
+                false
+            }
+        }
+    }
+
     /// 检查是否允许请求通过
     pub async fn allow_request(&self) -> bool {
         let state = *self.state.read().await;

@@ -43,7 +43,7 @@ impl ProviderRouter {
                 let circuit_key = format!("{}:{}", app_type, current.id);
                 let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
-                if breaker.allow_request().await {
+                if breaker.is_available().await {
                     log::info!(
                         "[{}] Current provider available: {} ({})",
                         app_type,
@@ -81,7 +81,7 @@ impl ProviderRouter {
                 let circuit_key = format!("{}:{}", app_type, provider.id);
                 let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
-                if breaker.allow_request().await {
+                if breaker.is_available().await {
                     log::info!(
                         "[{}] Failover provider available: {} ({}) at queue position {}",
                         app_type,
@@ -114,6 +114,20 @@ impl ProviderRouter {
         );
 
         Ok(result)
+    }
+
+    /// 请求执行前获取熔断器“放行许可”
+    ///
+    /// - Closed：直接放行
+    /// - Open：超时到达后切到 HalfOpen 并放行一次探测
+    /// - HalfOpen：按限流规则放行探测
+    ///
+    /// 注意：调用方必须在请求结束后通过 `record_result()` 释放 HalfOpen 名额，
+    /// 否则会导致该 Provider 长时间无法进入探测状态。
+    pub async fn allow_provider_request(&self, provider_id: &str, app_type: &str) -> bool {
+        let circuit_key = format!("{app_type}:{provider_id}");
+        let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+        breaker.allow_request().await
     }
 
     /// 记录供应商请求结果
@@ -154,24 +168,6 @@ impl ProviderRouter {
                 failure_threshold,
             )
             .await?;
-
-        // 4. 如果连续失败达到熔断阈值，自动禁用代理目标
-        if !success {
-            let health = self.db.get_provider_health(provider_id, app_type).await?;
-
-            // 如果连续失败达到阈值，自动关闭该供应商的代理开关
-            if health.consecutive_failures >= failure_threshold {
-                log::warn!(
-                    "Provider {} has failed {} times (threshold: {}), auto-disabling proxy target",
-                    provider_id,
-                    health.consecutive_failures,
-                    failure_threshold
-                );
-                self.db
-                    .set_proxy_target(provider_id, app_type, false)
-                    .await?;
-            }
-        }
 
         Ok(())
     }
@@ -261,6 +257,7 @@ impl ProviderRouter {
 mod tests {
     use super::*;
     use crate::database::Database;
+    use serde_json::json;
 
     #[tokio::test]
     async fn test_provider_router_creation() {
@@ -270,5 +267,45 @@ mod tests {
         // 测试创建熔断器
         let breaker = router.get_or_create_circuit_breaker("claude:test").await;
         assert!(breaker.allow_request().await);
+    }
+
+    #[tokio::test]
+    async fn select_providers_does_not_consume_half_open_permit() {
+        let db = Arc::new(Database::memory().unwrap());
+
+        // 配置：让熔断器 Open 后立刻进入 HalfOpen（timeout_seconds=0），并用 1 次失败就打开熔断器
+        db.update_circuit_breaker_config(&CircuitBreakerConfig {
+            failure_threshold: 1,
+            timeout_seconds: 0,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        // 准备 2 个 Provider：A（当前）+ B（队列）
+        let provider_a =
+            Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
+        let provider_b =
+            Provider::with_id("b".to_string(), "Provider B".to_string(), json!({}), None);
+
+        db.save_provider("claude", &provider_a).unwrap();
+        db.save_provider("claude", &provider_b).unwrap();
+        db.set_current_provider("claude", "a").unwrap();
+        db.add_to_failover_queue("claude", "b").unwrap();
+
+        let router = ProviderRouter::new(db.clone());
+
+        // 让 B 进入 Open 状态（failure_threshold=1）
+        router
+            .record_result("b", "claude", false, Some("fail".to_string()))
+            .await
+            .unwrap();
+
+        // select_providers 只做“可用性判断”，不应占用 HalfOpen 探测名额
+        let providers = router.select_providers("claude").await.unwrap();
+        assert_eq!(providers.len(), 2);
+
+        // 如果 select_providers 错误地消耗了 HalfOpen 名额，这里会返回 false（被限流拒绝）
+        assert!(router.allow_provider_request("b", "claude").await);
     }
 }

@@ -18,26 +18,9 @@ export interface Provider {
   meta?: unknown;
   icon?: string;
   iconColor?: string;
-  isProxyTarget?: boolean;
 }
 
 export const failoverApi = {
-  // ========== 旧版代理目标 API（保留向后兼容）==========
-
-  // 获取代理目标列表
-  async getProxyTargets(appType: string): Promise<Provider[]> {
-    return invoke("get_proxy_targets", { appType });
-  },
-
-  // 设置代理目标
-  async setProxyTarget(
-    providerId: string,
-    appType: string,
-    enabled: boolean,
-  ): Promise<void> {
-    return invoke("set_proxy_target", { providerId, appType, enabled });
-  },
-
   // ========== 熔断器 API ==========
 
   // 获取供应商健康状态

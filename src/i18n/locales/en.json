@@ -864,7 +864,7 @@
       "toggleFailed": "Failed to update status"
     },
     "autoFailover": {
-      "info": "When multiple proxy targets are enabled, the system will try them in priority order. When a provider fails consecutively reaching the threshold, the circuit breaker will open and skip that provider.",
+      "info": "When the failover queue has multiple providers, the system will try them in priority order when requests fail. When a provider reaches the consecutive failure threshold, the circuit breaker will open and skip it temporarily.",
       "configSaved": "Auto failover config saved",
       "configSaveFailed": "Failed to save",
       "retrySettings": "Retry & Timeout Settings",

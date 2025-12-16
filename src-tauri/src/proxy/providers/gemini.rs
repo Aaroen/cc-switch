@@ -250,7 +250,6 @@ mod tests {
             meta: None,
             icon: None,
             icon_color: None,
-            is_proxy_target: None,
         }
     }
 

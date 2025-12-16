@@ -31,18 +31,11 @@ impl Database {
                 icon_color TEXT,
                 meta TEXT NOT NULL DEFAULT '{}',
                 is_current BOOLEAN NOT NULL DEFAULT 0,
-                is_proxy_target BOOLEAN NOT NULL DEFAULT 0,
                 PRIMARY KEY (id, app_type)
             )",
             [],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
-
-        // 尝试添加 is_proxy_target 列（如果表已存在但缺少该列）
-        let _ = conn.execute(
-            "ALTER TABLE providers ADD COLUMN is_proxy_target BOOLEAN NOT NULL DEFAULT 0",
-            [],
-        );
 
         // 2. Provider Endpoints 表
         conn.execute(

@@ -7,7 +7,9 @@ import {
   Coins,
   Database,
   Server,
+  ChevronDown,
 } from "lucide-react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -279,10 +281,10 @@ export function SettingsPage({
 
                     <AccordionItem
                       value="proxy"
-                      className="rounded-xl glass-card overflow-hidden"
+                      className="rounded-xl glass-card overflow-hidden [&[data-state=open]>.accordion-header]:bg-muted/50"
                     >
-                      <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 data-[state=open]:bg-muted/50">
-                        <div className="flex flex-1 items-center justify-between pr-4">
+                      <AccordionPrimitive.Header className="accordion-header flex items-center justify-between px-6 py-4 hover:bg-muted/50">
+                        <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between hover:no-underline [&[data-state=open]>svg]:rotate-180">
                           <div className="flex items-center gap-3">
                             <Server className="h-5 w-5 text-green-500" />
                             <div className="text-left">
@@ -294,27 +296,26 @@ export function SettingsPage({
                               </p>
                             </div>
                           </div>
-                          <div
-                            className="flex items-center gap-4"
-                            onClick={(e) => e.stopPropagation()}
+                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        </AccordionPrimitive.Trigger>
+
+                        <div className="flex items-center gap-4 pl-4">
+                          <Badge
+                            variant={isRunning ? "default" : "secondary"}
+                            className="gap-1.5 h-6"
                           >
-                            <Badge
-                              variant={isRunning ? "default" : "secondary"}
-                              className="gap-1.5 h-6"
-                            >
-                              <Activity
-                                className={`h-3 w-3 ${isRunning ? "animate-pulse" : ""}`}
-                              />
-                              {isRunning ? "运行中" : "已停止"}
-                            </Badge>
-                            <Switch
-                              checked={isRunning}
-                              onCheckedChange={handleToggleProxy}
-                              disabled={isProxyPending}
+                            <Activity
+                              className={`h-3 w-3 ${isRunning ? "animate-pulse" : ""}`}
                             />
-                          </div>
+                            {isRunning ? "运行中" : "已停止"}
+                          </Badge>
+                          <Switch
+                            checked={isRunning}
+                            onCheckedChange={handleToggleProxy}
+                            disabled={isProxyPending}
+                          />
                         </div>
-                      </AccordionTrigger>
+                      </AccordionPrimitive.Header>
                       <AccordionContent className="px-6 pb-6 pt-0 border-t border-border/50">
                         <ProxyPanel />
                       </AccordionContent>
@@ -344,10 +345,10 @@ export function SettingsPage({
 
                     <AccordionItem
                       value="failover"
-                      className="rounded-xl glass-card overflow-hidden"
+                      className="rounded-xl glass-card overflow-hidden [&[data-state=open]>.accordion-header]:bg-muted/50"
                     >
-                      <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 data-[state=open]:bg-muted/50">
-                        <div className="flex flex-1 items-center justify-between pr-4">
+                      <AccordionPrimitive.Header className="accordion-header flex items-center justify-between px-6 py-4 hover:bg-muted/50">
+                        <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between hover:no-underline [&[data-state=open]>svg]:rotate-180">
                           <div className="flex items-center gap-3">
                             <Activity className="h-5 w-5 text-orange-500" />
                             <div className="text-left">
@@ -359,20 +360,16 @@ export function SettingsPage({
                               </p>
                             </div>
                           </div>
-                          <div
-                            className="flex items-center gap-4"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex items-center gap-2">
-                              {/* Removed status text as requested */}
-                              <Switch
-                                checked={failoverEnabled}
-                                onCheckedChange={setFailoverEnabled}
-                              />
-                            </div>
-                          </div>
+                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        </AccordionPrimitive.Trigger>
+
+                        <div className="flex items-center gap-2 pl-4">
+                          <Switch
+                            checked={failoverEnabled}
+                            onCheckedChange={setFailoverEnabled}
+                          />
                         </div>
-                      </AccordionTrigger>
+                      </AccordionPrimitive.Header>
                       <AccordionContent className="px-6 pb-6 pt-4 border-t border-border/50">
                         <div className="space-y-6">
                           {/* 故障转移队列管理 */}

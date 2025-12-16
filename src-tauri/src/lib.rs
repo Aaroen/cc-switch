@@ -581,7 +581,6 @@ pub fn run() {
             commands::update_provider,
             commands::delete_provider,
             commands::switch_provider,
-            commands::set_proxy_target_provider,
             commands::import_default_config,
             commands::get_claude_config_status,
             commands::get_config_status,
@@ -684,8 +683,6 @@ pub fn run() {
             commands::is_live_takeover_active,
             commands::switch_proxy_provider,
             // Proxy failover commands
-            commands::get_proxy_targets,
-            commands::set_proxy_target,
             commands::get_provider_health,
             commands::reset_circuit_breaker,
             commands::get_circuit_breaker_config,

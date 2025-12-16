@@ -148,13 +148,33 @@ impl RequestForwarder {
 
         let mut last_error = None;
         let mut failover_happened = false;
+        let mut attempted_providers = 0usize;
 
         // 依次尝试每个供应商
-        for (attempt, provider) in providers.iter().enumerate() {
+        for provider in providers.iter() {
+            // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
+            if !self
+                .router
+                .allow_provider_request(&provider.id, app_type_str)
+                .await
+            {
+                log::debug!(
+                    "[{}] Provider {} 熔断器拒绝本次请求，跳过",
+                    app_type_str,
+                    provider.name
+                );
+                continue;
+            }
+
+            attempted_providers += 1;
+            if attempted_providers > 1 {
+                failover_happened = true;
+            }
+
             log::info!(
                 "[{}] 尝试 {}/{} - 使用Provider: {} (sort_index: {})",
                 app_type_str,
-                attempt + 1,
+                attempted_providers,
                 providers.len(),
                 provider.name,
                 provider.sort_index.unwrap_or(999999)
@@ -167,9 +187,6 @@ impl RequestForwarder {
                 status.current_provider_id = Some(provider.id.clone());
                 status.total_requests += 1;
                 status.last_request_at = Some(chrono::Utc::now().to_rfc3339());
-                if attempt > 0 {
-                    failover_happened = true;
-                }
             }
 
             let start = Instant::now();
@@ -304,6 +321,21 @@ impl RequestForwarder {
                     }
                 }
             }
+        }
+
+        if attempted_providers == 0 {
+            // providers 列表非空，但全部被熔断器拒绝（典型：HalfOpen 探测名额被占用）
+            {
+                let mut status = self.status.write().await;
+                status.failed_requests += 1;
+                status.last_error = Some("所有供应商暂时不可用（熔断器限制）".to_string());
+                if status.total_requests > 0 {
+                    status.success_rate = (status.success_requests as f32
+                        / status.total_requests as f32)
+                        * 100.0;
+                }
+            }
+            return Err(ProxyError::NoAvailableProvider);
         }
 
         // 所有供应商都失败了
