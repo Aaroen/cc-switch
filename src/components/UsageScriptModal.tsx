@@ -227,6 +227,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           .join(", ");
         toast.success(`${t("usageScript.testSuccess")}${summary}`, {
           duration: 3000,
+          closeButton: true,
         });
       } else {
         toast.error(
@@ -259,7 +260,10 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         printWidth: 80,
       });
       setScript({ ...script, code: formatted.trim() });
-      toast.success(t("usageScript.formatSuccess"), { duration: 1000 });
+      toast.success(t("usageScript.formatSuccess"), {
+        duration: 1000,
+        closeButton: true,
+      });
     } catch (error: any) {
       toast.error(
         `${t("usageScript.formatFailed")}: ${error?.message || t("jsonEditor.invalidJson")}`,

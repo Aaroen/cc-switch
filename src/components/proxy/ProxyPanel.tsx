@@ -51,7 +51,7 @@ export function ProxyPanel() {
                       navigator.clipboard.writeText(
                         `http://${status.address}:${status.port}`,
                       );
-                      toast.success("地址已复制");
+                      toast.success("地址已复制", { closeButton: true });
                     }}
                   >
                     复制

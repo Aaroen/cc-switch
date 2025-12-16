@@ -54,6 +54,7 @@ export function AutoFailoverConfigPanel({
       });
       toast.success(
         t("proxy.autoFailover.configSaved", "自动故障转移配置已保存"),
+        { closeButton: true },
       );
     } catch (e) {
       toast.error(

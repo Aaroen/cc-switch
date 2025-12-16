@@ -136,7 +136,7 @@ export function SettingsPage({
   const handleRestartNow = useCallback(async () => {
     setShowRestartPrompt(false);
     if (import.meta.env.DEV) {
-      toast.success(t("settings.devModeRestartHint"));
+      toast.success(t("settings.devModeRestartHint"), { closeButton: true });
       closeAfterSave();
       return;
     }

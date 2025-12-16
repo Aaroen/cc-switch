@@ -73,10 +73,8 @@ export function FailoverQueueManager({
     isLoading: isQueueLoading,
     error: queueError,
   } = useFailoverQueue(appType);
-  const {
-    data: availableProviders,
-    isLoading: isProvidersLoading,
-  } = useAvailableProvidersForFailover(appType);
+  const { data: availableProviders, isLoading: isProvidersLoading } =
+    useAvailableProvidersForFailover(appType);
 
   // Mutations
   const addToQueue = useAddToFailoverQueue();
@@ -122,6 +120,7 @@ export function FailoverQueueManager({
         await reorderQueue.mutateAsync({ appType, providerIds });
         toast.success(
           t("proxy.failoverQueue.reorderSuccess", "队列顺序已更新"),
+          { closeButton: true },
         );
       } catch (error) {
         toast.error(
@@ -144,7 +143,10 @@ export function FailoverQueueManager({
         providerId: selectedProviderId,
       });
       setSelectedProviderId("");
-      toast.success(t("proxy.failoverQueue.addSuccess", "已添加到故障转移队列"));
+      toast.success(
+        t("proxy.failoverQueue.addSuccess", "已添加到故障转移队列"),
+        { closeButton: true },
+      );
     } catch (error) {
       toast.error(
         t("proxy.failoverQueue.addFailed", "添加失败") + ": " + String(error),
@@ -158,10 +160,13 @@ export function FailoverQueueManager({
       await removeFromQueue.mutateAsync({ appType, providerId });
       toast.success(
         t("proxy.failoverQueue.removeSuccess", "已从故障转移队列移除"),
+        { closeButton: true },
       );
     } catch (error) {
       toast.error(
-        t("proxy.failoverQueue.removeFailed", "移除失败") + ": " + String(error),
+        t("proxy.failoverQueue.removeFailed", "移除失败") +
+          ": " +
+          String(error),
       );
     }
   };
@@ -242,9 +247,7 @@ export function FailoverQueueManager({
         </Select>
         <Button
           onClick={handleAddProvider}
-          disabled={
-            disabled || !selectedProviderId || addToQueue.isPending
-          }
+          disabled={disabled || !selectedProviderId || addToQueue.isPending}
           size="icon"
           variant="outline"
         >
@@ -386,9 +389,7 @@ function SortableQueueItem({
       {/* 启用开关 */}
       <Switch
         checked={item.enabled}
-        onCheckedChange={(checked) =>
-          onToggleEnabled(item.providerId, checked)
-        }
+        onCheckedChange={(checked) => onToggleEnabled(item.providerId, checked)}
         disabled={disabled || isToggling}
         aria-label={t("proxy.failoverQueue.toggleEnabled", "启用/禁用")}
       />

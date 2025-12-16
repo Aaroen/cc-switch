@@ -194,6 +194,7 @@ export const useSetProxyTargetMutation = (appId: AppId) => {
         t("notifications.proxyTargetSet", {
           defaultValue: "已设置代理目标",
         }),
+        { closeButton: true },
       );
     },
     onError: (error: Error) => {

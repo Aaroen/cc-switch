@@ -89,10 +89,7 @@ export const failoverApi = {
   },
 
   // 添加供应商到故障转移队列
-  async addToFailoverQueue(
-    appType: string,
-    providerId: string,
-  ): Promise<void> {
+  async addToFailoverQueue(appType: string, providerId: string): Promise<void> {
     return invoke("add_to_failover_queue", { appType, providerId });
   },
 
@@ -118,6 +115,10 @@ export const failoverApi = {
     providerId: string,
     enabled: boolean,
   ): Promise<void> {
-    return invoke("set_failover_item_enabled", { appType, providerId, enabled });
+    return invoke("set_failover_item_enabled", {
+      appType,
+      providerId,
+      enabled,
+    });
   },
 };
