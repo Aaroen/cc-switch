@@ -29,6 +29,8 @@ pub struct RequestForwarder {
     failover_manager: Arc<FailoverSwitchManager>,
     /// AppHandle，用于发射事件和更新托盘
     app_handle: Option<tauri::AppHandle>,
+    /// 请求开始时的“当前供应商 ID”（用于判断是否需要同步 UI/托盘）
+    current_provider_id_at_start: String,
 }
 
 impl RequestForwarder {
@@ -40,6 +42,7 @@ impl RequestForwarder {
         current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
         failover_manager: Arc<FailoverSwitchManager>,
         app_handle: Option<tauri::AppHandle>,
+        current_provider_id_at_start: String,
     ) -> Self {
         let mut client_builder = Client::builder();
         if timeout_secs > 0 {
@@ -58,6 +61,7 @@ impl RequestForwarder {
             current_providers,
             failover_manager,
             app_handle,
+            current_provider_id_at_start,
         }
     }
 
@@ -145,7 +149,6 @@ impl RequestForwarder {
         );
 
         let mut last_error = None;
-        let mut failover_happened = false;
         let mut attempted_providers = 0usize;
 
         // 依次尝试每个供应商
@@ -167,9 +170,6 @@ impl RequestForwarder {
             let used_half_open_permit = permit.used_half_open_permit;
 
             attempted_providers += 1;
-            if attempted_providers > 1 {
-                failover_happened = true;
-            }
 
             log::info!(
                 "[{}] 尝试 {}/{} - 使用Provider: {} (sort_index: {})",
@@ -228,16 +228,18 @@ impl RequestForwarder {
                         let mut status = self.status.write().await;
                         status.success_requests += 1;
                         status.last_error = None;
-                        if failover_happened {
+                        let should_switch =
+                            self.current_provider_id_at_start.as_str() != provider.id.as_str();
+                        if should_switch {
                             status.failover_count += 1;
                             log::info!(
-                                "[{}] 故障转移成功！切换到 Provider: {} (耗时: {}ms)",
+                                "[{}] 代理目标已切换到 Provider: {} (耗时: {}ms)",
                                 app_type_str,
                                 provider.name,
                                 latency
                             );
 
-                            // 异步触发供应商切换，更新 UI 和托盘菜单
+                            // 异步触发供应商切换，更新 UI/托盘，并把“当前供应商”同步为实际使用的 provider
                             let fm = self.failover_manager.clone();
                             let ah = self.app_handle.clone();
                             let pid = provider.id.clone();
