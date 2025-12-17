@@ -5,7 +5,7 @@
 use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
-use crate::proxy::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
+use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -123,7 +123,7 @@ impl ProviderRouter {
     ///
     /// 注意：调用方必须在请求结束后通过 `record_result()` 释放 HalfOpen 名额，
     /// 否则会导致该 Provider 长时间无法进入探测状态。
-    pub async fn allow_provider_request(&self, provider_id: &str, app_type: &str) -> bool {
+    pub async fn allow_provider_request(&self, provider_id: &str, app_type: &str) -> AllowResult {
         let circuit_key = format!("{app_type}:{provider_id}");
         let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
         breaker.allow_request().await
@@ -134,6 +134,7 @@ impl ProviderRouter {
         &self,
         provider_id: &str,
         app_type: &str,
+        used_half_open_permit: bool,
         success: bool,
         error_msg: Option<String>,
     ) -> Result<(), AppError> {
@@ -146,10 +147,10 @@ impl ProviderRouter {
         let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
         if success {
-            breaker.record_success().await;
+            breaker.record_success(used_half_open_permit).await;
             log::debug!("Provider {provider_id} request succeeded");
         } else {
-            breaker.record_failure().await;
+            breaker.record_failure(used_half_open_permit).await;
             log::warn!(
                 "Provider {} request failed: {}",
                 provider_id,
@@ -265,7 +266,7 @@ mod tests {
 
         // 测试创建熔断器
         let breaker = router.get_or_create_circuit_breaker("claude:test").await;
-        assert!(breaker.allow_request().await);
+        assert!(breaker.allow_request().await.allowed);
     }
 
     #[tokio::test]
@@ -296,7 +297,7 @@ mod tests {
 
         // 让 B 进入 Open 状态（failure_threshold=1）
         router
-            .record_result("b", "claude", false, Some("fail".to_string()))
+            .record_result("b", "claude", false, false, Some("fail".to_string()))
             .await
             .unwrap();
 
@@ -305,6 +306,6 @@ mod tests {
         assert_eq!(providers.len(), 2);
 
         // 如果 select_providers 错误地消耗了 HalfOpen 名额，这里会返回 false（被限流拒绝）
-        assert!(router.allow_provider_request("b", "claude").await);
+        assert!(router.allow_provider_request("b", "claude").await.allowed);
     }
 }

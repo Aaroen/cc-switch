@@ -94,10 +94,8 @@ impl RequestForwarder {
             {
                 Ok(response) => return Ok(response),
                 Err(e) => {
-                    let category = self.categorize_proxy_error(&e);
-
-                    // 只有可重试的错误才继续重试
-                    if category == ErrorCategory::NonRetryable {
+                    // 只有“同一 Provider 内可重试”的错误才继续重试
+                    if !self.should_retry_same_provider(&e) {
                         return Err(e);
                     }
 
@@ -153,11 +151,11 @@ impl RequestForwarder {
         // 依次尝试每个供应商
         for provider in providers.iter() {
             // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
-            if !self
+            let permit = self
                 .router
                 .allow_provider_request(&provider.id, app_type_str)
-                .await
-            {
+                .await;
+            if !permit.allowed {
                 log::debug!(
                     "[{}] Provider {} 熔断器拒绝本次请求，跳过",
                     app_type_str,
@@ -165,6 +163,8 @@ impl RequestForwarder {
                 );
                 continue;
             }
+
+            let used_half_open_permit = permit.used_half_open_permit;
 
             attempted_providers += 1;
             if attempted_providers > 1 {
@@ -202,7 +202,13 @@ impl RequestForwarder {
                     // 成功：记录成功并更新熔断器
                     if let Err(e) = self
                         .router
-                        .record_result(&provider.id, app_type_str, true, None)
+                        .record_result(
+                            &provider.id,
+                            app_type_str,
+                            used_half_open_permit,
+                            true,
+                            None,
+                        )
                         .await
                     {
                         log::warn!("Failed to record success: {e}");
@@ -268,7 +274,13 @@ impl RequestForwarder {
                     // 失败：记录失败并更新熔断器
                     if let Err(record_err) = self
                         .router
-                        .record_result(&provider.id, app_type_str, false, Some(e.to_string()))
+                        .record_result(
+                            &provider.id,
+                            app_type_str,
+                            used_half_open_permit,
+                            false,
+                            Some(e.to_string()),
+                        )
                         .await
                     {
                         log::warn!("Failed to record failure: {record_err}");
@@ -489,6 +501,19 @@ impl RequestForwarder {
     ///
     /// 设计原则：既然用户配置了多个供应商，就应该让所有供应商都尝试一遍。
     /// 只有明确是客户端中断的情况才不重试。
+    fn should_retry_same_provider(&self, error: &ProxyError) -> bool {
+        match error {
+            // 网络类错误：短暂抖动时同一 Provider 内重试有意义
+            ProxyError::Timeout(_) => true,
+            ProxyError::ForwardFailed(_) => true,
+            // 上游 HTTP 错误：只对“可能瞬态”的状态码做同 Provider 重试（其余交给 failover）
+            ProxyError::UpstreamError { status, .. } => {
+                *status == 408 || *status == 429 || *status >= 500
+            }
+            _ => false,
+        }
+    }
+
     fn categorize_proxy_error(&self, error: &ProxyError) -> ErrorCategory {
         match error {
             // 网络和上游错误：都应该尝试下一个供应商
@@ -499,9 +524,15 @@ impl RequestForwarder {
             // 原因：不同供应商有不同的限制和认证，一个供应商的 4xx 错误
             // 不代表其他供应商也会失败
             ProxyError::UpstreamError { .. } => ErrorCategory::Retryable,
+            // Provider 级配置/转换问题：换一个 Provider 可能就能成功
+            ProxyError::ConfigError(_) => ErrorCategory::Retryable,
+            ProxyError::TransformError(_) => ErrorCategory::Retryable,
+            ProxyError::AuthError(_) => ErrorCategory::Retryable,
+            ProxyError::StreamIdleTimeout(_) => ErrorCategory::Retryable,
+            ProxyError::MaxRetriesExceeded => ErrorCategory::Retryable,
             // 无可用供应商：所有供应商都试过了，无法重试
             ProxyError::NoAvailableProvider => ErrorCategory::NonRetryable,
-            // 其他错误（配置错误、数据库错误等）：不是供应商问题，无需重试
+            // 其他错误（数据库/内部错误等）：不是换供应商能解决的问题
             _ => ErrorCategory::NonRetryable,
         }
     }
