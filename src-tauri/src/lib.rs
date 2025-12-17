@@ -531,23 +531,41 @@ pub fn run() {
                 let state = app_handle.state::<AppState>();
 
                 // 1. 检测异常退出并恢复 Live 配置
-                match state.db.is_live_takeover_active().await {
-                    Ok(true) => {
-                        // 接管标志为 true 但代理未运行 → 上次异常退出
-                        if !state.proxy_service.is_running().await {
-                            log::warn!("检测到上次异常退出，正在恢复 Live 配置...");
-                            if let Err(e) = state.proxy_service.recover_from_crash().await {
-                                log::error!("恢复 Live 配置失败: {e}");
-                            } else {
-                                log::info!("Live 配置已从异常退出中恢复");
-                            }
+                let is_proxy_running = state.proxy_service.is_running().await;
+                if !is_proxy_running {
+                    let takeover_flag = match state.db.is_live_takeover_active().await {
+                        Ok(active) => active,
+                        Err(e) => {
+                            log::error!("检查接管状态失败: {e}");
+                            false
                         }
-                    }
-                    Ok(false) => {
-                        // 正常状态，无需恢复
-                    }
-                    Err(e) => {
-                        log::error!("检查接管状态失败: {e}");
+                    };
+
+                    let has_backups = match state.db.has_any_live_backup().await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("检查 Live 备份失败: {e}");
+                            false
+                        }
+                    };
+
+                    // 兜底检测：旧版本/极端窗口期可能出现“标志未写入，但 Live 已被写成占位符”的残留状态。
+                    // 只有在存在备份时才检查占位符，避免误判覆盖用户正常配置。
+                    let live_taken_over =
+                        has_backups && state.proxy_service.detect_takeover_in_live_configs();
+
+                    if takeover_flag || live_taken_over {
+                        log::warn!("检测到上次异常退出或残留接管状态，正在恢复 Live 配置...");
+                        if let Err(e) = state.proxy_service.recover_from_crash().await {
+                            log::error!("恢复 Live 配置失败: {e}");
+                        } else {
+                            log::info!("Live 配置已从异常退出中恢复");
+                        }
+                    } else if has_backups {
+                        // 备份残留但 Live 未处于接管状态：清理敏感备份，避免长期存储 Token
+                        if let Err(e) = state.db.delete_all_live_backups().await {
+                            log::warn!("清理残留 Live 备份失败: {e}");
+                        }
                     }
                 }
 

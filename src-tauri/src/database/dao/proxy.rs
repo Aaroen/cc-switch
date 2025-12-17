@@ -321,6 +321,17 @@ impl Database {
         Ok(())
     }
 
+    /// 检查是否存在任意 Live 配置备份
+    pub async fn has_any_live_backup(&self) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM proxy_live_backup", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(count > 0)
+    }
+
     /// 获取 Live 配置备份
     pub async fn get_live_backup(&self, app_type: &str) -> Result<Option<LiveBackup>, AppError> {
         let conn = lock_conn!(self.conn);

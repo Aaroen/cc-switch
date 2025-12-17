@@ -84,16 +84,38 @@ impl ProxyService {
         self.backup_live_configs().await?;
 
         // 2. 同步 Live 配置中的 Token 到数据库（确保代理能读到最新的 Token）
-        self.sync_live_to_providers().await?;
+        if let Err(e) = self.sync_live_to_providers().await {
+            // 同步失败时尚未写入接管配置，但备份可能包含敏感信息，尽量清理
+            if let Err(clean_err) = self.db.delete_all_live_backups().await {
+                log::warn!("清理 Live 备份失败: {clean_err}");
+            }
+            return Err(e);
+        }
 
-        // 3. 接管各应用的 Live 配置（写入代理地址，清空 Token）
-        self.takeover_live_configs().await?;
+        // 3. 在写入接管配置之前先落盘接管标志：
+        //    这样即使在接管过程中断电/kill，下次启动也能检测到并自动恢复。
+        if let Err(e) = self.db.set_live_takeover_active(true).await {
+            if let Err(clean_err) = self.db.delete_all_live_backups().await {
+                log::warn!("清理 Live 备份失败: {clean_err}");
+            }
+            return Err(format!("设置接管状态失败: {e}"));
+        }
 
-        // 4. 设置接管状态
-        self.db
-            .set_live_takeover_active(true)
-            .await
-            .map_err(|e| format!("设置接管状态失败: {e}"))?;
+        // 4. 接管各应用的 Live 配置（写入代理地址，清空 Token）
+        if let Err(e) = self.takeover_live_configs().await {
+            // 接管失败（可能是部分写入），尝试恢复原始配置；若恢复失败则保留标志与备份，等待下次启动自动恢复。
+            log::error!("接管 Live 配置失败，尝试恢复原始配置: {e}");
+            match self.restore_live_configs().await {
+                Ok(()) => {
+                    let _ = self.db.set_live_takeover_active(false).await;
+                    let _ = self.db.delete_all_live_backups().await;
+                }
+                Err(restore_err) => {
+                    log::error!("恢复原始配置失败，将保留备份以便下次启动恢复: {restore_err}");
+                }
+            }
+            return Err(e);
+        }
 
         // 5. 启动代理服务器
         match self.start().await {
@@ -101,8 +123,15 @@ impl ProxyService {
             Err(e) => {
                 // 启动失败，恢复原始配置
                 log::error!("代理启动失败，尝试恢复原始配置: {e}");
-                let _ = self.restore_live_configs().await;
-                let _ = self.db.set_live_takeover_active(false).await;
+                match self.restore_live_configs().await {
+                    Ok(()) => {
+                        let _ = self.db.set_live_takeover_active(false).await;
+                        let _ = self.db.delete_all_live_backups().await;
+                    }
+                    Err(restore_err) => {
+                        log::error!("恢复原始配置失败，将保留备份以便下次启动恢复: {restore_err}");
+                    }
+                }
                 Err(e)
             }
         }
@@ -515,6 +544,68 @@ impl ProxyService {
 
         log::info!("已从异常退出中恢复 Live 配置");
         Ok(())
+    }
+
+    /// 检测 Live 配置是否处于“被接管”的残留状态
+    ///
+    /// 用于兜底处理：当数据库标志未写入成功（或旧版本遗留）但 Live 文件已经写成代理占位符时，
+    /// 启动流程可以据此触发恢复逻辑。
+    pub fn detect_takeover_in_live_configs(&self) -> bool {
+        if let Ok(config) = self.read_claude_live() {
+            if Self::is_claude_live_taken_over(&config) {
+                return true;
+            }
+        }
+
+        if let Ok(config) = self.read_codex_live() {
+            if Self::is_codex_live_taken_over(&config) {
+                return true;
+            }
+        }
+
+        if let Ok(config) = self.read_gemini_live() {
+            if Self::is_gemini_live_taken_over(&config) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn is_claude_live_taken_over(config: &Value) -> bool {
+        let env = match config.get("env").and_then(|v| v.as_object()) {
+            Some(env) => env,
+            None => return false,
+        };
+
+        for key in [
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+            "OPENAI_API_KEY",
+        ] {
+            if env.get(key).and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn is_codex_live_taken_over(config: &Value) -> bool {
+        let auth = match config.get("auth").and_then(|v| v.as_object()) {
+            Some(auth) => auth,
+            None => return false,
+        };
+        auth.get("OPENAI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
+    }
+
+    fn is_gemini_live_taken_over(config: &Value) -> bool {
+        let env = match config.get("env").and_then(|v| v.as_object()) {
+            Some(env) => env,
+            None => return false,
+        };
+        env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
     }
 
     /// 从供应商配置更新 Live 备份（用于代理模式下的热切换）
