@@ -191,8 +191,13 @@ impl ProxyServer {
             .route("/v1/messages", post(handlers::handle_messages))
             .route("/claude/v1/messages", post(handlers::handle_messages))
             // OpenAI Chat Completions API (Codex CLI，支持带前缀和不带前缀)
+            .route("/chat/completions", post(handlers::handle_chat_completions))
             .route(
                 "/v1/chat/completions",
+                post(handlers::handle_chat_completions),
+            )
+            .route(
+                "/v1/v1/chat/completions",
                 post(handlers::handle_chat_completions),
             )
             .route(
@@ -200,7 +205,9 @@ impl ProxyServer {
                 post(handlers::handle_chat_completions),
             )
             // OpenAI Responses API (Codex CLI，支持带前缀和不带前缀)
+            .route("/responses", post(handlers::handle_responses))
             .route("/v1/responses", post(handlers::handle_responses))
+            .route("/v1/v1/responses", post(handlers::handle_responses))
             .route("/codex/v1/responses", post(handlers::handle_responses))
             // Gemini API (支持带前缀和不带前缀)
             .route("/v1beta/*path", post(handlers::handle_gemini))

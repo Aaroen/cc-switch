@@ -408,7 +408,22 @@ impl ProxyService {
             .await
             .map_err(|e| format!("获取代理配置失败: {e}"))?;
 
-        let proxy_url = format!("http://{}:{}", config.listen_address, config.listen_port);
+        // 注意：listen_address 可能是 0.0.0.0（用于监听所有网卡），但客户端无法用 0.0.0.0 连接；
+        // 因此写回到各应用配置时，优先使用本机回环地址。
+        let connect_host = match config.listen_address.as_str() {
+            "0.0.0.0" => "127.0.0.1".to_string(),
+            "::" => "::1".to_string(),
+            _ => config.listen_address.clone(),
+        };
+        let connect_host_for_url = if connect_host.contains(':') && !connect_host.starts_with('[') {
+            format!("[{connect_host}]")
+        } else {
+            connect_host
+        };
+
+        let proxy_origin = format!("http://{}:{}", connect_host_for_url, config.listen_port);
+        let proxy_url = proxy_origin.clone();
+        let proxy_codex_base_url = format!("{}/v1", proxy_origin.trim_end_matches('/'));
 
         // Claude: 修改 ANTHROPIC_BASE_URL，使用占位符替代真实 Token（代理会注入真实 Token）
         if let Ok(mut live_config) = self.read_claude_live() {
@@ -459,11 +474,11 @@ impl ProxyService {
                 .get("config")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let updated_config = Self::update_toml_base_url(config_str, &proxy_url);
+            let updated_config = Self::update_toml_base_url(config_str, &proxy_codex_base_url);
             live_config["config"] = json!(updated_config);
 
             self.write_codex_live(&live_config)?;
-            log::info!("Codex Live 配置已接管，代理地址: {proxy_url}");
+            log::info!("Codex Live 配置已接管，代理地址: {proxy_codex_base_url}");
         }
 
         // Gemini: 修改 GOOGLE_GEMINI_BASE_URL，使用占位符替代真实 Token（代理会注入真实 Token）
@@ -675,10 +690,42 @@ impl ProxyService {
     fn update_toml_base_url(toml_str: &str, new_url: &str) -> String {
         use toml_edit::DocumentMut;
 
-        let mut doc = toml_str
-            .parse::<DocumentMut>()
-            .unwrap_or_else(|_| DocumentMut::new());
+        let mut doc = match toml_str.parse::<DocumentMut>() {
+            Ok(doc) => doc,
+            Err(_) => return toml_str.to_string(),
+        };
 
+        // Codex 的 config.toml 通常是：
+        // model_provider = "any"
+        //
+        // [model_providers.any]
+        // base_url = "https://.../v1"
+        //
+        // 所以接管时要“精准”修改当前 model_provider 对应的 model_providers.<name>.base_url，
+        // 避免写错位置导致 Codex 仍然走旧地址。
+        let model_provider = doc
+            .get("model_provider")
+            .and_then(|item| item.as_str())
+            .map(str::to_string);
+
+        if let Some(provider_key) = model_provider {
+            if doc.get("model_providers").is_none() {
+                doc["model_providers"] = toml_edit::table();
+            }
+
+            if let Some(model_providers) = doc["model_providers"].as_table_mut() {
+                if !model_providers.contains_key(&provider_key) {
+                    model_providers[&provider_key] = toml_edit::table();
+                }
+
+                if let Some(provider_table) = model_providers[&provider_key].as_table_mut() {
+                    provider_table["base_url"] = toml_edit::value(new_url);
+                    return doc.to_string();
+                }
+            }
+        }
+
+        // 兜底：如果没有 model_provider 或结构不符合预期，则退回修改顶层 base_url。
         doc["base_url"] = toml_edit::value(new_url);
 
         doc.to_string()
@@ -892,5 +939,72 @@ impl ProxyService {
             log::info!("已重置 Provider {provider_id} (app: {app_type}) 的熔断器");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_toml_base_url_updates_active_model_provider_base_url() {
+        let input = r#"
+model_provider = "any"
+model = "gpt-5.1-codex"
+disable_response_storage = true
+
+[model_providers.any]
+name = "any"
+base_url = "https://anyrouter.top/v1"
+wire_api = "responses"
+requires_openai_auth = true
+"#;
+
+        let new_url = "http://127.0.0.1:5000/v1";
+        let output = ProxyService::update_toml_base_url(input, new_url);
+
+        let parsed: toml::Value =
+            toml::from_str(&output).expect("updated config should be valid TOML");
+
+        let base_url = parsed
+            .get("model_providers")
+            .and_then(|v| v.get("any"))
+            .and_then(|v| v.get("base_url"))
+            .and_then(|v| v.as_str())
+            .expect("model_providers.any.base_url should exist");
+
+        assert_eq!(base_url, new_url);
+        assert!(
+            parsed.get("base_url").is_none(),
+            "should not write top-level base_url"
+        );
+
+        let wire_api = parsed
+            .get("model_providers")
+            .and_then(|v| v.get("any"))
+            .and_then(|v| v.get("wire_api"))
+            .and_then(|v| v.as_str())
+            .expect("model_providers.any.wire_api should exist");
+        assert_eq!(wire_api, "responses");
+    }
+
+    #[test]
+    fn update_toml_base_url_falls_back_to_top_level_base_url() {
+        let input = r#"
+model = "gpt-5.1-codex"
+"#;
+
+        let new_url = "http://127.0.0.1:5000/v1";
+        let output = ProxyService::update_toml_base_url(input, new_url);
+
+        let parsed: toml::Value =
+            toml::from_str(&output).expect("updated config should be valid TOML");
+
+        let base_url = parsed
+            .get("base_url")
+            .and_then(|v| v.as_str())
+            .expect("base_url should exist");
+
+        assert_eq!(base_url, new_url);
     }
 }
