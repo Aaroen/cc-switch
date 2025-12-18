@@ -19,13 +19,8 @@ interface ProxyToggleProps {
 
 export function ProxyToggle({ className, activeApp }: ProxyToggleProps) {
   const { t } = useTranslation();
-  const {
-    isRunning,
-    takeoverStatus,
-    setTakeoverForApp,
-    isPending,
-    status,
-  } = useProxyStatus();
+  const { isRunning, takeoverStatus, setTakeoverForApp, isPending, status } =
+    useProxyStatus();
 
   const handleToggle = async (checked: boolean) => {
     await setTakeoverForApp({ appType: activeApp, enabled: checked });

@@ -6,7 +6,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import type { ProxyStatus, ProxyServerInfo, ProxyTakeoverStatus } from "@/types/proxy";
+import type {
+  ProxyStatus,
+  ProxyServerInfo,
+  ProxyTakeoverStatus,
+} from "@/types/proxy";
 import { extractErrorMessage } from "@/utils/errorUtils";
 
 /**
@@ -82,13 +86,8 @@ export function useProxyStatus() {
 
   // 按应用开启/关闭接管
   const setTakeoverForAppMutation = useMutation({
-    mutationFn: ({
-      appType,
-      enabled,
-    }: {
-      appType: string;
-      enabled: boolean;
-    }) => invoke("set_proxy_takeover_for_app", { appType, enabled }),
+    mutationFn: ({ appType, enabled }: { appType: string; enabled: boolean }) =>
+      invoke("set_proxy_takeover_for_app", { appType, enabled }),
     onSuccess: (_data, variables) => {
       const appLabel =
         variables.appType === "claude"
