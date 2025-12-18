@@ -38,6 +38,12 @@ export interface ProxyServerInfo {
   started_at: string;
 }
 
+export interface ProxyTakeoverStatus {
+  claude: boolean;
+  codex: boolean;
+  gemini: boolean;
+}
+
 export interface ProviderHealth {
   provider_id: string;
   app_type: string;

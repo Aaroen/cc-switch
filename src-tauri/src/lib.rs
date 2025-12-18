@@ -574,7 +574,7 @@ pub fn run() {
                     Ok(config) => {
                         if config.enabled {
                             log::info!("代理服务配置为启用，正在启动...");
-                            match state.proxy_service.start_with_takeover().await {
+                            match state.proxy_service.start(true).await {
                                 Ok(info) => log::info!(
                                     "代理服务器自动启动成功: {}:{}",
                                     info.address,
@@ -690,8 +690,11 @@ pub fn run() {
             commands::set_auto_launch,
             commands::get_auto_launch_status,
             // Proxy server management
+            commands::start_proxy_server,
             commands::start_proxy_with_takeover,
             commands::stop_proxy_with_restore,
+            commands::get_proxy_takeover_status,
+            commands::set_proxy_takeover_for_app,
             commands::get_proxy_status,
             commands::get_proxy_config,
             commands::update_proxy_config,

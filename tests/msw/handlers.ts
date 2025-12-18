@@ -258,6 +258,14 @@ export const handlers = [
     }),
   ),
 
+  http.post(`${TAURI_ENDPOINT}/get_proxy_takeover_status`, () =>
+    success({
+      claude: false,
+      codex: false,
+      gemini: false,
+    }),
+  ),
+
   http.post(`${TAURI_ENDPOINT}/is_live_takeover_active`, () => success(false)),
 
   // Failover / circuit breaker defaults

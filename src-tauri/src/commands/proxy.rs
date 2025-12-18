@@ -6,6 +6,14 @@ use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
 use crate::store::AppState;
 
+/// 启动代理服务器（仅启动服务，不接管 Live 配置）
+#[tauri::command]
+pub async fn start_proxy_server(
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyServerInfo, String> {
+    state.proxy_service.start(true).await
+}
+
 /// 启动代理服务器（带 Live 配置接管）
 #[tauri::command]
 pub async fn start_proxy_with_takeover(
@@ -18,6 +26,27 @@ pub async fn start_proxy_with_takeover(
 #[tauri::command]
 pub async fn stop_proxy_with_restore(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.proxy_service.stop_with_restore().await
+}
+
+/// 获取各应用接管状态
+#[tauri::command]
+pub async fn get_proxy_takeover_status(
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyTakeoverStatus, String> {
+    state.proxy_service.get_takeover_status().await
+}
+
+/// 为指定应用开启/关闭接管
+#[tauri::command]
+pub async fn set_proxy_takeover_for_app(
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .proxy_service
+        .set_takeover_for_app(&app_type, enabled)
+        .await
 }
 
 /// 获取代理服务器状态

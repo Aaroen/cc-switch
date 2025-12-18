@@ -85,15 +85,8 @@ impl Database {
 
     /// 检查是否处于 Live 接管模式
     pub async fn is_live_takeover_active(&self) -> Result<bool, AppError> {
-        let conn = lock_conn!(self.conn);
-        let active: i32 = conn
-            .query_row(
-                "SELECT COALESCE(live_takeover_active, 0) FROM proxy_config WHERE id = 1",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-        Ok(active != 0)
+        // v3.7.0+：以 proxy_live_backup 是否存在作为“接管状态”的真实来源（更贴近 per-app 接管）
+        self.has_any_live_backup().await
     }
 
     // ==================== Provider Health ====================

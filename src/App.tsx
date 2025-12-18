@@ -491,7 +491,7 @@ function App() {
             )}
             {currentView === "providers" && (
               <>
-                <ProxyToggle />
+                <ProxyToggle activeApp={activeApp} />
 
                 <AppSwitcher activeApp={activeApp} onSwitch={setActiveApp} />
 

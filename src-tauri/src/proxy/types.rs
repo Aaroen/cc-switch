@@ -86,6 +86,14 @@ pub struct ProxyServerInfo {
     pub started_at: String,
 }
 
+/// 各应用的接管状态（是否改写该应用的 Live 配置指向本地代理）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProxyTakeoverStatus {
+    pub claude: bool,
+    pub codex: bool,
+    pub gemini: bool,
+}
+
 /// API 格式类型（预留，当前不需要格式转换）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]

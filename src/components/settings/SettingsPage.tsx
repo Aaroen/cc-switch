@@ -177,8 +177,8 @@ export function SettingsPage({
 
   const {
     isRunning,
-    startWithTakeover: startProxy,
-    stopWithRestore: stopProxy,
+    startProxyServer,
+    stopWithRestore,
     isPending: isProxyPending,
   } = useProxyStatus();
   const [failoverEnabled, setFailoverEnabled] = useState(true);
@@ -186,9 +186,9 @@ export function SettingsPage({
   const handleToggleProxy = async (checked: boolean) => {
     try {
       if (!checked) {
-        await stopProxy();
+        await stopWithRestore();
       } else {
-        await startProxy();
+        await startProxyServer();
       }
     } catch (error) {
       console.error("Toggle proxy failed:", error);

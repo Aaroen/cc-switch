@@ -9,40 +9,54 @@ import { Radio, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
+import type { AppId } from "@/lib/api";
 
 interface ProxyToggleProps {
   className?: string;
+  activeApp: AppId;
 }
 
-export function ProxyToggle({ className }: ProxyToggleProps) {
+export function ProxyToggle({ className, activeApp }: ProxyToggleProps) {
+  const { t } = useTranslation();
   const {
     isRunning,
-    isTakeoverActive,
-    startWithTakeover,
-    stopWithRestore,
+    takeoverStatus,
+    setTakeoverForApp,
     isPending,
     status,
   } = useProxyStatus();
 
   const handleToggle = async (checked: boolean) => {
-    if (checked) {
-      await startWithTakeover();
-    } else {
-      await stopWithRestore();
-    }
+    await setTakeoverForApp({ appType: activeApp, enabled: checked });
   };
 
-  const isActive = isRunning && isTakeoverActive;
+  const takeoverEnabled = takeoverStatus?.[activeApp] || false;
 
-  const tooltipText = isActive
-    ? `代理模式运行中 - ${status?.address}:${status?.port}\n切换供应商为热切换`
-    : "开启代理模式\n启用后自动接管 Live 配置";
+  const appLabel =
+    activeApp === "claude"
+      ? "Claude"
+      : activeApp === "codex"
+        ? "Codex"
+        : "Gemini";
+
+  const tooltipText = takeoverEnabled
+    ? isRunning
+      ? t("proxy.takeover.tooltip.active", {
+          defaultValue: `${appLabel} 已接管 - ${status?.address}:${status?.port}\n切换该应用供应商为热切换`,
+        })
+      : t("proxy.takeover.tooltip.broken", {
+          defaultValue: `${appLabel} 已接管，但代理服务未运行`,
+        })
+    : t("proxy.takeover.tooltip.inactive", {
+        defaultValue: `接管 ${appLabel} 的 Live 配置，让该应用请求走本地代理`,
+      });
 
   return (
     <div
       className={cn(
         "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-default",
-        isActive
+        takeoverEnabled
           ? "bg-emerald-500/10 border border-emerald-500/30"
           : "bg-muted/50 hover:bg-muted",
         className,
@@ -55,7 +69,7 @@ export function ProxyToggle({ className }: ProxyToggleProps) {
         <Radio
           className={cn(
             "h-4 w-4 transition-colors",
-            isActive
+            takeoverEnabled
               ? "text-emerald-500 animate-pulse"
               : "text-muted-foreground",
           )}
@@ -64,7 +78,7 @@ export function ProxyToggle({ className }: ProxyToggleProps) {
       <span
         className={cn(
           "text-sm font-medium transition-colors select-none",
-          isActive
+          takeoverEnabled
             ? "text-emerald-600 dark:text-emerald-400"
             : "text-muted-foreground",
         )}
@@ -72,7 +86,7 @@ export function ProxyToggle({ className }: ProxyToggleProps) {
         Proxy
       </span>
       <Switch
-        checked={isActive}
+        checked={takeoverEnabled}
         onCheckedChange={handleToggle}
         disabled={isPending}
         className="ml-1"

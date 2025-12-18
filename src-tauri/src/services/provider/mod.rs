@@ -147,10 +147,13 @@ impl ProviderService {
             // 如果代理接管模式处于激活状态，并且代理服务正在运行：
             // - 不写 Live 配置（否则会破坏接管）
             // - 仅更新 Live 备份（保证关闭代理时能恢复到最新配置）
-            let is_takeover_flag =
-                futures::executor::block_on(state.db.is_live_takeover_active()).unwrap_or(false);
+            let is_app_taken_over =
+                futures::executor::block_on(state.db.get_live_backup(app_type.as_str()))
+                    .ok()
+                    .flatten()
+                    .is_some();
             let is_proxy_running = futures::executor::block_on(state.proxy_service.is_running());
-            let should_skip_live_write = is_takeover_flag && is_proxy_running;
+            let should_skip_live_write = is_app_taken_over && is_proxy_running;
 
             if should_skip_live_write {
                 futures::executor::block_on(
@@ -160,12 +163,6 @@ impl ProviderService {
                 )
                 .map_err(|e| AppError::Message(format!("更新 Live 备份失败: {e}")))?;
             } else {
-                // 如果检测到接管标志残留但代理未运行，清理标志后再执行正常写入
-                if is_takeover_flag && !is_proxy_running {
-                    log::warn!("检测到代理接管标志残留（代理已停止），清除标志并写入 Live 配置");
-                    let _ = futures::executor::block_on(state.db.set_live_takeover_active(false));
-                }
-
                 write_live_snapshot(&app_type, &provider)?;
                 // Sync MCP
                 McpService::sync_all_enabled(state)?;
@@ -214,12 +211,15 @@ impl ProviderService {
         // Check if proxy takeover mode is active AND proxy server is actually running
         // Both conditions must be true to use hot-switch mode
         // Use blocking wait since this is a sync function
-        let is_takeover_flag =
-            futures::executor::block_on(state.db.is_live_takeover_active()).unwrap_or(false);
+        let is_app_taken_over =
+            futures::executor::block_on(state.db.get_live_backup(app_type.as_str()))
+                .ok()
+                .flatten()
+                .is_some();
         let is_proxy_running = futures::executor::block_on(state.proxy_service.is_running());
 
-        // Hot-switch only when BOTH: takeover flag is set AND proxy server is actually running
-        let should_hot_switch = is_takeover_flag && is_proxy_running;
+        // Hot-switch only when BOTH: this app is taken over AND proxy server is actually running
+        let should_hot_switch = is_app_taken_over && is_proxy_running;
 
         if should_hot_switch {
             // Proxy takeover mode: hot-switch only, don't write Live config
@@ -254,13 +254,6 @@ impl ProviderService {
         }
 
         // Normal mode: full switch with Live config write
-        // Also clear stale takeover flag if proxy is not running but flag was set
-        if is_takeover_flag && !is_proxy_running {
-            log::warn!("检测到代理接管标志残留（代理已停止），清除标志并执行正常切换");
-            // Clear stale takeover flag
-            let _ = futures::executor::block_on(state.db.set_live_takeover_active(false));
-        }
-
         Self::switch_normal(state, app_type, id, &providers)
     }
 
