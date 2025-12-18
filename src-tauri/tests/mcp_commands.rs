@@ -246,3 +246,157 @@ fn set_mcp_enabled_for_codex_writes_live_config() {
         "codex config should include the enabled server definition"
     );
 }
+
+#[test]
+fn upsert_mcp_server_disabling_app_removes_from_claude_live_config() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    ensure_test_home();
+
+    // 先创建一个启用 Claude 的 MCP 服务器
+    let state = support::create_test_state().expect("create test state");
+    McpService::upsert_server(
+        &state,
+        McpServer {
+            id: "echo".to_string(),
+            name: "echo".to_string(),
+            server: json!({
+                "type": "stdio",
+                "command": "echo"
+            }),
+            apps: McpApps {
+                claude: true,
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
+    )
+    .expect("upsert should sync to Claude live config");
+
+    // 确认已写入 ~/.claude.json
+    let mcp_path = get_claude_mcp_path();
+    let text = fs::read_to_string(&mcp_path).expect("read ~/.claude.json");
+    let v: serde_json::Value = serde_json::from_str(&text).expect("parse ~/.claude.json");
+    assert!(
+        v.pointer("/mcpServers/echo").is_some(),
+        "echo should exist in Claude live config after enabling"
+    );
+
+    // 再次 upsert：取消勾选 Claude（apps.claude=false），应从 Claude live 配置中移除
+    McpService::upsert_server(
+        &state,
+        McpServer {
+            id: "echo".to_string(),
+            name: "echo".to_string(),
+            server: json!({
+                "type": "stdio",
+                "command": "echo"
+            }),
+            apps: McpApps {
+                claude: false,
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
+    )
+    .expect("upsert disabling app should remove from Claude live config");
+
+    let text = fs::read_to_string(&mcp_path).expect("read ~/.claude.json after disable");
+    let v: serde_json::Value = serde_json::from_str(&text).expect("parse ~/.claude.json");
+    assert!(
+        v.pointer("/mcpServers/echo").is_none(),
+        "echo should be removed from Claude live config after disabling"
+    );
+}
+
+#[test]
+fn import_mcp_from_multiple_apps_merges_enabled_flags() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    // 1) Claude: ~/.claude.json
+    let mcp_path = get_claude_mcp_path();
+    let claude_json = json!({
+        "mcpServers": {
+            "shared": {
+                "type": "stdio",
+                "command": "echo"
+            }
+        }
+    });
+    fs::write(
+        &mcp_path,
+        serde_json::to_string_pretty(&claude_json).expect("serialize claude mcp"),
+    )
+    .expect("seed ~/.claude.json");
+
+    // 2) Codex: ~/.codex/config.toml
+    let codex_dir = home.join(".codex");
+    fs::create_dir_all(&codex_dir).expect("create codex dir");
+    fs::write(
+        codex_dir.join("config.toml"),
+        r#"[mcp_servers.shared]
+type = "stdio"
+command = "echo"
+"#,
+    )
+    .expect("seed ~/.codex/config.toml");
+
+    let state = support::create_test_state().expect("create test state");
+
+    McpService::import_from_claude(&state).expect("import from claude");
+    McpService::import_from_codex(&state).expect("import from codex");
+
+    let servers = state.db.get_all_mcp_servers().expect("get all mcp servers");
+    let entry = servers.get("shared").expect("shared server exists");
+    assert!(entry.apps.claude, "shared should enable Claude");
+    assert!(entry.apps.codex, "shared should enable Codex");
+}
+
+#[test]
+fn import_mcp_from_gemini_sse_url_only_is_valid() {
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    // Gemini MCP 位于 ~/.gemini/settings.json
+    let gemini_dir = home.join(".gemini");
+    fs::create_dir_all(&gemini_dir).expect("create gemini dir");
+    let settings_path = gemini_dir.join("settings.json");
+
+    // Gemini SSE：只包含 url（Gemini 不使用 type 字段）
+    let gemini_settings = json!({
+        "mcpServers": {
+            "sse-server": {
+                "url": "https://example.com/sse"
+            }
+        }
+    });
+    fs::write(
+        &settings_path,
+        serde_json::to_string_pretty(&gemini_settings).expect("serialize gemini settings"),
+    )
+    .expect("seed ~/.gemini/settings.json");
+
+    let state = support::create_test_state().expect("create test state");
+    let changed = McpService::import_from_gemini(&state).expect("import from gemini");
+    assert!(changed > 0, "should import at least 1 server");
+
+    let servers = state.db.get_all_mcp_servers().expect("get all mcp servers");
+    let entry = servers.get("sse-server").expect("sse-server exists");
+    assert!(entry.apps.gemini, "imported server should enable Gemini");
+    assert_eq!(
+        entry.server.get("type").and_then(|v| v.as_str()),
+        Some("sse"),
+        "Gemini url-only server should be normalized to type=sse in unified structure"
+    );
+}

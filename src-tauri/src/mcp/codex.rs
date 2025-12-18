@@ -376,7 +376,8 @@ pub fn sync_single_server_to_codex(
     doc["mcp_servers"][id] = Item::Table(toml_table);
 
     // 写回文件
-    std::fs::write(&config_path, doc.to_string()).map_err(|e| AppError::io(&config_path, e))?;
+    let new_text = doc.to_string();
+    crate::config::write_text_file(&config_path, &new_text)?;
 
     Ok(())
 }
@@ -412,7 +413,8 @@ pub fn remove_server_from_codex(id: &str) -> Result<(), AppError> {
     }
 
     // 写回文件
-    std::fs::write(&config_path, doc.to_string()).map_err(|e| AppError::io(&config_path, e))?;
+    let new_text = doc.to_string();
+    crate::config::write_text_file(&config_path, &new_text)?;
 
     Ok(())
 }
