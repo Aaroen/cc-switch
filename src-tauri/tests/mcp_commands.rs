@@ -248,10 +248,62 @@ fn set_mcp_enabled_for_codex_writes_live_config() {
 }
 
 #[test]
+fn enabling_codex_mcp_skips_when_codex_dir_missing() {
+    use support::create_test_state;
+
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    // 确认 Codex 配置目录不存在（模拟“未安装/未运行过 Codex CLI”）
+    assert!(
+        !home.join(".codex").exists(),
+        "~/.codex should not exist in fresh test environment"
+    );
+
+    let state = create_test_state().expect("create test state");
+
+    // 先插入一个未启用 Codex 的 MCP 服务器（避免 upsert 触发同步）
+    McpService::upsert_server(
+        &state,
+        McpServer {
+            id: "codex-server".to_string(),
+            name: "Codex Server".to_string(),
+            server: json!({
+                "type": "stdio",
+                "command": "echo"
+            }),
+            apps: McpApps {
+                claude: false,
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
+    )
+    .expect("insert server without syncing");
+
+    // 启用 Codex：目录缺失时应跳过写入（不创建 ~/.codex/config.toml）
+    McpService::toggle_app(&state, "codex-server", AppType::Codex, true)
+        .expect("toggle codex should succeed even when ~/.codex is missing");
+
+    assert!(
+        !home.join(".codex").exists(),
+        "~/.codex should still not exist after skipped sync"
+    );
+}
+
+#[test]
 fn upsert_mcp_server_disabling_app_removes_from_claude_live_config() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
-    ensure_test_home();
+    let home = ensure_test_home();
+
+    // 模拟 Claude 已安装/已初始化：存在 ~/.claude 目录
+    fs::create_dir_all(home.join(".claude")).expect("create ~/.claude dir");
 
     // 先创建一个启用 Claude 的 MCP 服务器
     let state = support::create_test_state().expect("create test state");
@@ -398,5 +450,107 @@ fn import_mcp_from_gemini_sse_url_only_is_valid() {
         entry.server.get("type").and_then(|v| v.as_str()),
         Some("sse"),
         "Gemini url-only server should be normalized to type=sse in unified structure"
+    );
+}
+
+#[test]
+fn enabling_gemini_mcp_skips_when_gemini_dir_missing() {
+    use support::create_test_state;
+
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    // 确认 Gemini 配置目录不存在（模拟“未安装/未运行过 Gemini CLI”）
+    assert!(
+        !home.join(".gemini").exists(),
+        "~/.gemini should not exist in fresh test environment"
+    );
+
+    let state = create_test_state().expect("create test state");
+
+    // 先插入一个未启用 Gemini 的 MCP 服务器（避免 upsert 触发同步）
+    McpService::upsert_server(
+        &state,
+        McpServer {
+            id: "gemini-server".to_string(),
+            name: "Gemini Server".to_string(),
+            server: json!({
+                "type": "sse",
+                "url": "https://example.com/sse"
+            }),
+            apps: McpApps {
+                claude: false,
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
+    )
+    .expect("insert server without syncing");
+
+    // 启用 Gemini：目录缺失时应跳过写入（不创建 ~/.gemini/settings.json）
+    McpService::toggle_app(&state, "gemini-server", AppType::Gemini, true)
+        .expect("toggle gemini should succeed even when ~/.gemini is missing");
+
+    assert!(
+        !home.join(".gemini").exists(),
+        "~/.gemini should still not exist after skipped sync"
+    );
+}
+
+#[test]
+fn enabling_claude_mcp_skips_when_claude_config_absent() {
+    use support::create_test_state;
+
+    let _guard = test_mutex().lock().expect("acquire test mutex");
+    reset_test_fs();
+    let home = ensure_test_home();
+
+    // 确认 Claude 相关目录/文件都不存在（模拟“未安装/未运行过 Claude”）
+    assert!(
+        !home.join(".claude").exists(),
+        "~/.claude should not exist in fresh test environment"
+    );
+    assert!(
+        !home.join(".claude.json").exists(),
+        "~/.claude.json should not exist in fresh test environment"
+    );
+
+    let state = create_test_state().expect("create test state");
+
+    // 先插入一个未启用 Claude 的 MCP 服务器（避免 upsert 触发同步）
+    McpService::upsert_server(
+        &state,
+        McpServer {
+            id: "claude-server".to_string(),
+            name: "Claude Server".to_string(),
+            server: json!({
+                "type": "stdio",
+                "command": "echo"
+            }),
+            apps: McpApps {
+                claude: false,
+                codex: false,
+                gemini: false,
+            },
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        },
+    )
+    .expect("insert server without syncing");
+
+    // 启用 Claude：配置缺失时应跳过写入（不创建 ~/.claude.json）
+    McpService::toggle_app(&state, "claude-server", AppType::Claude, true)
+        .expect("toggle claude should succeed even when ~/.claude is missing");
+
+    assert!(
+        !home.join(".claude.json").exists(),
+        "~/.claude.json should still not exist after skipped sync"
     );
 }
