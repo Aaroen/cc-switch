@@ -378,7 +378,19 @@
     "daysAgo": "{{count}} 天前",
     "multiplePlans": "{{count}} 个套餐",
     "expand": "展开",
-    "collapse": "收起"
+    "collapse": "收起",
+    "modelIdPlaceholder": "例如: claude-3-5-sonnet-20241022",
+    "displayNamePlaceholder": "例如: Claude 3.5 Sonnet",
+    "appType": "应用类型",
+    "allApps": "全部应用",
+    "statusCode": "状态码",
+    "searchProviderPlaceholder": "搜索供应商...",
+    "searchModelPlaceholder": "搜索模型...",
+    "timeRange": "时间范围",
+    "input": "Input",
+    "output": "Output",
+    "cacheWrite": "Write",
+    "cacheRead": "Read"
   },
   "usageScript": {
     "title": "配置用量查询",
@@ -448,7 +460,9 @@
     "tip3": "• 整个配置必须用 () 包裹，形成对象字面量表达式"
   },
   "errors": {
-    "usage_query_failed": "用量查询失败"
+    "usage_query_failed": "用量查询失败",
+    "configLoadFailedTitle": "配置加载失败",
+    "configLoadFailedMessage": "无法读取配置文件：\n{{path}}\n\n错误详情：\n{{detail}}\n\n请手动检查 JSON 是否有效，或从同目录的备份文件（如 config.json.bak）恢复。\n\n应用将退出以便您进行修复。"
   },
   "presetSelector": {
     "title": "选择配置类型",
@@ -847,7 +861,9 @@
     "label": "图标",
     "colorLabel": "图标颜色",
     "selectIcon": "选择图标",
-    "preview": "预览"
+    "preview": "预览",
+    "clickToChange": "点击更换图标",
+    "clickToSelect": "点击选择图标"
   },
   "migration": {
     "success": "配置迁移成功"
@@ -855,7 +871,36 @@
   "agents": {
     "title": "智能体"
   },
+  "health": {
+    "operational": "正常",
+    "degraded": "降级",
+    "failed": "失败",
+    "circuitOpen": "熔断",
+    "consecutiveFailures": "连续失败 {{count}} 次"
+  },
   "proxy": {
+    "panel": {
+      "serviceAddress": "服务地址",
+      "addressCopied": "地址已复制",
+      "currentProvider": "当前 Provider：",
+      "waitingFirstRequest": "当前 Provider：等待首次请求…",
+      "stoppedTitle": "代理服务已停止",
+      "stoppedDescription": "使用右上角开关即可启动服务",
+      "openSettings": "配置代理服务",
+      "stats": {
+        "activeConnections": "活跃连接",
+        "totalRequests": "总请求数",
+        "successRate": "成功率",
+        "uptime": "运行时间"
+      }
+    },
+    "settings": {
+      "toast": {
+        "saved": "代理配置已保存",
+        "saveFailed": "保存失败: {{error}}"
+      }
+    },
+    "switchFailed": "切换失败: {{error}}",
     "failoverQueue": {
       "title": "故障转移队列",
       "description": "管理各应用的供应商故障转移顺序",

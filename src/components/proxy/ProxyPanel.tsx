@@ -15,8 +15,10 @@ import { useFailoverQueue } from "@/lib/query/failover";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
 import { useProviderHealth } from "@/lib/query/failover";
 import type { ProxyStatus } from "@/types/proxy";
+import { useTranslation } from "react-i18next";
 
 export function ProxyPanel() {
+  const { t } = useTranslation();
   const { status, isRunning } = useProxyStatus();
   const [showSettings, setShowSettings] = useState(false);
 
@@ -48,7 +50,9 @@ export function ProxyPanel() {
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-muted-foreground">服务地址</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("proxy.panel.serviceAddress", { defaultValue: "服务地址" })}
+                  </p>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -56,7 +60,7 @@ export function ProxyPanel() {
                     className="h-7 gap-1.5 text-xs"
                   >
                     <Settings className="h-3.5 w-3.5" />
-                    配置
+                    {t("common.settings")}
                   </Button>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -70,16 +74,23 @@ export function ProxyPanel() {
                       navigator.clipboard.writeText(
                         `http://${status.address}:${status.port}`,
                       );
-                      toast.success("地址已复制", { closeButton: true });
+                      toast.success(
+                        t("proxy.panel.addressCopied", {
+                          defaultValue: "地址已复制",
+                        }),
+                        { closeButton: true },
+                      );
                     }}
                   >
-                    复制
+                    {t("common.copy")}
                   </Button>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-border space-y-2">
-                <p className="text-xs text-muted-foreground">使用中</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("provider.inUse")}
+                </p>
                 {status.active_targets && status.active_targets.length > 0 ? (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {status.active_targets.map((target) => (
@@ -101,14 +112,18 @@ export function ProxyPanel() {
                   </div>
                 ) : status.current_provider ? (
                   <p className="text-sm text-muted-foreground">
-                    当前 Provider：{" "}
+                    {t("proxy.panel.currentProvider", {
+                      defaultValue: "当前 Provider：",
+                    })}{" "}
                     <span className="font-medium text-foreground">
                       {status.current_provider}
                     </span>
                   </p>
                 ) : (
                   <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                    当前 Provider：等待首次请求…
+                    {t("proxy.panel.waitingFirstRequest", {
+                      defaultValue: "当前 Provider：等待首次请求…",
+                    })}
                   </p>
                 )}
               </div>
@@ -121,7 +136,7 @@ export function ProxyPanel() {
                   <div className="flex items-center gap-2">
                     <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground">
-                      故障转移队列
+                      {t("proxy.failoverQueue.title")}
                     </p>
                   </div>
 
@@ -179,23 +194,31 @@ export function ProxyPanel() {
             <div className="grid gap-3 md:grid-cols-4">
               <StatCard
                 icon={<Activity className="h-4 w-4" />}
-                label="活跃连接"
+                label={t("proxy.panel.stats.activeConnections", {
+                  defaultValue: "活跃连接",
+                })}
                 value={status.active_connections}
               />
               <StatCard
                 icon={<TrendingUp className="h-4 w-4" />}
-                label="总请求数"
+                label={t("proxy.panel.stats.totalRequests", {
+                  defaultValue: "总请求数",
+                })}
                 value={status.total_requests}
               />
               <StatCard
                 icon={<Clock className="h-4 w-4" />}
-                label="成功率"
+                label={t("proxy.panel.stats.successRate", {
+                  defaultValue: "成功率",
+                })}
                 value={`${status.success_rate.toFixed(1)}%`}
                 variant={status.success_rate > 90 ? "success" : "warning"}
               />
               <StatCard
                 icon={<Clock className="h-4 w-4" />}
-                label="运行时间"
+                label={t("proxy.panel.stats.uptime", {
+                  defaultValue: "运行时间",
+                })}
                 value={formatUptime(status.uptime_seconds)}
               />
             </div>
@@ -206,10 +229,12 @@ export function ProxyPanel() {
               <Server className="h-8 w-8" />
             </div>
             <p className="text-base font-medium text-foreground mb-1">
-              代理服务已停止
+              {t("proxy.panel.stoppedTitle", { defaultValue: "代理服务已停止" })}
             </p>
             <p className="text-sm text-muted-foreground mb-4">
-              使用右上角开关即可启动服务
+              {t("proxy.panel.stoppedDescription", {
+                defaultValue: "使用右上角开关即可启动服务",
+              })}
             </p>
             <Button
               size="sm"
@@ -218,7 +243,9 @@ export function ProxyPanel() {
               className="gap-1.5"
             >
               <Settings className="h-4 w-4" />
-              配置代理服务
+              {t("proxy.panel.openSettings", {
+                defaultValue: "配置代理服务",
+              })}
             </Button>
           </div>
         )}
@@ -319,6 +346,7 @@ function ProviderQueueItem({
   appType,
   isCurrent,
 }: ProviderQueueItemProps) {
+  const { t } = useTranslation();
   const { data: health } = useProviderHealth(provider.id, appType);
 
   return (
@@ -344,7 +372,7 @@ function ProviderQueueItem({
         </span>
         {isCurrent && (
           <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary">
-            使用中
+            {t("provider.inUse")}
           </span>
         )}
       </div>

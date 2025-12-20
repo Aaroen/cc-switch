@@ -378,7 +378,19 @@
     "daysAgo": "{{count}} day ago",
     "multiplePlans": "{{count}} plans",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "modelIdPlaceholder": "e.g., claude-3-5-sonnet-20241022",
+    "displayNamePlaceholder": "e.g., Claude 3.5 Sonnet",
+    "appType": "App Type",
+    "allApps": "All Apps",
+    "statusCode": "Status Code",
+    "searchProviderPlaceholder": "Search provider...",
+    "searchModelPlaceholder": "Search model...",
+    "timeRange": "Time Range",
+    "input": "Input",
+    "output": "Output",
+    "cacheWrite": "Write",
+    "cacheRead": "Read"
   },
   "usageScript": {
     "title": "Configure Usage Query",
@@ -448,7 +460,9 @@
     "tip3": "• Entire config must be wrapped in () to form object literal expression"
   },
   "errors": {
-    "usage_query_failed": "Usage query failed"
+    "usage_query_failed": "Usage query failed",
+    "configLoadFailedTitle": "Configuration Load Failed",
+    "configLoadFailedMessage": "Unable to read configuration file:\n{{path}}\n\nError details:\n{{detail}}\n\nPlease check if the JSON is valid, or restore from a backup file (e.g., config.json.bak) in the same directory.\n\nThe app will exit so you can fix this."
   },
   "presetSelector": {
     "title": "Select Configuration Type",
@@ -847,7 +861,9 @@
     "label": "Icon",
     "colorLabel": "Icon Color",
     "selectIcon": "Select Icon",
-    "preview": "Preview"
+    "preview": "Preview",
+    "clickToChange": "Click to change icon",
+    "clickToSelect": "Click to select icon"
   },
   "migration": {
     "success": "Configuration migrated successfully"
@@ -855,7 +871,36 @@
   "agents": {
     "title": "Agents"
   },
+  "health": {
+    "operational": "Operational",
+    "degraded": "Degraded",
+    "failed": "Failed",
+    "circuitOpen": "Circuit Open",
+    "consecutiveFailures": "{{count}} consecutive failures"
+  },
   "proxy": {
+    "panel": {
+      "serviceAddress": "Service Address",
+      "addressCopied": "Address copied",
+      "currentProvider": "Current Provider:",
+      "waitingFirstRequest": "Current Provider: Waiting for first request...",
+      "stoppedTitle": "Proxy Service Stopped",
+      "stoppedDescription": "Use the toggle in the top right to start the service",
+      "openSettings": "Configure Proxy Service",
+      "stats": {
+        "activeConnections": "Active Connections",
+        "totalRequests": "Total Requests",
+        "successRate": "Success Rate",
+        "uptime": "Uptime"
+      }
+    },
+    "settings": {
+      "toast": {
+        "saved": "Proxy configuration saved",
+        "saveFailed": "Save failed: {{error}}"
+      }
+    },
+    "switchFailed": "Switch failed: {{error}}",
     "failoverQueue": {
       "title": "Failover Queue",
       "description": "Manage failover order for each app's providers",

@@ -23,7 +23,7 @@ import type { LogFilters } from "@/types/usage";
 import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 
 export function RequestLogTable() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
 
   // 默认时间范围：过去24小时
@@ -62,6 +62,13 @@ export function RequestLogTable() {
     });
   };
 
+  const dateLocale =
+    i18n.language === "zh"
+      ? "zh-CN"
+      : i18n.language === "ja"
+        ? "ja-JP"
+        : "en-US";
+
   return (
     <div className="space-y-4">
       {/* 筛选栏 */}
@@ -77,10 +84,12 @@ export function RequestLogTable() {
             }
           >
             <SelectTrigger className="w-[130px] bg-background">
-              <SelectValue placeholder={t("usage.endpoint", "端点")} />
+              <SelectValue placeholder={t("usage.appType", "应用类型")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t("common.all", "全部端点")}</SelectItem>
+              <SelectItem value="all">
+                {t("usage.allApps", { defaultValue: "全部应用" })}
+              </SelectItem>
               <SelectItem value="claude">Claude</SelectItem>
               <SelectItem value="codex">Codex</SelectItem>
               <SelectItem value="gemini">Gemini</SelectItem>
@@ -97,7 +106,7 @@ export function RequestLogTable() {
             }
           >
             <SelectTrigger className="w-[130px] bg-background">
-              <SelectValue placeholder={t("usage.status", "状态码")} />
+              <SelectValue placeholder={t("usage.statusCode", "状态码")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("common.all", "全部状态")}</SelectItem>
@@ -113,7 +122,10 @@ export function RequestLogTable() {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={t("usage.provider", "搜索供应商...")}
+                placeholder={t(
+                  "usage.searchProviderPlaceholder",
+                  "搜索供应商...",
+                )}
                 className="pl-9 bg-background"
                 value={tempFilters.providerName || ""}
                 onChange={(e) =>
@@ -125,7 +137,7 @@ export function RequestLogTable() {
               />
             </div>
             <Input
-              placeholder={t("usage.model", "搜索模型...")}
+              placeholder={t("usage.searchModelPlaceholder", "搜索模型...")}
               className="w-[180px] bg-background"
               value={tempFilters.model || ""}
               onChange={(e) =>
@@ -140,7 +152,9 @@ export function RequestLogTable() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">时间范围:</span>
+            <span className="whitespace-nowrap">
+              {t("usage.timeRange", { defaultValue: "时间范围" })}:
+            </span>
             <Input
               type="datetime-local"
               className="h-8 w-[200px] bg-background"
@@ -267,7 +281,9 @@ export function RequestLogTable() {
                   logs.map((log) => (
                     <TableRow key={log.requestId}>
                       <TableCell>
-                        {new Date(log.createdAt * 1000).toLocaleString("zh-CN")}
+                        {new Date(log.createdAt * 1000).toLocaleString(
+                          dateLocale,
+                        )}
                       </TableCell>
                       <TableCell>
                         {log.providerName ||
