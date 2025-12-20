@@ -11,7 +11,7 @@ use crate::store::AppState;
 pub async fn start_proxy_server(
     state: tauri::State<'_, AppState>,
 ) -> Result<ProxyServerInfo, String> {
-    state.proxy_service.start(true).await
+    state.proxy_service.start().await
 }
 
 /// 启动代理服务器（带 Live 配置接管）

@@ -16,19 +16,18 @@ impl Database {
         let result = {
             let conn = lock_conn!(self.conn);
             conn.query_row(
-                "SELECT enabled, listen_address, listen_port, max_retries,
+                "SELECT listen_address, listen_port, max_retries,
                         request_timeout, enable_logging, live_takeover_active
                  FROM proxy_config WHERE id = 1",
                 [],
                 |row| {
                     Ok(ProxyConfig {
-                        enabled: row.get::<_, i32>(0)? != 0,
-                        listen_address: row.get(1)?,
-                        listen_port: row.get::<_, i32>(2)? as u16,
-                        max_retries: row.get::<_, i32>(3)? as u8,
-                        request_timeout: row.get::<_, i32>(4)? as u64,
-                        enable_logging: row.get::<_, i32>(5)? != 0,
-                        live_takeover_active: row.get::<_, i32>(6).unwrap_or(0) != 0,
+                        listen_address: row.get(0)?,
+                        listen_port: row.get::<_, i32>(1)? as u16,
+                        max_retries: row.get::<_, i32>(2)? as u8,
+                        request_timeout: row.get::<_, i32>(3)? as u64,
+                        enable_logging: row.get::<_, i32>(4)? != 0,
+                        live_takeover_active: row.get::<_, i32>(5).unwrap_or(0) != 0,
                     })
                 },
             )
@@ -57,7 +56,7 @@ impl Database {
                      COALESCE((SELECT created_at FROM proxy_config WHERE id = 1), datetime('now')),
                      datetime('now'))",
             rusqlite::params![
-                if config.enabled { 1 } else { 0 },
+                0, // 已移除自动启用逻辑，保留列但固定为 0
                 config.listen_address,
                 config.listen_port as i32,
                 config.max_retries as i32,

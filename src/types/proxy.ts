@@ -1,5 +1,4 @@
 export interface ProxyConfig {
-  enabled: boolean;
   listen_address: string;
   listen_port: number;
   max_retries: number;

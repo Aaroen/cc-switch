@@ -524,12 +524,12 @@ pub fn run() {
                 }
             }
 
-            // 异常退出恢复 + 自动启动代理服务器
+            // 异常退出恢复
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
 
-                // 检查是否有 Live 备份（表示上次有接管状态）
+                // 检查是否有 Live 备份（表示上次异常退出时可能处于接管状态）
                 let has_backups = match state.db.has_any_live_backup().await {
                     Ok(v) => v,
                     Err(e) => {
@@ -537,55 +537,15 @@ pub fn run() {
                         false
                     }
                 };
+                // 检查 Live 配置是否仍处于被接管状态（包含占位符）
+                let live_taken_over = state.proxy_service.detect_takeover_in_live_configs();
 
-                // 获取代理配置
-                let proxy_config = match state.db.get_proxy_config().await {
-                    Ok(config) => Some(config),
-                    Err(e) => {
-                        log::error!("启动时获取代理配置失败: {e}");
-                        None
-                    }
-                };
-
-                if has_backups {
-                    // 有备份说明上次退出时有接管状态
-                    // 检查 Live 配置是否仍处于被接管状态（包含占位符）
-                    let live_taken_over = state.proxy_service.detect_takeover_in_live_configs();
-
-                    if live_taken_over {
-                        // Live 配置仍是接管状态，尝试重新启动代理服务以恢复接管
-                        log::info!("检测到上次接管状态，正在重新启动代理服务...");
-                        match state.proxy_service.start(false).await {
-                            Ok(info) => {
-                                log::info!("代理服务器已恢复启动: {}:{}", info.address, info.port);
-                            }
-                            Err(e) => {
-                                // 启动失败，恢复 Live 配置
-                                log::error!("恢复代理服务失败: {e}，正在恢复 Live 配置...");
-                                if let Err(e) = state.proxy_service.recover_from_crash().await {
-                                    log::error!("恢复 Live 配置失败: {e}");
-                                } else {
-                                    log::info!("Live 配置已恢复");
-                                }
-                            }
-                        }
+                if has_backups || live_taken_over {
+                    log::warn!("检测到上次异常退出（存在接管残留），正在恢复 Live 配置...");
+                    if let Err(e) = state.proxy_service.recover_from_crash().await {
+                        log::error!("恢复 Live 配置失败: {e}");
                     } else {
-                        // Live 配置已经是正常状态，清理残留备份
-                        log::info!("Live 配置已是正常状态，清理残留备份...");
-                        if let Err(e) = state.db.delete_all_live_backups().await {
-                            log::warn!("清理残留 Live 备份失败: {e}");
-                        }
-                    }
-                } else if let Some(config) = proxy_config {
-                    // 没有备份，检查是否需要自动启动代理服务器（总开关）
-                    if config.enabled {
-                        log::info!("代理服务配置为启用，正在启动...");
-                        match state.proxy_service.start(true).await {
-                            Ok(info) => {
-                                log::info!("代理服务器自动启动成功: {}:{}", info.address, info.port)
-                            }
-                            Err(e) => log::error!("代理服务器自动启动失败: {e}"),
-                        }
+                        log::info!("Live 配置已恢复");
                     }
                 }
             });
@@ -855,20 +815,26 @@ pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
         if proxy_service.is_running().await {
             log::info!("检测到代理服务器正在运行，开始清理...");
 
-            // 检查是否处于 Live 接管模式
-            if let Ok(is_takeover) = state.db.is_live_takeover_active().await {
-                if is_takeover {
-                    // 接管模式：停止并恢复配置
-                    if let Err(e) = proxy_service.stop_with_restore().await {
-                        log::error!("退出时恢复 Live 配置失败: {e}");
-                    } else {
-                        log::info!("已恢复 Live 配置");
-                    }
+            // 检查是否存在 Live 备份（有则视为接管）
+            let has_backups = match state.db.has_any_live_backup().await {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("退出时检查 Live 备份失败: {e}");
+                    false
+                }
+            };
+
+            if has_backups {
+                // 接管模式：停止并恢复配置
+                if let Err(e) = proxy_service.stop_with_restore().await {
+                    log::error!("退出时恢复 Live 配置失败: {e}");
                 } else {
-                    // 非接管模式：仅停止代理
-                    if let Err(e) = proxy_service.stop().await {
-                        log::error!("退出时停止代理失败: {e}");
-                    }
+                    log::info!("已恢复 Live 配置");
+                }
+            } else {
+                // 非接管模式：仅停止代理
+                if let Err(e) = proxy_service.stop().await {
+                    log::error!("退出时停止代理失败: {e}");
                 }
             }
 

@@ -41,31 +41,16 @@ impl ProxyService {
     }
 
     /// 启动代理服务器
-    ///
-    /// - `persist_enabled = true`：将 `proxy_config.enabled` 持久化为启用（用于“总开关”）
-    /// - `persist_enabled = false`：仅在当前进程启动代理服务（用于“按 App 接管”自动启动）
-    pub async fn start(&self, persist_enabled: bool) -> Result<ProxyServerInfo, String> {
+    pub async fn start(&self) -> Result<ProxyServerInfo, String> {
         // 1. 获取配置
-        let mut config = self
+        let config = self
             .db
             .get_proxy_config()
             .await
             .map_err(|e| format!("获取代理配置失败: {e}"))?;
 
-        // 2. 仅在需要时持久化 enabled（避免“按 App 接管”自动启动时误打开总开关）
-        if persist_enabled {
-            config.enabled = true;
-        }
-
         // 3. 若已在运行：确保持久化状态（如需要）并返回当前信息
         if let Some(server) = self.server.read().await.as_ref() {
-            if persist_enabled {
-                self.db
-                    .update_proxy_config(config)
-                    .await
-                    .map_err(|e| format!("保存代理配置失败: {e}"))?;
-            }
-
             let status = server.get_status().await;
             return Ok(ProxyServerInfo {
                 address: status.address,
@@ -85,14 +70,6 @@ impl ProxyService {
 
         // 5. 保存服务器实例
         *self.server.write().await = Some(server);
-
-        // 6. 持久化 enabled 状态（仅总开关）
-        if persist_enabled {
-            self.db
-                .update_proxy_config(config)
-                .await
-                .map_err(|e| format!("保存代理配置失败: {e}"))?;
-        }
 
         log::info!("代理服务器已启动: {}:{}", info.address, info.port);
         Ok(info)
@@ -138,7 +115,7 @@ impl ProxyService {
         }
 
         // 5. 启动代理服务器
-        match self.start(true).await {
+        match self.start().await {
             Ok(info) => Ok(info),
             Err(e) => {
                 // 启动失败，恢复原始配置
@@ -187,16 +164,16 @@ impl ProxyService {
 
     /// 为指定应用开启/关闭 Live 接管
     ///
-    /// - 开启：自动启动代理服务（不影响总开关持久化），仅接管当前 app 的 Live 配置
-    /// - 关闭：仅恢复当前 app 的 Live 配置；若总开关未开启且无其它接管，则自动停止代理服务
+    /// - 开启：自动启动代理服务，仅接管当前 app 的 Live 配置
+    /// - 关闭：仅恢复当前 app 的 Live 配置；若无其它接管，则自动停止代理服务
     pub async fn set_takeover_for_app(&self, app_type: &str, enabled: bool) -> Result<(), String> {
         let app = AppType::from_str(app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
         let app_type_str = app.as_str();
 
         if enabled {
-            // 1) 代理服务未运行则自动启动（不持久化总开关）
+            // 1) 代理服务未运行则自动启动
             if !self.is_running().await {
-                self.start(false).await?;
+                self.start().await?;
             }
 
             // 2) 已接管则直接返回（幂等）
@@ -252,7 +229,7 @@ impl ProxyService {
             .await
             .map_err(|e| format!("删除 {app_type_str} Live 备份失败: {e}"))?;
 
-        // 3) 若无其它接管，更新旧标志，并在总开关未开启时停止代理服务
+        // 3) 若无其它接管，更新旧标志，并停止代理服务
         let has_any_backup = self
             .db
             .has_any_live_backup()
@@ -261,13 +238,7 @@ impl ProxyService {
         if !has_any_backup {
             let _ = self.db.set_live_takeover_active(false).await;
 
-            let master_enabled = self
-                .db
-                .get_proxy_config()
-                .await
-                .map_err(|e| format!("获取代理配置失败: {e}"))?
-                .enabled;
-            if !master_enabled && self.is_running().await {
+            if self.is_running().await {
                 // 此时没有任何 app 处于接管状态，停止服务即可
                 let _ = self.stop().await;
             }
@@ -495,12 +466,6 @@ impl ProxyService {
                 .await
                 .map_err(|e| format!("停止代理服务器失败: {e}"))?;
 
-            // 将 enabled 设为 false，避免下次启动时自动开启
-            if let Ok(mut config) = self.db.get_proxy_config().await {
-                config.enabled = false;
-                let _ = self.db.update_proxy_config(config).await;
-            }
-
             log::info!("代理服务器已停止");
             Ok(())
         } else {
@@ -513,15 +478,6 @@ impl ProxyService {
         // 1. 停止代理服务器（即使未运行也继续执行恢复逻辑）
         if let Err(e) = self.stop().await {
             log::warn!("停止代理服务器失败（将继续恢复 Live 配置）: {e}");
-
-            // stop() 只有在 server 实例存在时才会把 enabled 设为 false；
-            // 这里兜底确保“总开关关闭”能落盘关闭状态。
-            if let Ok(mut config) = self.db.get_proxy_config().await {
-                if config.enabled {
-                    config.enabled = false;
-                    let _ = self.db.update_proxy_config(config).await;
-                }
-            }
         }
 
         // 2. 恢复原始 Live 配置
@@ -946,7 +902,7 @@ impl ProxyService {
 
     /// 从异常退出中恢复（启动时调用）
     ///
-    /// 检测到 live_takeover_active=true 但代理未运行时调用此方法。
+    /// 检测到 Live 备份残留时调用此方法。
     /// 会恢复 Live 配置、清除接管标志、删除备份。
     pub async fn recover_from_crash(&self) -> Result<(), String> {
         // 1. 恢复 Live 配置
@@ -970,7 +926,7 @@ impl ProxyService {
 
     /// 检测 Live 配置是否处于“被接管”的残留状态
     ///
-    /// 用于兜底处理：当数据库标志未写入成功（或旧版本遗留）但 Live 文件已经写成代理占位符时，
+    /// 用于兜底处理：当数据库备份缺失但 Live 文件已经写成代理占位符时，
     /// 启动流程可以据此触发恢复逻辑。
     pub fn detect_takeover_in_live_configs(&self) -> bool {
         if let Ok(config) = self.read_claude_live() {
@@ -1255,9 +1211,8 @@ impl ProxyService {
             .await
             .map_err(|e| format!("获取代理配置失败: {e}"))?;
 
-        // 保存到数据库（保持 enabled 和 live_takeover_active 状态不变）
+        // 保存到数据库（保持 live_takeover_active 状态不变）
         let mut new_config = config.clone();
-        new_config.enabled = previous.enabled;
         new_config.live_takeover_active = previous.live_takeover_active;
 
         self.db
