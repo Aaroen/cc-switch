@@ -811,33 +811,33 @@ pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<store::AppState>() {
         let proxy_service = &state.proxy_service;
 
-        // 检查代理是否在运行
-        if proxy_service.is_running().await {
-            log::info!("检测到代理服务器正在运行，开始清理...");
-
-            // 检查是否存在 Live 备份（有则视为接管）
-            let has_backups = match state.db.has_any_live_backup().await {
-                Ok(v) => v,
-                Err(e) => {
-                    log::error!("退出时检查 Live 备份失败: {e}");
-                    false
-                }
-            };
-
-            if has_backups {
-                // 接管模式：停止并恢复配置
-                if let Err(e) = proxy_service.stop_with_restore().await {
-                    log::error!("退出时恢复 Live 配置失败: {e}");
-                } else {
-                    log::info!("已恢复 Live 配置");
-                }
-            } else {
-                // 非接管模式：仅停止代理
-                if let Err(e) = proxy_service.stop().await {
-                    log::error!("退出时停止代理失败: {e}");
-                }
+        // 退出时也需要兜底：代理可能已崩溃/未运行，但 Live 接管残留仍在（占位符/备份）。
+        let has_backups = match state.db.has_any_live_backup().await {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("退出时检查 Live 备份失败: {e}");
+                false
             }
+        };
+        let live_taken_over = proxy_service.detect_takeover_in_live_configs();
+        let needs_restore = has_backups || live_taken_over;
 
+        if needs_restore {
+            log::info!("检测到接管残留，开始恢复 Live 配置...");
+            if let Err(e) = proxy_service.stop_with_restore().await {
+                log::error!("退出时恢复 Live 配置失败: {e}");
+            } else {
+                log::info!("已恢复 Live 配置");
+            }
+            return;
+        }
+
+        // 非接管模式：代理在运行则仅停止代理
+        if proxy_service.is_running().await {
+            log::info!("检测到代理服务器正在运行，开始停止...");
+            if let Err(e) = proxy_service.stop().await {
+                log::error!("退出时停止代理失败: {e}");
+            }
             log::info!("代理服务器清理完成");
         }
     }

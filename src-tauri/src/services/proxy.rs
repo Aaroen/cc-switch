@@ -8,6 +8,7 @@ use crate::database::Database;
 use crate::provider::Provider;
 use crate::proxy::server::ProxyServer;
 use crate::proxy::types::*;
+use crate::services::provider::write_live_snapshot;
 use serde_json::{json, Value};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -199,8 +200,17 @@ impl ProxyService {
             // 5) 写入接管配置（仅当前 app）
             if let Err(e) = self.takeover_live_config_strict(&app).await {
                 log::error!("{app_type_str} 接管 Live 配置失败，尝试恢复: {e}");
-                let _ = self.restore_live_config_for_app(&app).await;
-                let _ = self.db.delete_live_backup(app_type_str).await;
+                match self.restore_live_config_for_app(&app).await {
+                    Ok(()) => {
+                        // 恢复成功才清理备份，避免失败场景下丢失唯一可回滚来源
+                        let _ = self.db.delete_live_backup(app_type_str).await;
+                    }
+                    Err(restore_err) => {
+                        log::error!(
+                            "{app_type_str} 恢复 Live 配置失败，将保留备份以便下次启动恢复: {restore_err}"
+                        );
+                    }
+                }
                 return Err(e);
             }
 
@@ -865,30 +875,270 @@ impl ProxyService {
 
     /// 恢复原始 Live 配置
     async fn restore_live_configs(&self) -> Result<(), String> {
-        // Claude
-        if let Ok(Some(backup)) = self.db.get_live_backup("claude").await {
-            let config: Value = serde_json::from_str(&backup.original_config)
-                .map_err(|e| format!("解析 Claude 备份失败: {e}"))?;
-            self.write_claude_live(&config)?;
-            log::info!("Claude Live 配置已恢复");
+        let mut errors = Vec::new();
+
+        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+            if let Err(e) = self
+                .restore_live_config_for_app_with_fallback(&app_type)
+                .await
+            {
+                errors.push(e);
+            }
         }
 
-        // Codex
-        if let Ok(Some(backup)) = self.db.get_live_backup("codex").await {
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("；"))
+        }
+    }
+
+    async fn restore_live_config_for_app_with_fallback(
+        &self,
+        app_type: &AppType,
+    ) -> Result<(), String> {
+        let app_type_str = app_type.as_str();
+
+        // 1) 优先从 Live 备份恢复（这是“原始 Live”的唯一可靠来源）
+        let backup = self
+            .db
+            .get_live_backup(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} Live 备份失败: {e}"))?;
+        if let Some(backup) = backup {
             let config: Value = serde_json::from_str(&backup.original_config)
-                .map_err(|e| format!("解析 Codex 备份失败: {e}"))?;
-            self.write_codex_live(&config)?;
-            log::info!("Codex Live 配置已恢复");
+                .map_err(|e| format!("解析 {app_type_str} 备份失败: {e}"))?;
+            self.write_live_config_for_app(app_type, &config)?;
+            log::info!("{app_type_str} Live 配置已从备份恢复");
+            return Ok(());
         }
 
-        // Gemini
-        if let Ok(Some(backup)) = self.db.get_live_backup("gemini").await {
-            let config: Value = serde_json::from_str(&backup.original_config)
-                .map_err(|e| format!("解析 Gemini 备份失败: {e}"))?;
-            self.write_gemini_live(&config)?;
-            log::info!("Gemini Live 配置已恢复");
+        // 2) 兜底：备份缺失，但 Live 仍包含接管占位符（异常退出/历史 bug 场景）
+        if !self.detect_takeover_in_live_config_for_app(app_type) {
+            return Ok(());
         }
 
+        // 2.1) 优先从 SSOT（当前供应商）重建 Live（比“清理字段”更可用）
+        match self.restore_live_from_ssot_for_app(app_type) {
+            Ok(true) => {
+                log::info!("{app_type_str} Live 配置已从 SSOT 恢复（无备份兜底）");
+                return Ok(());
+            }
+            Ok(false) => {
+                log::warn!(
+                    "{app_type_str} Live 备份缺失，且无法从 SSOT 恢复，将尝试清理接管占位符"
+                );
+            }
+            Err(e) => {
+                log::error!(
+                    "{app_type_str} Live 备份缺失，SSOT 恢复失败，将尝试清理接管占位符: {e}"
+                );
+            }
+        }
+
+        // 2.2) 最后兜底：尽力清理占位符与本地代理地址，避免长期卡在代理占位符状态
+        self.cleanup_takeover_placeholders_in_live_for_app(app_type)?;
+        log::info!("{app_type_str} Live 接管占位符已清理（无备份兜底）");
+        Ok(())
+    }
+
+    fn write_live_config_for_app(&self, app_type: &AppType, config: &Value) -> Result<(), String> {
+        match app_type {
+            AppType::Claude => self.write_claude_live(config),
+            AppType::Codex => self.write_codex_live(config),
+            AppType::Gemini => self.write_gemini_live(config),
+        }
+    }
+
+    fn detect_takeover_in_live_config_for_app(&self, app_type: &AppType) -> bool {
+        match app_type {
+            AppType::Claude => match self.read_claude_live() {
+                Ok(config) => Self::is_claude_live_taken_over(&config),
+                Err(_) => false,
+            },
+            AppType::Codex => match self.read_codex_live() {
+                Ok(config) => Self::is_codex_live_taken_over(&config),
+                Err(_) => false,
+            },
+            AppType::Gemini => match self.read_gemini_live() {
+                Ok(config) => Self::is_gemini_live_taken_over(&config),
+                Err(_) => false,
+            },
+        }
+    }
+
+    /// 当 Live 备份缺失时，尝试用 SSOT（当前供应商）写回 Live，以解除占位符接管。
+    ///
+    /// 返回值：
+    /// - Ok(true)：已成功写回
+    /// - Ok(false)：缺少当前供应商/供应商不存在，无法写回
+    fn restore_live_from_ssot_for_app(&self, app_type: &AppType) -> Result<bool, String> {
+        let current_id = crate::settings::get_effective_current_provider(&self.db, app_type)
+            .map_err(|e| format!("获取 {app_type:?} 当前供应商失败: {e}"))?;
+
+        let Some(current_id) = current_id else {
+            return Ok(false);
+        };
+
+        let providers = self
+            .db
+            .get_all_providers(app_type.as_str())
+            .map_err(|e| format!("读取 {app_type:?} 供应商列表失败: {e}"))?;
+
+        let Some(provider) = providers.get(&current_id) else {
+            return Ok(false);
+        };
+
+        write_live_snapshot(app_type, provider)
+            .map_err(|e| format!("写入 {app_type:?} Live 配置失败: {e}"))?;
+
+        Ok(true)
+    }
+
+    fn cleanup_takeover_placeholders_in_live_for_app(
+        &self,
+        app_type: &AppType,
+    ) -> Result<(), String> {
+        match app_type {
+            AppType::Claude => self.cleanup_claude_takeover_placeholders_in_live(),
+            AppType::Codex => self.cleanup_codex_takeover_placeholders_in_live(),
+            AppType::Gemini => self.cleanup_gemini_takeover_placeholders_in_live(),
+        }
+    }
+
+    fn is_local_proxy_url(url: &str) -> bool {
+        let url = url.trim();
+        if !url.starts_with("http://") {
+            return false;
+        }
+        let rest = &url["http://".len()..];
+        rest.starts_with("127.0.0.1")
+            || rest.starts_with("localhost")
+            || rest.starts_with("0.0.0.0")
+            || rest.starts_with("[::1]")
+            || rest.starts_with("[::]")
+            || rest.starts_with("::1")
+            || rest.starts_with("::")
+    }
+
+    fn cleanup_claude_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_claude_live()?;
+
+        let Some(env) = config.get_mut("env").and_then(|v| v.as_object_mut()) else {
+            return Ok(());
+        };
+
+        for key in [
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+            "OPENAI_API_KEY",
+        ] {
+            if env.get(key).and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+                env.remove(key);
+            }
+        }
+
+        if env
+            .get("ANTHROPIC_BASE_URL")
+            .and_then(|v| v.as_str())
+            .map(Self::is_local_proxy_url)
+            .unwrap_or(false)
+        {
+            env.remove("ANTHROPIC_BASE_URL");
+        }
+
+        self.write_claude_live(&config)?;
+        Ok(())
+    }
+
+    fn cleanup_codex_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_codex_live()?;
+
+        if let Some(auth) = config.get_mut("auth").and_then(|v| v.as_object_mut()) {
+            if auth.get("OPENAI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
+            {
+                auth.remove("OPENAI_API_KEY");
+            }
+        }
+
+        if let Some(cfg_str) = config.get("config").and_then(|v| v.as_str()) {
+            let updated = Self::remove_local_toml_base_url(cfg_str);
+            config["config"] = json!(updated);
+        }
+
+        self.write_codex_live(&config)?;
+        Ok(())
+    }
+
+    fn remove_local_toml_base_url(toml_str: &str) -> String {
+        use toml_edit::DocumentMut;
+
+        let mut doc = match toml_str.parse::<DocumentMut>() {
+            Ok(doc) => doc,
+            Err(_) => return toml_str.to_string(),
+        };
+
+        let model_provider = doc
+            .get("model_provider")
+            .and_then(|item| item.as_str())
+            .map(str::to_string);
+
+        if let Some(provider_key) = model_provider {
+            if let Some(model_providers) = doc
+                .get_mut("model_providers")
+                .and_then(|v| v.as_table_mut())
+            {
+                if let Some(provider_table) = model_providers
+                    .get_mut(provider_key.as_str())
+                    .and_then(|v| v.as_table_mut())
+                {
+                    let should_remove = provider_table
+                        .get("base_url")
+                        .and_then(|item| item.as_str())
+                        .map(Self::is_local_proxy_url)
+                        .unwrap_or(false);
+                    if should_remove {
+                        provider_table.remove("base_url");
+                    }
+                }
+            }
+        }
+
+        // 兜底：清理顶层 base_url（仅当它看起来像本地代理地址）
+        let should_remove_root = doc
+            .get("base_url")
+            .and_then(|item| item.as_str())
+            .map(Self::is_local_proxy_url)
+            .unwrap_or(false);
+        if should_remove_root {
+            doc.as_table_mut().remove("base_url");
+        }
+
+        doc.to_string()
+    }
+
+    fn cleanup_gemini_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_gemini_live()?;
+
+        let Some(env) = config.get_mut("env").and_then(|v| v.as_object_mut()) else {
+            return Ok(());
+        };
+
+        if env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+            env.remove("GEMINI_API_KEY");
+        }
+
+        if env
+            .get("GOOGLE_GEMINI_BASE_URL")
+            .and_then(|v| v.as_str())
+            .map(Self::is_local_proxy_url)
+            .unwrap_or(false)
+        {
+            env.remove("GOOGLE_GEMINI_BASE_URL");
+        }
+
+        self.write_gemini_live(&config)?;
         Ok(())
     }
 

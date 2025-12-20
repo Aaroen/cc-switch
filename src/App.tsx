@@ -70,12 +70,6 @@ function App() {
   const { isRunning: isProxyRunning, takeoverStatus } = useProxyStatus();
   // 当前应用的代理是否开启
   const isCurrentAppTakeoverActive = takeoverStatus?.[activeApp] || false;
-  // 任意应用的代理是否开启
-  const isTakeoverActive =
-    takeoverStatus?.claude ||
-    takeoverStatus?.codex ||
-    takeoverStatus?.gemini ||
-    false;
 
   // 获取供应商列表，当代理服务运行时自动刷新
   const { data, isLoading, refetch } = useProvidersQuery(activeApp, {
@@ -605,7 +599,7 @@ function App() {
         }}
         onSubmit={handleEditProvider}
         appId={activeApp}
-        isProxyTakeover={isProxyRunning && isTakeoverActive}
+        isProxyTakeover={isProxyRunning && isCurrentAppTakeoverActive}
       />
 
       {usageProvider && (
