@@ -5,7 +5,7 @@
 //! 重构后的结构：
 //! - 通用逻辑提取到 `handler_context` 和 `response_processor` 模块
 //! - 各 handler 只保留独特的业务逻辑
-//! - Claude 的格式转换逻辑保留在此文件（独有功能）
+//! - Claude 的格式转换逻辑保留在此文件（用于 OpenRouter 旧接口回退）
 
 use super::{
     error_mapper::{get_error_message, map_proxy_error_to_status},
@@ -54,8 +54,8 @@ pub async fn get_status(State(state): State<ProxyState>) -> Result<Json<ProxySta
 /// 处理 /v1/messages 请求（Claude API）
 ///
 /// Claude 处理器包含独特的格式转换逻辑：
-/// - 当使用 OpenRouter 等中转服务时，需要将 Anthropic 格式转换为 OpenAI 格式
-/// - 响应需要从 OpenAI 格式转回 Anthropic 格式
+/// - 过去用于 OpenRouter 的 OpenAI Chat Completions 兼容接口（Anthropic ↔ OpenAI 转换）
+/// - 现在 OpenRouter 已推出 Claude Code 兼容接口，默认不再启用该转换（逻辑保留以备回退）
 pub async fn handle_messages(
     State(state): State<ProxyState>,
     headers: axum::http::HeaderMap,
@@ -112,7 +112,7 @@ pub async fn handle_messages(
 
 /// Claude 格式转换处理（独有逻辑）
 ///
-/// 处理 OpenRouter 等需要格式转换的中转服务
+/// 处理 OpenRouter 旧 OpenAI 兼容接口的回退方案（当前默认不启用）
 async fn handle_claude_transform(
     response: reqwest::Response,
     ctx: &RequestContext,
