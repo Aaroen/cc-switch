@@ -34,6 +34,7 @@ pub struct RequestForwarder {
 }
 
 impl RequestForwarder {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         router: Arc<ProviderRouter>,
         timeout_secs: u64,
