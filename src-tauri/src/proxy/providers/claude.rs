@@ -87,6 +87,14 @@ impl ClaudeAdapter {
                 log::debug!("[Claude] 使用 ANTHROPIC_AUTH_TOKEN");
                 return Some(key.to_string());
             }
+            if let Some(key) = env
+                .get("ANTHROPIC_API_KEY")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+            {
+                log::debug!("[Claude] 使用 ANTHROPIC_API_KEY");
+                return Some(key.to_string());
+            }
             // OpenRouter key
             if let Some(key) = env
                 .get("OPENROUTER_API_KEY")
@@ -276,6 +284,21 @@ mod tests {
             "env": {
                 "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
                 "ANTHROPIC_AUTH_TOKEN": "sk-ant-test-key"
+            }
+        }));
+
+        let auth = adapter.extract_auth(&provider).unwrap();
+        assert_eq!(auth.api_key, "sk-ant-test-key");
+        assert_eq!(auth.strategy, AuthStrategy::Anthropic);
+    }
+
+    #[test]
+    fn test_extract_auth_anthropic_api_key() {
+        let adapter = ClaudeAdapter::new();
+        let provider = create_provider(json!({
+            "env": {
+                "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+                "ANTHROPIC_API_KEY": "sk-ant-test-key"
             }
         }));
 

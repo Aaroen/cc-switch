@@ -312,34 +312,35 @@ impl ProxyService {
 
                                 match env_obj {
                                     Some(obj) => {
-                                        obj.insert(token_key.to_string(), json!(token));
-                                        // ANTHROPIC_AUTH_TOKEN 与 ANTHROPIC_API_KEY 视为同义字段，保持一致
                                         if token_key == "ANTHROPIC_AUTH_TOKEN"
                                             || token_key == "ANTHROPIC_API_KEY"
                                         {
-                                            obj.insert(
-                                                "ANTHROPIC_AUTH_TOKEN".to_string(),
-                                                json!(token),
-                                            );
-                                            obj.insert(
-                                                "ANTHROPIC_API_KEY".to_string(),
-                                                json!(token),
-                                            );
+                                            let mut updated = false;
+                                            if obj.contains_key("ANTHROPIC_AUTH_TOKEN") {
+                                                obj.insert(
+                                                    "ANTHROPIC_AUTH_TOKEN".to_string(),
+                                                    json!(token),
+                                                );
+                                                updated = true;
+                                            }
+                                            if obj.contains_key("ANTHROPIC_API_KEY") {
+                                                obj.insert(
+                                                    "ANTHROPIC_API_KEY".to_string(),
+                                                    json!(token),
+                                                );
+                                                updated = true;
+                                            }
+                                            if !updated {
+                                                obj.insert(token_key.to_string(), json!(token));
+                                            }
+                                        } else {
+                                            obj.insert(token_key.to_string(), json!(token));
                                         }
                                     }
                                     None => {
                                         // 至少写入一份可用的 Token
-                                        provider.settings_config["env"] = json!({
-                                            token_key: token
-                                        });
-                                        if token_key == "ANTHROPIC_AUTH_TOKEN"
-                                            || token_key == "ANTHROPIC_API_KEY"
-                                        {
-                                            provider.settings_config["env"]
-                                                ["ANTHROPIC_AUTH_TOKEN"] = json!(token);
-                                            provider.settings_config["env"]["ANTHROPIC_API_KEY"] =
-                                                json!(token);
-                                        }
+                                        provider.settings_config["env"] =
+                                            json!({ token_key: token });
                                     }
                                 }
 
@@ -1575,6 +1576,47 @@ impl ProxyService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+    use std::env;
+    use tempfile::TempDir;
+
+    struct TempHome {
+        #[allow(dead_code)]
+        dir: TempDir,
+        original_home: Option<String>,
+        original_userprofile: Option<String>,
+    }
+
+    impl TempHome {
+        fn new() -> Self {
+            let dir = TempDir::new().expect("failed to create temp home");
+            let original_home = env::var("HOME").ok();
+            let original_userprofile = env::var("USERPROFILE").ok();
+
+            env::set_var("HOME", dir.path());
+            env::set_var("USERPROFILE", dir.path());
+
+            Self {
+                dir,
+                original_home,
+                original_userprofile,
+            }
+        }
+    }
+
+    impl Drop for TempHome {
+        fn drop(&mut self) {
+            match &self.original_home {
+                Some(value) => env::set_var("HOME", value),
+                None => env::remove_var("HOME"),
+            }
+
+            match &self.original_userprofile {
+                Some(value) => env::set_var("USERPROFILE", value),
+                None => env::remove_var("USERPROFILE"),
+            }
+        }
+    }
 
     #[test]
     fn update_toml_base_url_updates_active_model_provider_base_url() {
@@ -1636,5 +1678,117 @@ model = "gpt-5.1-codex"
             .expect("base_url should exist");
 
         assert_eq!(base_url, new_url);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_claude_token_does_not_add_anthropic_api_key() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let provider = Provider::with_id(
+            "p1".to_string(),
+            "P1".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+                    "ANTHROPIC_AUTH_TOKEN": "stale"
+                }
+            }),
+            None,
+        );
+        db.save_provider("claude", &provider)
+            .expect("save provider");
+        db.set_current_provider("claude", "p1")
+            .expect("set current provider");
+
+        let live_config = json!({
+            "env": {
+                "ANTHROPIC_AUTH_TOKEN": "fresh"
+            }
+        });
+
+        service
+            .sync_live_config_to_provider(&AppType::Claude, &live_config)
+            .await
+            .expect("sync");
+
+        let updated = db
+            .get_provider_by_id("p1", "claude")
+            .expect("get provider")
+            .expect("provider exists");
+        let env = updated
+            .settings_config
+            .get("env")
+            .and_then(|v| v.as_object())
+            .expect("env object");
+
+        assert_eq!(
+            env.get("ANTHROPIC_AUTH_TOKEN").and_then(|v| v.as_str()),
+            Some("fresh")
+        );
+        assert!(
+            !env.contains_key("ANTHROPIC_API_KEY"),
+            "should not add ANTHROPIC_API_KEY when absent"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_claude_token_respects_existing_api_key_field() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let provider = Provider::with_id(
+            "p1".to_string(),
+            "P1".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+                    "ANTHROPIC_API_KEY": "stale"
+                }
+            }),
+            None,
+        );
+        db.save_provider("claude", &provider)
+            .expect("save provider");
+        db.set_current_provider("claude", "p1")
+            .expect("set current provider");
+
+        let live_config = json!({
+            "env": {
+                "ANTHROPIC_AUTH_TOKEN": "fresh"
+            }
+        });
+
+        service
+            .sync_live_config_to_provider(&AppType::Claude, &live_config)
+            .await
+            .expect("sync");
+
+        let updated = db
+            .get_provider_by_id("p1", "claude")
+            .expect("get provider")
+            .expect("provider exists");
+        let env = updated
+            .settings_config
+            .get("env")
+            .and_then(|v| v.as_object())
+            .expect("env object");
+
+        assert_eq!(
+            env.get("ANTHROPIC_API_KEY").and_then(|v| v.as_str()),
+            Some("fresh")
+        );
+        assert!(
+            !env.contains_key("ANTHROPIC_AUTH_TOKEN"),
+            "should not add ANTHROPIC_AUTH_TOKEN when absent"
+        );
     }
 }
