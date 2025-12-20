@@ -32,7 +32,11 @@
     "back": "戻る",
     "refresh": "更新",
     "refreshing": "更新中...",
-    "notInstalled": "未インストール"
+    "all": "すべて",
+    "search": "検索",
+    "reset": "リセット",
+    "actions": "操作",
+    "deleting": "削除中..."
   },
   "apiKeyInput": {
     "placeholder": "API Key を入力",
@@ -142,6 +146,34 @@
     "general": "一般",
     "tabGeneral": "一般",
     "tabAdvanced": "詳細",
+    "advanced": {
+      "configDir": {
+        "title": "設定ディレクトリ",
+        "description": "Claude、Codex、Gemini の設定保存パスを管理"
+      },
+      "proxy": {
+        "title": "ローカルプロキシ",
+        "description": "プロキシサービスの切り替え、ステータスとポート情報を表示",
+        "running": "実行中",
+        "stopped": "停止中"
+      },
+      "modelTest": {
+        "title": "モデルテスト設定",
+        "description": "モデルテストで使用するデフォルトモデルとプロンプトを設定"
+      },
+      "failover": {
+        "title": "自動フェイルオーバー",
+        "description": "フェイルオーバーキューとサーキットブレーカー戦略を設定"
+      },
+      "pricing": {
+        "title": "コスト計算",
+        "description": "各モデルのトークン料金ルールを管理"
+      },
+      "data": {
+        "title": "データ管理",
+        "description": "設定のインポート/エクスポートとバックアップ/復元"
+      }
+    },
     "language": "言語",
     "languageHint": "切り替えるとすぐにプレビューされ、保存後に永続化されます。",
     "theme": "テーマ",
@@ -365,6 +397,50 @@
     "hint": "プリセットを選んだ後でも、下のフィールドで調整できます。"
   },
   "usage": {
+    "title": "利用統計",
+    "subtitle": "AI モデルの利用状況とコスト統計を表示",
+    "today": "24時間",
+    "last7days": "7日間",
+    "last30days": "30日間",
+    "totalRequests": "総リクエスト数",
+    "totalCost": "総コスト",
+    "cost": "コスト",
+    "perMillion": "(100万あたり)",
+    "trends": "利用トレンド",
+    "rangeToday": "今日 (時間別)",
+    "rangeLast7Days": "過去7日間",
+    "rangeLast30Days": "過去30日間",
+    "totalTokens": "総トークン数",
+    "cacheTokens": "キャッシュトークン",
+    "requestLogs": "リクエストログ",
+    "providerStats": "プロバイダー統計",
+    "modelStats": "モデル統計",
+    "time": "時間",
+    "provider": "プロバイダー",
+    "billingModel": "課金モデル",
+    "inputTokens": "入力",
+    "outputTokens": "出力",
+    "cacheReadTokens": "キャッシュ読取",
+    "cacheCreationTokens": "キャッシュ書込",
+    "timingInfo": "応答時間/TTFT",
+    "status": "ステータス",
+    "noData": "データなし",
+    "unknownProvider": "不明なプロバイダー",
+    "stream": "ストリーム",
+    "nonStream": "非ストリーム",
+    "totalRecords": "全 {{total}} 件",
+    "modelPricing": "モデル料金",
+    "loadPricingError": "料金データの読み込みに失敗しました",
+    "modelPricingDesc": "各モデルのトークンコストを設定",
+    "noPricingData": "料金データがありません。「追加」をクリックしてモデル料金を設定してください。",
+    "model": "モデル",
+    "displayName": "表示名",
+    "inputCost": "入力コスト",
+    "outputCost": "出力コスト",
+    "cacheReadCost": "キャッシュ読取",
+    "cacheWriteCost": "キャッシュ書込",
+    "deleteConfirmTitle": "削除の確認",
+    "deleteConfirmDesc": "このモデル料金を削除しますか？この操作は元に戻せません。",
     "queryFailed": "照会に失敗しました",
     "refreshUsage": "利用状況を更新",
     "planUsage": "プラン利用状況",
@@ -944,5 +1020,17 @@
       "errorRateLabel": "エラー率しきい値",
       "errorRateExplain": "失敗しきい値に達していなくても、エラー率がこの値を超えるとサーキットブレーカーが開きます"
     }
+  },
+  "streamCheck": {
+    "configSaved": "ヘルスチェック設定を保存しました",
+    "configSaveFailed": "保存に失敗しました",
+    "testModels": "テストモデル",
+    "claudeModel": "Claude モデル",
+    "codexModel": "Codex モデル",
+    "geminiModel": "Gemini モデル",
+    "checkParams": "チェックパラメーター",
+    "timeout": "タイムアウト（秒）",
+    "maxRetries": "最大リトライ回数",
+    "degradedThreshold": "劣化しきい値（ミリ秒）"
   }
 }

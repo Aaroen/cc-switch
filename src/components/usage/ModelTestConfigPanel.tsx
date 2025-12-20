@@ -47,12 +47,12 @@ export function ModelTestConfigPanel() {
     try {
       setIsSaving(true);
       await saveStreamCheckConfig(config);
-      toast.success(t("streamCheck.configSaved", "健康检查配置已保存"), {
+      toast.success(t("streamCheck.configSaved"), {
         closeButton: true,
       });
     } catch (e) {
       toast.error(
-        t("streamCheck.configSaveFailed", "保存失败") + ": " + String(e),
+        t("streamCheck.configSaveFailed") + ": " + String(e),
       );
     } finally {
       setIsSaving(false);
@@ -78,12 +78,12 @@ export function ModelTestConfigPanel() {
       {/* 测试模型配置 */}
       <div className="space-y-4">
         <h4 className="text-sm font-medium text-muted-foreground">
-          {t("streamCheck.testModels", "测试模型")}
+          {t("streamCheck.testModels")}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="claudeModel">
-              {t("streamCheck.claudeModel", "Claude 模型")}
+              {t("streamCheck.claudeModel")}
             </Label>
             <Input
               id="claudeModel"
@@ -97,7 +97,7 @@ export function ModelTestConfigPanel() {
 
           <div className="space-y-2">
             <Label htmlFor="codexModel">
-              {t("streamCheck.codexModel", "Codex 模型")}
+              {t("streamCheck.codexModel")}
             </Label>
             <Input
               id="codexModel"
@@ -111,7 +111,7 @@ export function ModelTestConfigPanel() {
 
           <div className="space-y-2">
             <Label htmlFor="geminiModel">
-              {t("streamCheck.geminiModel", "Gemini 模型")}
+              {t("streamCheck.geminiModel")}
             </Label>
             <Input
               id="geminiModel"
@@ -128,12 +128,12 @@ export function ModelTestConfigPanel() {
       {/* 检查参数配置 */}
       <div className="space-y-4">
         <h4 className="text-sm font-medium text-muted-foreground">
-          {t("streamCheck.checkParams", "检查参数")}
+          {t("streamCheck.checkParams")}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="timeoutSecs">
-              {t("streamCheck.timeout", "超时时间（秒）")}
+              {t("streamCheck.timeout")}
             </Label>
             <Input
               id="timeoutSecs"
@@ -152,7 +152,7 @@ export function ModelTestConfigPanel() {
 
           <div className="space-y-2">
             <Label htmlFor="maxRetries">
-              {t("streamCheck.maxRetries", "最大重试次数")}
+              {t("streamCheck.maxRetries")}
             </Label>
             <Input
               id="maxRetries"
@@ -171,7 +171,7 @@ export function ModelTestConfigPanel() {
 
           <div className="space-y-2">
             <Label htmlFor="degradedThresholdMs">
-              {t("streamCheck.degradedThreshold", "降级阈值（毫秒）")}
+              {t("streamCheck.degradedThreshold")}
             </Label>
             <Input
               id="degradedThresholdMs"
@@ -196,12 +196,12 @@ export function ModelTestConfigPanel() {
           {isSaving ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {t("common.saving", "保存中...")}
+              {t("common.saving")}
             </>
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              {t("common.save", "保存")}
+              {t("common.save")}
             </>
           )}
         </Button>

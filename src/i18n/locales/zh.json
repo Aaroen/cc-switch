@@ -32,7 +32,11 @@
     "back": "返回",
     "refresh": "刷新",
     "refreshing": "刷新中...",
-    "notInstalled": "未安装"
+    "all": "全部",
+    "search": "查询",
+    "reset": "重置",
+    "actions": "操作",
+    "deleting": "删除中..."
   },
   "apiKeyInput": {
     "placeholder": "请输入API Key",
@@ -142,6 +146,34 @@
     "general": "通用",
     "tabGeneral": "通用",
     "tabAdvanced": "高级",
+    "advanced": {
+      "configDir": {
+        "title": "配置文件目录",
+        "description": "管理 Claude、Codex 和 Gemini 的配置存储路径"
+      },
+      "proxy": {
+        "title": "本地代理",
+        "description": "控制代理服务开关、查看状态与端口信息",
+        "running": "运行中",
+        "stopped": "已停止"
+      },
+      "modelTest": {
+        "title": "模型测试配置",
+        "description": "配置模型测试使用的默认模型和提示词"
+      },
+      "failover": {
+        "title": "自动故障转移",
+        "description": "配置故障转移队列和熔断策略"
+      },
+      "pricing": {
+        "title": "成本定价",
+        "description": "管理各模型 Token 计费规则"
+      },
+      "data": {
+        "title": "数据管理",
+        "description": "导入导出配置与备份恢复"
+      }
+    },
     "language": "界面语言",
     "languageHint": "切换后立即预览界面语言，保存后永久生效。",
     "theme": "外观主题",
@@ -365,6 +397,50 @@
     "hint": "选择预设后可继续调整下方字段。"
   },
   "usage": {
+    "title": "使用统计",
+    "subtitle": "查看 AI 模型的使用情况和成本统计",
+    "today": "24小时",
+    "last7days": "7天",
+    "last30days": "30天",
+    "totalRequests": "总请求数",
+    "totalCost": "总成本",
+    "cost": "成本",
+    "perMillion": "(每百万)",
+    "trends": "使用趋势",
+    "rangeToday": "今天 (按小时)",
+    "rangeLast7Days": "过去 7 天",
+    "rangeLast30Days": "过去 30 天",
+    "totalTokens": "总 Token 数",
+    "cacheTokens": "缓存 Token",
+    "requestLogs": "请求日志",
+    "providerStats": "Provider 统计",
+    "modelStats": "模型统计",
+    "time": "时间",
+    "provider": "供应商",
+    "billingModel": "计费模型",
+    "inputTokens": "输入",
+    "outputTokens": "输出",
+    "cacheReadTokens": "缓存读取",
+    "cacheCreationTokens": "缓存写入",
+    "timingInfo": "用时/首字",
+    "status": "状态",
+    "noData": "暂无数据",
+    "unknownProvider": "未知供应商",
+    "stream": "流",
+    "nonStream": "非流",
+    "totalRecords": "共 {{total}} 条记录",
+    "modelPricing": "模型定价",
+    "loadPricingError": "加载定价数据失败",
+    "modelPricingDesc": "配置各模型的 Token 成本",
+    "noPricingData": "暂无定价数据。点击\"新增\"添加模型定价配置。",
+    "model": "模型",
+    "displayName": "显示名称",
+    "inputCost": "输入成本",
+    "outputCost": "输出成本",
+    "cacheReadCost": "缓存读取",
+    "cacheWriteCost": "缓存写入",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirmDesc": "确定要删除此模型定价配置吗？此操作无法撤销。",
     "queryFailed": "查询失败",
     "refreshUsage": "刷新用量",
     "planUsage": "套餐用量",
@@ -944,5 +1020,17 @@
       "errorRateLabel": "错误率阈值",
       "errorRateExplain": "错误率超过此值时，即使未达到失败阈值也会打开熔断器"
     }
+  },
+  "streamCheck": {
+    "configSaved": "健康检查配置已保存",
+    "configSaveFailed": "保存失败",
+    "testModels": "测试模型",
+    "claudeModel": "Claude 模型",
+    "codexModel": "Codex 模型",
+    "geminiModel": "Gemini 模型",
+    "checkParams": "检查参数",
+    "timeout": "超时时间（秒）",
+    "maxRetries": "最大重试次数",
+    "degradedThreshold": "降级阈值（毫秒）"
   }
 }

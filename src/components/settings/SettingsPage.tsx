@@ -215,7 +215,7 @@ export function SettingsPage({
               {t("settings.tabAdvanced")}
             </TabsTrigger>
             <TabsTrigger value="usage">
-              {t("usage.title", "使用统计")}
+              {t("usage.title")}
             </TabsTrigger>
             <TabsTrigger value="about">{t("common.about")}</TabsTrigger>
           </TabsList>
@@ -254,10 +254,10 @@ export function SettingsPage({
                           <FolderSearch className="h-5 w-5 text-primary" />
                           <div className="text-left">
                             <h3 className="text-base font-semibold">
-                              配置文件目录
+                              {t("settings.advanced.configDir.title")}
                             </h3>
                             <p className="text-sm text-muted-foreground font-normal">
-                              管理 Claude、Codex 和 Gemini 的配置存储路径
+                              {t("settings.advanced.configDir.description")}
                             </p>
                           </div>
                         </div>
@@ -289,10 +289,10 @@ export function SettingsPage({
                             <Server className="h-5 w-5 text-green-500" />
                             <div className="text-left">
                               <h3 className="text-base font-semibold">
-                                本地代理
+                                {t("settings.advanced.proxy.title")}
                               </h3>
                               <p className="text-sm text-muted-foreground font-normal">
-                                控制代理服务开关、查看状态与端口信息
+                                {t("settings.advanced.proxy.description")}
                               </p>
                             </div>
                           </div>
@@ -307,7 +307,7 @@ export function SettingsPage({
                             <Activity
                               className={`h-3 w-3 ${isRunning ? "animate-pulse" : ""}`}
                             />
-                            {isRunning ? "运行中" : "已停止"}
+                            {isRunning ? t("settings.advanced.proxy.running") : t("settings.advanced.proxy.stopped")}
                           </Badge>
                           <Switch
                             checked={isRunning}
@@ -330,10 +330,10 @@ export function SettingsPage({
                           <Activity className="h-5 w-5 text-indigo-500" />
                           <div className="text-left">
                             <h3 className="text-base font-semibold">
-                              模型测试配置
+                              {t("settings.advanced.modelTest.title")}
                             </h3>
                             <p className="text-sm text-muted-foreground font-normal">
-                              配置模型测试使用的默认模型和提示词
+                              {t("settings.advanced.modelTest.description")}
                             </p>
                           </div>
                         </div>
@@ -353,10 +353,10 @@ export function SettingsPage({
                             <Activity className="h-5 w-5 text-orange-500" />
                             <div className="text-left">
                               <h3 className="text-base font-semibold">
-                                自动故障转移
+                                {t("settings.advanced.failover.title")}
                               </h3>
                               <p className="text-sm text-muted-foreground font-normal">
-                                配置故障转移队列和熔断策略
+                                {t("settings.advanced.failover.description")}
                               </p>
                             </div>
                           </div>
@@ -376,13 +376,10 @@ export function SettingsPage({
                           <div className="space-y-4">
                             <div>
                               <h4 className="text-sm font-semibold">
-                                {t("proxy.failoverQueue.title", "故障转移队列")}
+                                {t("proxy.failoverQueue.title")}
                               </h4>
                               <p className="text-xs text-muted-foreground">
-                                {t(
-                                  "proxy.failoverQueue.description",
-                                  "管理各应用的供应商故障转移顺序",
-                                )}
+                                {t("proxy.failoverQueue.description")}
                               </p>
                             </div>
                             <Tabs defaultValue="claude" className="w-full">
@@ -432,10 +429,10 @@ export function SettingsPage({
                           <Coins className="h-5 w-5 text-yellow-500" />
                           <div className="text-left">
                             <h3 className="text-base font-semibold">
-                              成本定价
+                              {t("settings.advanced.pricing.title")}
                             </h3>
                             <p className="text-sm text-muted-foreground font-normal">
-                              管理各模型 Token 计费规则
+                              {t("settings.advanced.pricing.description")}
                             </p>
                           </div>
                         </div>
@@ -454,10 +451,10 @@ export function SettingsPage({
                           <Database className="h-5 w-5 text-blue-500" />
                           <div className="text-left">
                             <h3 className="text-base font-semibold">
-                              数据管理
+                              {t("settings.advanced.data.title")}
                             </h3>
                             <p className="text-sm text-muted-foreground font-normal">
-                              导入导出配置与备份恢复
+                              {t("settings.advanced.data.description")}
                             </p>
                           </div>
                         </div>
