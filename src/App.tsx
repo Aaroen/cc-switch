@@ -496,14 +496,14 @@ function App() {
           </div>
 
           <div
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-h-[40px]"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
             {currentView === "prompts" && (
               <Button
                 size="icon"
                 onClick={() => promptPanelRef.current?.openAdd()}
-                className={addActionButtonClass}
+                className={`ml-auto ${addActionButtonClass}`}
                 title={t("prompts.add")}
               >
                 <Plus className="w-5 h-5" />
@@ -513,7 +513,7 @@ function App() {
               <Button
                 size="icon"
                 onClick={() => mcpPanelRef.current?.openAdd()}
-                className={addActionButtonClass}
+                className={`ml-auto ${addActionButtonClass}`}
                 title={t("mcp.unifiedPanel.addServer")}
               >
                 <Plus className="w-5 h-5" />
