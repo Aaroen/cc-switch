@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -334,23 +335,32 @@ function App() {
           <div className="mx-auto max-w-[56rem] px-5 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
             {/* 独立滚动容器 - 解决 Linux/Ubuntu 下 DndContext 与滚轮事件冲突 */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
-              <div className="space-y-4">
-                <ProviderList
-                  providers={providers}
-                  currentProviderId={currentProviderId}
-                  appId={activeApp}
-                  isLoading={isLoading}
-                  isProxyRunning={isProxyRunning}
-                  isProxyTakeover={isProxyRunning && isCurrentAppTakeoverActive}
-                  onSwitch={switchProvider}
-                  onEdit={setEditingProvider}
-                  onDelete={setConfirmDelete}
-                  onDuplicate={handleDuplicateProvider}
-                  onConfigureUsage={setUsageProvider}
-                  onOpenWebsite={handleOpenWebsite}
-                  onCreate={() => setIsAddOpen(true)}
-                />
-              </div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeApp}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-4"
+                >
+                  <ProviderList
+                    providers={providers}
+                    currentProviderId={currentProviderId}
+                    appId={activeApp}
+                    isLoading={isLoading}
+                    isProxyRunning={isProxyRunning}
+                    isProxyTakeover={isProxyRunning && isCurrentAppTakeoverActive}
+                    onSwitch={switchProvider}
+                    onEdit={setEditingProvider}
+                    onDelete={setConfirmDelete}
+                    onDuplicate={handleDuplicateProvider}
+                    onConfigureUsage={setUsageProvider}
+                    onOpenWebsite={handleOpenWebsite}
+                    onCreate={() => setIsAddOpen(true)}
+                  />
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
         );
