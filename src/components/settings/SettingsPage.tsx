@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Loader2,
   Save,
@@ -223,7 +224,12 @@ export function SettingsPage({
           <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2">
             <TabsContent value="general" className="space-y-6 mt-0">
               {settings ? (
-                <>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-6"
+                >
                   <LanguageSettings
                     value={settings.language}
                     onChange={(lang) => handleAutoSave({ language: lang })}
@@ -233,13 +239,18 @@ export function SettingsPage({
                     settings={settings}
                     onChange={handleAutoSave}
                   />
-                </>
+                </motion.div>
               ) : null}
             </TabsContent>
 
             <TabsContent value="advanced" className="space-y-6 mt-0 pb-6">
               {settings ? (
-                <div className="space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-4"
+                >
                   <Accordion
                     type="multiple"
                     defaultValue={[]}
@@ -494,7 +505,7 @@ export function SettingsPage({
                       )}
                     </Button>
                   </div>
-                </div>
+                </motion.div>
               ) : null}
             </TabsContent>
 
