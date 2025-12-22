@@ -512,7 +512,7 @@ function App() {
           </div>
 
           <div
-            className="flex items-center gap-2 min-h-[40px]"
+            className="flex items-center gap-2 h-[32px]"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
             {currentView === "prompts" && (
@@ -625,9 +625,7 @@ function App() {
       </header>
 
       <main className="flex-1 pb-12 animate-fade-in ">
-        <div
-          className={cn("pb-12", currentView === "providers" ? "pt-6" : "pt-4")}
-        >
+        <div className="pb-12">
           {renderContent()}
         </div>
       </main>
