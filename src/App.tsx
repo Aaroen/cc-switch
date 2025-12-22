@@ -65,6 +65,22 @@ function App() {
   const [envConflicts, setEnvConflicts] = useState<EnvConflict[]>([]);
   const [showEnvBanner, setShowEnvBanner] = useState(false);
 
+  // 保存最后一个有效的 provider，用于动画退出期间显示内容
+  const lastUsageProviderRef = useRef<Provider | null>(null);
+  const lastEditingProviderRef = useRef<Provider | null>(null);
+
+  useEffect(() => {
+    if (usageProvider) {
+      lastUsageProviderRef.current = usageProvider;
+    }
+  }, [usageProvider]);
+
+  useEffect(() => {
+    if (editingProvider) {
+      lastEditingProviderRef.current = editingProvider;
+    }
+  }, [editingProvider]);
+
   const promptPanelRef = useRef<any>(null);
   const mcpPanelRef = useRef<any>(null);
   const skillsPageRef = useRef<any>(null);
@@ -639,7 +655,7 @@ function App() {
 
       <EditProviderDialog
         open={Boolean(editingProvider)}
-        provider={editingProvider}
+        provider={lastEditingProviderRef.current}
         onOpenChange={(open) => {
           if (!open) {
             setEditingProvider(null);
@@ -650,14 +666,16 @@ function App() {
         isProxyTakeover={isProxyRunning && isCurrentAppTakeoverActive}
       />
 
-      {usageProvider && (
+      {lastUsageProviderRef.current && (
         <UsageScriptModal
-          provider={usageProvider}
+          provider={lastUsageProviderRef.current}
           appId={activeApp}
           isOpen={Boolean(usageProvider)}
           onClose={() => setUsageProvider(null)}
           onSave={(script) => {
-            void saveUsageScript(usageProvider, script);
+            if (usageProvider) {
+              void saveUsageScript(usageProvider, script);
+            }
           }}
         />
       )}
