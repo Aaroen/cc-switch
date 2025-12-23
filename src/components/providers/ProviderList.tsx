@@ -21,6 +21,13 @@ import { useDragSort } from "@/hooks/useDragSort";
 import { useStreamCheck } from "@/hooks/useStreamCheck";
 import { ProviderCard } from "@/components/providers/ProviderCard";
 import { ProviderEmptyState } from "@/components/providers/ProviderEmptyState";
+import {
+  useAutoFailoverEnabled,
+  useFailoverQueue,
+  useAddToFailoverQueue,
+  useRemoveFromFailoverQueue,
+} from "@/lib/query/failover";
+import { useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -38,6 +45,7 @@ interface ProviderListProps {
   isLoading?: boolean;
   isProxyRunning?: boolean; // 代理服务运行状态
   isProxyTakeover?: boolean; // 代理接管模式（Live配置已被接管）
+  activeProviderId?: string; // 代理当前实际使用的供应商 ID（用于故障转移模式下标注绿色边框）
 }
 
 export function ProviderList({
@@ -52,17 +60,61 @@ export function ProviderList({
   onOpenWebsite,
   onCreate,
   isLoading = false,
-  isProxyRunning = false, // 默认值为 false
-  isProxyTakeover = false, // 默认值为 false
+  isProxyRunning = false,
+  isProxyTakeover = false,
+  activeProviderId,
 }: ProviderListProps) {
   const { t } = useTranslation();
   const { sortedProviders, sensors, handleDragEnd } = useDragSort(
     providers,
-    appId
+    appId,
   );
 
   // 流式健康检查
   const { checkProvider, isChecking } = useStreamCheck(appId);
+
+  // 故障转移相关
+  const { data: isAutoFailoverEnabled } = useAutoFailoverEnabled(appId);
+  const { data: failoverQueue } = useFailoverQueue(appId);
+  const addToQueue = useAddToFailoverQueue();
+  const removeFromQueue = useRemoveFromFailoverQueue();
+
+  // 联动状态：只有当前应用开启代理接管且故障转移开启时才启用故障转移模式
+  const isFailoverModeActive =
+    isProxyTakeover === true && isAutoFailoverEnabled === true;
+
+  // 计算供应商在故障转移队列中的优先级（基于 sortIndex 排序）
+  const getFailoverPriority = useCallback(
+    (providerId: string): number | undefined => {
+      if (!isFailoverModeActive || !failoverQueue) return undefined;
+      const index = failoverQueue.findIndex(
+        (item) => item.providerId === providerId,
+      );
+      return index >= 0 ? index + 1 : undefined;
+    },
+    [isFailoverModeActive, failoverQueue],
+  );
+
+  // 判断供应商是否在故障转移队列中
+  const isInFailoverQueue = useCallback(
+    (providerId: string): boolean => {
+      if (!isFailoverModeActive || !failoverQueue) return false;
+      return failoverQueue.some((item) => item.providerId === providerId);
+    },
+    [isFailoverModeActive, failoverQueue],
+  );
+
+  // 切换供应商的故障转移队列状态
+  const handleToggleFailover = useCallback(
+    (providerId: string, enabled: boolean) => {
+      if (enabled) {
+        addToQueue.mutate({ appType: appId, providerId });
+      } else {
+        removeFromQueue.mutate({ appType: appId, providerId });
+      }
+    },
+    [appId, addToQueue, removeFromQueue],
+  );
 
   const handleTest = (provider: Provider) => {
     checkProvider(provider.id, provider.name);
@@ -106,7 +158,7 @@ export function ProviderList({
     return sortedProviders.filter((provider) => {
       const fields = [provider.name, provider.notes, provider.websiteUrl];
       return fields.some((field) =>
-        field?.toString().toLowerCase().includes(keyword)
+        field?.toString().toLowerCase().includes(keyword),
       );
     });
   }, [searchTerm, sortedProviders]);
@@ -155,6 +207,14 @@ export function ProviderList({
               isTesting={isChecking(provider.id)}
               isProxyRunning={isProxyRunning}
               isProxyTakeover={isProxyTakeover}
+              // 故障转移相关：联动状态
+              isAutoFailoverEnabled={isFailoverModeActive}
+              failoverPriority={getFailoverPriority(provider.id)}
+              isInFailoverQueue={isInFailoverQueue(provider.id)}
+              onToggleFailover={(enabled) =>
+                handleToggleFailover(provider.id, enabled)
+              }
+              activeProviderId={activeProviderId}
             />
           ))}
         </div>
@@ -255,6 +315,12 @@ interface SortableProviderCardProps {
   isTesting: boolean;
   isProxyRunning: boolean;
   isProxyTakeover: boolean;
+  // 故障转移相关
+  isAutoFailoverEnabled: boolean;
+  failoverPriority?: number;
+  isInFailoverQueue: boolean;
+  onToggleFailover: (enabled: boolean) => void;
+  activeProviderId?: string;
 }
 
 function SortableProviderCard({
@@ -271,6 +337,11 @@ function SortableProviderCard({
   isTesting,
   isProxyRunning,
   isProxyTakeover,
+  isAutoFailoverEnabled,
+  failoverPriority,
+  isInFailoverQueue,
+  onToggleFailover,
+  activeProviderId,
 }: SortableProviderCardProps) {
   const {
     setNodeRef,
@@ -309,6 +380,12 @@ function SortableProviderCard({
           listeners,
           isDragging,
         }}
+        // 故障转移相关
+        isAutoFailoverEnabled={isAutoFailoverEnabled}
+        failoverPriority={failoverPriority}
+        isInFailoverQueue={isInFailoverQueue}
+        onToggleFailover={onToggleFailover}
+        activeProviderId={activeProviderId}
       />
     </div>
   );

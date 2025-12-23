@@ -650,7 +650,6 @@ pub fn run() {
             commands::get_auto_launch_status,
             // Proxy server management
             commands::start_proxy_server,
-            commands::start_proxy_with_takeover,
             commands::stop_proxy_with_restore,
             commands::get_proxy_takeover_status,
             commands::set_proxy_takeover_for_app,
@@ -671,8 +670,6 @@ pub fn run() {
             commands::get_available_providers_for_failover,
             commands::add_to_failover_queue,
             commands::remove_from_failover_queue,
-            commands::reorder_failover_queue,
-            commands::set_failover_item_enabled,
             commands::get_auto_failover_enabled,
             commands::set_auto_failover_enabled,
             // Usage statistics
