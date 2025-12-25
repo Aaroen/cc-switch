@@ -340,6 +340,10 @@
     "visitWebsite": "{{url}} を開く",
     "anthropicModel": "メインモデル",
     "anthropicSmallFastModel": "高速モデル",
+    "anthropicReasoningModel": "推論モデル（Thinking）",
+    "reasoningModelPlaceholder": "例: claude-sonnet-4-20250514",
+    "openrouterCompatMode": "OpenRouter 互換モード",
+    "openrouterCompatModeHint": "OpenAI Chat Completions インターフェースを使用し、Anthropic SSE に変換します。",
     "anthropicDefaultHaikuModel": "既定 Haiku モデル",
     "anthropicDefaultSonnetModel": "既定 Sonnet モデル",
     "anthropicDefaultOpusModel": "既定 Opus モデル",
@@ -1057,6 +1061,9 @@
       }
     },
     "switchFailed": "切り替えに失敗しました: {{error}}",
+    "failover": {
+      "proxyRequired": "フェイルオーバーを設定するには、プロキシサービスを先に起動する必要があります"
+    },
     "failoverQueue": {
       "title": "フェイルオーバーキュー",
       "description": "各アプリのプロバイダーのフェイルオーバー順序を管理します",

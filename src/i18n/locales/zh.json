@@ -340,6 +340,10 @@
     "visitWebsite": "访问 {{url}}",
     "anthropicModel": "主模型",
     "anthropicSmallFastModel": "快速模型",
+    "anthropicReasoningModel": "推理模型 (Thinking)",
+    "reasoningModelPlaceholder": "如 claude-sonnet-4-20250514",
+    "openrouterCompatMode": "OpenRouter 兼容模式",
+    "openrouterCompatModeHint": "使用 OpenAI Chat Completions 接口并转换为 Anthropic SSE。",
     "anthropicDefaultHaikuModel": "Haiku 默认模型",
     "anthropicDefaultSonnetModel": "Sonnet 默认模型",
     "anthropicDefaultOpusModel": "Opus 默认模型",
@@ -1057,6 +1061,9 @@
       }
     },
     "switchFailed": "切换失败: {{error}}",
+    "failover": {
+      "proxyRequired": "需要先启动代理服务才能配置故障转移"
+    },
     "failoverQueue": {
       "title": "故障转移队列",
       "description": "管理各应用的供应商故障转移顺序",

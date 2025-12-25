@@ -340,6 +340,10 @@
     "visitWebsite": "Visit {{url}}",
     "anthropicModel": "Main Model",
     "anthropicSmallFastModel": "Fast Model",
+    "anthropicReasoningModel": "Reasoning Model (Thinking)",
+    "reasoningModelPlaceholder": "e.g. claude-sonnet-4-20250514",
+    "openrouterCompatMode": "OpenRouter Compatibility Mode",
+    "openrouterCompatModeHint": "Use OpenAI Chat Completions interface and convert to Anthropic SSE.",
     "anthropicDefaultHaikuModel": "Default Haiku Model",
     "anthropicDefaultSonnetModel": "Default Sonnet Model",
     "anthropicDefaultOpusModel": "Default Opus Model",
@@ -1057,6 +1061,9 @@
       }
     },
     "switchFailed": "Switch failed: {{error}}",
+    "failover": {
+      "proxyRequired": "Proxy service must be started to configure failover"
+    },
     "failoverQueue": {
       "title": "Failover Queue",
       "description": "Manage failover order for each app's providers",
