@@ -113,33 +113,39 @@ impl Database {
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
 
         // 初始化三行数据（每应用不同默认值）
-        conn.execute(
-            "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
-            streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
-            circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
-            circuit_error_rate_threshold, circuit_min_requests)
-            VALUES ('claude', 6, 45, 90, 300, 8, 3, 90, 0.6, 15)",
-            [],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
-        conn.execute(
-            "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
-            streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
-            circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
-            circuit_error_rate_threshold, circuit_min_requests)
-            VALUES ('codex', 3, 30, 60, 300, 5, 2, 60, 0.5, 10)",
-            [],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
-        conn.execute(
-            "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
-            streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
-            circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
-            circuit_error_rate_threshold, circuit_min_requests)
-            VALUES ('gemini', 5, 30, 60, 300, 5, 2, 60, 0.5, 10)",
-            [],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        //
+        // 兼容旧数据库：
+        // - 老版本 proxy_config 是单例表（没有 app_type 列），此时不能执行三行 seed insert；
+        // - 旧表会在 apply_schema_migrations() 中迁移为三行结构后再插入。
+        if Self::has_column(conn, "proxy_config", "app_type")? {
+            conn.execute(
+                "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
+                streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
+                circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
+                circuit_error_rate_threshold, circuit_min_requests)
+                VALUES ('claude', 6, 45, 90, 300, 8, 3, 90, 0.6, 15)",
+                [],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+            conn.execute(
+                "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
+                streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
+                circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
+                circuit_error_rate_threshold, circuit_min_requests)
+                VALUES ('codex', 3, 30, 60, 300, 5, 2, 60, 0.5, 10)",
+                [],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+            conn.execute(
+                "INSERT OR IGNORE INTO proxy_config (app_type, max_retries,
+                streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
+                circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
+                circuit_error_rate_threshold, circuit_min_requests)
+                VALUES ('gemini', 5, 30, 60, 300, 5, 2, 60, 0.5, 10)",
+                [],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
 
         // 9. Provider Health 表
         conn.execute("CREATE TABLE IF NOT EXISTS provider_health (
