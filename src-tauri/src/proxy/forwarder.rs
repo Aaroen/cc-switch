@@ -439,7 +439,7 @@ impl RequestForwarder {
         );
 
         // 固定使用 Python 代理地址
-        let url = format!("http://127.0.0.1:15721{}", endpoint);
+        let url = format!("http://127.0.0.1:15722{}", endpoint);
 
         // 记录原始请求 JSON
         log::info!(
@@ -449,7 +449,7 @@ impl RequestForwarder {
         );
 
         log::info!(
-            "[{}] 转发请求: {} -> Python代理(15721) -> anyrouter",
+            "[{}] 转发请求: {} -> Python代理(15722) -> anyrouter",
             adapter.name(),
             provider.name
         );

@@ -175,39 +175,103 @@ fi
 echo -e "${GREEN}✓${NC} 安装完成"
 echo ""
 
-# 6. 启动Python代理服务器
-echo -e "${YELLOW}[8/8]${NC} 启动Python代理服务器..."
+# 6. 停止旧的代理进程
+echo -e "${YELLOW}[8/10]${NC} 停止旧的代理进程..."
+
+# 停止旧的Python代理（端口15721和15722）
+for PORT in 15721 15722; do
+    if pgrep -f "uvicorn.*backend.app.*--port $PORT" > /dev/null; then
+        pkill -f "uvicorn.*backend.app.*--port $PORT" 2>/dev/null || true
+    fi
+done
+
+# 停止旧的Rust代理
+RUST_PID_FILE="$HOME/.cc-switch/proxy.pid"
+if [ -f "$RUST_PID_FILE" ]; then
+    OLD_PID=$(cat "$RUST_PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        kill "$OLD_PID" 2>/dev/null || kill -9 "$OLD_PID" 2>/dev/null || true
+    fi
+    rm -f "$RUST_PID_FILE"
+fi
+
+sleep 2
+echo -e "${GREEN}✓${NC} 旧进程已清理"
+echo ""
+
+# 7. 启动Python代理服务器（15722端口）
+echo -e "${YELLOW}[9/10]${NC} 启动Python代理服务器..."
 
 # 启动Python代理服务（使用nohup后台运行）
 cd ../claude_proxy || exit 1
 nohup env HTTP_PROXY="http://127.0.0.1:7890" HTTPS_PROXY="http://127.0.0.1:7890" \
-    $PYTHON_CMD -m uvicorn backend.app:app --host 127.0.0.1 --port 15721 \
+    $PYTHON_CMD -m uvicorn backend.app:app --host 127.0.0.1 --port 15722 \
     > "$LOG_DIR/claude_proxy.log" 2>&1 &
 PYTHON_PROXY_PID=$!
+
+# 保存Python代理PID
+echo "$PYTHON_PROXY_PID" > "$HOME/.cc-switch/python_proxy.pid"
 
 # 等待服务启动
 sleep 3
 
 # 检查Python代理服务状态
 if ps -p $PYTHON_PROXY_PID > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Python代理服务已启动 (PID: $PYTHON_PROXY_PID, 127.0.0.1:15721)"
+    echo -e "${GREEN}✓${NC} Python代理服务已启动 (PID: $PYTHON_PROXY_PID, 127.0.0.1:15722)"
 else
     echo -e "${RED}✗${NC} Python代理服务启动失败，查看日志: cat $LOG_DIR/claude_proxy.log"
+    exit 1
+fi
+echo ""
+
+# 8. 启动Rust代理服务器（15721端口）
+echo -e "${YELLOW}[10/10]${NC} 启动Rust代理服务器..."
+
+cd "$SCRIPT_DIR" || exit 1
+nohup "$INSTALL_DIR/cc-switch-cli" proxy start > "$LOG_DIR/rust_proxy.log" 2>&1 &
+RUST_PROXY_PID=$!
+
+# 等待Rust代理启动
+sleep 3
+
+if ps -p $RUST_PROXY_PID > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Rust代理已启动 (PID: $RUST_PROXY_PID, 127.0.0.1:15721)"
+else
+    echo -e "${RED}✗${NC} Rust代理启动失败，查看日志: cat $LOG_DIR/rust_proxy.log"
+    # 停止Python代理
+    kill "$PYTHON_PROXY_PID" 2>/dev/null || true
+    exit 1
 fi
 
 echo ""
-echo "=== 服务状态 ==="
+echo "=== 双层代理架构已启动 ==="
 
 # 1. Python代理服务器
 echo ""
-echo "[Python代理服务器]"
-if pgrep -f "uvicorn.*backend.app" > /dev/null; then
-    echo -e "${GREEN}✓${NC} 运行中 (127.0.0.1:15721)"
+echo "[Python代理层]"
+if pgrep -f "uvicorn.*backend.app.*--port 15722" > /dev/null; then
+    echo -e "${GREEN}✓${NC} 运行中 (127.0.0.1:15722)"
+    echo "  日志: tail -f $LOG_DIR/claude_proxy.log"
 else
     echo -e "${RED}✗${NC} 未运行"
 fi
 
-# 2. 数据库
+# 2. Rust代理服务器
+echo ""
+echo "[Rust代理层]"
+if [ -f "$RUST_PID_FILE" ]; then
+    PID=$(cat "$RUST_PID_FILE")
+    if ps -p "$PID" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} 运行中 (127.0.0.1:15721)"
+        echo "  日志: tail -f $LOG_DIR/rust_proxy.log"
+    else
+        echo -e "${RED}✗${NC} 未运行"
+    fi
+else
+    echo -e "${RED}✗${NC} 未运行"
+fi
+
+# 3. 数据库
 echo ""
 echo "[数据库]"
 if [ -f ~/.cc-switch/cc-switch.db ]; then
@@ -217,7 +281,16 @@ else
 fi
 
 echo ""
-echo "=== 安装完成 ==="
+echo "=== 请求链路 ==="
+echo "  Claude CLI → Rust(15721) → Python(15722) → anyrouter.top"
+echo "             ↑ Provider轮询/熔断器/故障转移"
+
+echo ""
+echo "=== 使用说明 ==="
 echo "列出服务商: cc-switch-cli list"
-echo "查看日志: tail -f $LOG_DIR/claude_proxy.log"
+echo "查看状态: cc-switch-cli proxy status"
+echo ""
+echo "环境变量配置:"
+echo "  export ANTHROPIC_BASE_URL=\"http://127.0.0.1:15721\""
+echo "  # 不需要设置ANTHROPIC_API_KEY，由Rust后端动态管理"
 echo ""

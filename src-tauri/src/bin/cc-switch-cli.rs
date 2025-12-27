@@ -154,20 +154,40 @@ async fn handle_proxy(action: ProxyAction) -> Result<(), AppError> {
 }
 
 async fn proxy_start() -> Result<(), AppError> {
+    use cc_switch_lib::proxy::{ProxyConfig, ProxyServer};
+
     println!("正在启动代理服务器（前台模式）...");
     println!("按 Ctrl+C 停止\n");
 
-    // 注意: 这里需要用户实现实际的代理服务启动逻辑
-    // 由于ProxyServer在proxy模块中未公开，这里只提供框架
+    // 初始化数据库
+    let db = Arc::new(Database::init()?);
+
+    // 创建代理配置
+    let config = ProxyConfig::default();
+
+    // 创建代理服务器（不传入AppHandle，CLI模式下不需要GUI事件）
+    let server = ProxyServer::new(config.clone(), db, None);
+
+    // 启动服务器
+    server.start().await
+        .map_err(|e| AppError::Message(format!("启动服务器失败: {}", e)))?;
 
     println!("✓ 代理服务器已启动");
-    println!("  地址: 127.0.0.1:15721");
+    println!("  地址: {}:{}", config.listen_address, config.listen_port);
     println!("  启动时间: {}\n", chrono::Utc::now().to_rfc3339());
+
+    // 保存PID
+    let pid_file = get_config_dir().join("proxy.pid");
+    std::fs::write(&pid_file, std::process::id().to_string())
+        .map_err(|e| AppError::Message(format!("写入PID文件失败: {}", e)))?;
 
     // 等待Ctrl+C信号
     match tokio::signal::ctrl_c().await {
         Ok(()) => {
             println!("\n正在停止...");
+            server.stop().await
+                .map_err(|e| AppError::Message(format!("停止服务器失败: {}", e)))?;
+            std::fs::remove_file(&pid_file).ok();
             println!("✓ 代理服务器已停止");
             Ok(())
         }
