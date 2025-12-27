@@ -17,7 +17,7 @@ mod prompt;
 mod prompt_files;
 mod provider;
 mod provider_defaults;
-mod proxy;
+pub mod proxy;
 mod services;
 mod settings;
 mod store;

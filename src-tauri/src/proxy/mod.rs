@@ -16,7 +16,7 @@ pub mod provider_router;
 pub mod providers;
 pub mod response_handler;
 pub mod response_processor;
-pub(crate) mod server;
+pub mod server;
 pub mod session;
 pub(crate) mod types;
 pub mod usage;
@@ -32,6 +32,8 @@ pub use error::ProxyError;
 pub use provider_router::ProviderRouter;
 #[allow(unused_imports)]
 pub use response_handler::{NonStreamHandler, ResponseType, StreamHandler};
+#[allow(unused_imports)]
+pub use server::ProxyServer;
 #[allow(unused_imports)]
 pub use session::{ClientFormat, ProxySession};
 #[allow(unused_imports)]
