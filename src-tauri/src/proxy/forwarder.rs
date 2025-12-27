@@ -441,9 +441,20 @@ impl RequestForwarder {
         // 固定使用 Python 代理地址
         let url = format!("http://127.0.0.1:15722{}", endpoint);
 
-        // 记录原始请求 JSON
+        // 记录请求摘要信息（精简日志）
         log::info!(
-            "[{}] ====== 请求开始 ======\n>>> 原始请求 JSON:\n{}",
+            "[{}] 请求摘要 - model: {}, max_tokens: {}, messages: {}, tools: {}, system: {}",
+            adapter.name(),
+            body.get("model").and_then(|v| v.as_str()).unwrap_or("N/A"),
+            body.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+            body.get("messages").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
+            body.get("tools").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
+            body.get("system").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0)
+        );
+
+        // 完整JSON仅在DEBUG级别输出
+        log::debug!(
+            "[{}] 完整请求 JSON:\n{}",
             adapter.name(),
             serde_json::to_string_pretty(body).unwrap_or_else(|_| body.to_string())
         );

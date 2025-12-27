@@ -14,9 +14,11 @@ NC='\033[0m' # No Color
 LOG_DIR="$HOME/.cc-switch/logs"
 mkdir -p "$LOG_DIR"
 
-# 清理 /tmp 中的旧日志文件
+# 清理旧日志文件
 echo "清理旧日志文件..."
 rm -f /tmp/cc-switch*.log 2>/dev/null || true
+rm -f "$LOG_DIR/rust_proxy.log" 2>/dev/null || true
+rm -f "$LOG_DIR/claude_proxy.log" 2>/dev/null || true
 echo -e "${GREEN}✓${NC} 旧日志文件已清理"
 echo ""
 
