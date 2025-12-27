@@ -199,13 +199,52 @@ sleep 2
 echo -e "${GREEN}✓${NC} 旧进程已清理"
 echo ""
 
+# 日志轮转函数
+rotate_log_if_needed() {
+    local log_file="$1"
+    local max_size_mb=10
+    local max_backups=5
+
+    if [ ! -f "$log_file" ]; then
+        return 0
+    fi
+
+    local file_size_mb=$(du -m "$log_file" 2>/dev/null | cut -f1)
+
+    if [ "$file_size_mb" -ge "$max_size_mb" ]; then
+        echo -e "${YELLOW}日志轮转${NC}: $log_file (${file_size_mb}MB)"
+
+        # 删除最旧的备份
+        if [ -f "${log_file}.${max_backups}" ]; then
+            rm -f "${log_file}.${max_backups}"
+        fi
+
+        # 轮转现有备份
+        for i in $(seq $((max_backups-1)) -1 1); do
+            if [ -f "${log_file}.${i}" ]; then
+                mv "${log_file}.${i}" "${log_file}.$((i+1))"
+            fi
+        done
+
+        # 轮转当前日志
+        mv "$log_file" "${log_file}.1"
+        touch "$log_file"
+
+        echo -e "${GREEN}✓${NC} 日志已轮转"
+    fi
+}
+
+# 执行日志轮转
+rotate_log_if_needed "$LOG_DIR/rust_proxy.log"
+rotate_log_if_needed "$LOG_DIR/claude_proxy.log"
+
 # 7. 启动Python代理服务器（15722端口）
 echo -e "${YELLOW}[9/10]${NC} 启动Python代理服务器..."
 
 # 启动Python代理服务（使用nohup后台运行）
 cd ../claude_proxy || exit 1
 nohup env HTTP_PROXY="http://127.0.0.1:7890" HTTPS_PROXY="http://127.0.0.1:7890" \
-    $PYTHON_CMD -m uvicorn backend.app:app --host 127.0.0.1 --port 15722 \
+    $PYTHON_CMD -m uvicorn backend.app:app --host 127.0.0.1 --port 15722 --log-level warning \
     > "$LOG_DIR/claude_proxy.log" 2>&1 &
 PYTHON_PROXY_PID=$!
 

@@ -46,7 +46,7 @@ pub async fn handle_streaming(
     state: &ProxyState,
     parser_config: &UsageParserConfig,
 ) -> Response {
-    log::info!("[{}] 流式透传响应 (SSE)", ctx.tag);
+    log::debug!("[{}] Streaming response (SSE)", ctx.tag);
 
     let status = response.status();
     let mut builder = axum::response::Response::builder().status(status);
@@ -427,16 +427,11 @@ pub fn create_logged_passthrough_stream(
                                             if let Some(c) = &collector {
                                                 c.push(json_value.clone()).await;
                                             }
-                                            log::info!(
-                                                "[{}] <<< SSE 事件:\n{}",
-                                                tag,
-                                                serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| data.to_string())
-                                            );
-                                        } else {
-                                            log::info!("[{tag}] <<< SSE 数据: {data}");
+                                            // 精简日志：仅记录事件类型，不输出完整JSON
+                                            if let Some(event_type) = json_value.get("type").and_then(|v| v.as_str()) {
+                                                log::debug!("[{tag}] SSE event: {event_type}");
+                                            }
                                         }
-                                    } else {
-                                        log::info!("[{tag}] <<< SSE: [DONE]");
                                     }
                                 }
                             }
@@ -457,7 +452,7 @@ pub fn create_logged_passthrough_stream(
             }
         }
 
-        log::info!("[{}] ====== 流结束 ======", tag);
+        log::debug!("[{}] Stream completed", tag);
 
         if let Some(c) = collector.take() {
             c.finish().await;
