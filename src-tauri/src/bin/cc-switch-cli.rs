@@ -156,6 +156,11 @@ async fn handle_proxy(action: ProxyAction) -> Result<(), AppError> {
 async fn proxy_start() -> Result<(), AppError> {
     use cc_switch_lib::proxy::{ProxyConfig, ProxyServer};
 
+    // 初始化日志系统
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
+
     println!("正在启动代理服务器（前台模式）...");
     println!("按 Ctrl+C 停止\n");
 
@@ -175,6 +180,8 @@ async fn proxy_start() -> Result<(), AppError> {
     println!("✓ 代理服务器已启动");
     println!("  地址: {}:{}", config.listen_address, config.listen_port);
     println!("  启动时间: {}\n", chrono::Utc::now().to_rfc3339());
+    println!("  日志级别: INFO");
+    println!("  查看实时日志: tail -f ~/.cc-switch/logs/rust_proxy.log\n");
 
     // 保存PID
     let pid_file = get_config_dir().join("proxy.pid");
