@@ -426,22 +426,20 @@ impl RequestForwarder {
         headers: &axum::http::HeaderMap,
         adapter: &dyn ProviderAdapter,
     ) -> Result<Response, ProxyError> {
-        // 使用适配器提取 base_url
-        let base_url = adapter.extract_base_url(provider)?;
-        log::info!("[{}] base_url: {}", adapter.name(), base_url);
+        // 提取 API Key
+        let auth = adapter.extract_auth(provider).ok_or_else(|| {
+            ProxyError::AuthError(format!("Provider {} 缺少认证信息", provider.id))
+        })?;
 
-        // 检查是否需要格式转换
-        let needs_transform = adapter.needs_transform(provider);
+        log::info!(
+            "[{}] Provider: {}, API Key: {}",
+            adapter.name(),
+            provider.name,
+            auth.masked_key()
+        );
 
-        let effective_endpoint =
-            if needs_transform && adapter.name() == "Claude" && endpoint == "/v1/messages" {
-                "/v1/chat/completions"
-            } else {
-                endpoint
-            };
-
-        // 使用适配器构建 URL
-        let url = adapter.build_url(&base_url, effective_endpoint);
+        // 固定使用 Python 代理地址
+        let url = format!("http://127.0.0.1:15721{}", endpoint);
 
         // 记录原始请求 JSON
         log::info!(
@@ -450,38 +448,10 @@ impl RequestForwarder {
             serde_json::to_string_pretty(body).unwrap_or_else(|_| body.to_string())
         );
 
-        // 应用模型映射（独立于格式转换）
-        let (mapped_body, _original_model, mapped_model) =
-            super::model_mapper::apply_model_mapping(body.clone(), provider);
-
-        if let Some(ref mapped) = mapped_model {
-            log::info!(
-                "[{}] >>> 模型映射后的请求 JSON:\n{}",
-                adapter.name(),
-                serde_json::to_string_pretty(&mapped_body).unwrap_or_default()
-            );
-            log::info!("[{}] 模型已映射到: {}", adapter.name(), mapped);
-        }
-
-        // 转换请求体（如果需要）
-        let request_body = if needs_transform {
-            log::info!("[{}] 转换请求格式 (Anthropic → OpenAI)", adapter.name());
-            let transformed = adapter.transform_request(mapped_body, provider)?;
-            log::info!(
-                "[{}] >>> 转换后的请求 JSON:\n{}",
-                adapter.name(),
-                serde_json::to_string_pretty(&transformed).unwrap_or_default()
-            );
-            transformed
-        } else {
-            mapped_body
-        };
-
         log::info!(
-            "[{}] 转发请求: {} -> {}",
+            "[{}] 转发请求: {} -> Python代理(15721) -> anyrouter",
             adapter.name(),
-            provider.name,
-            url
+            provider.name
         );
 
         // 构建请求
@@ -510,26 +480,18 @@ impl RequestForwarder {
         // 确保 Content-Type 是 json
         request = request.header("Content-Type", "application/json");
 
-        // 使用适配器添加认证头
-        if let Some(auth) = adapter.extract_auth(provider) {
-            log::debug!(
-                "[{}] 使用认证: {:?} (key: {})",
-                adapter.name(),
-                auth.strategy,
-                auth.masked_key()
-            );
-            request = adapter.add_auth_headers(request, &auth);
-        } else {
-            log::error!(
-                "[{}] 未找到 API Key！Provider: {}",
-                adapter.name(),
-                provider.name
-            );
-        }
+        // 添加 X-API-Key 头部（Python代理会使用这个Key）
+        request = request.header("X-API-Key", &auth.api_key);
+
+        log::debug!(
+            "[{}] 添加 X-API-Key 头部: {}",
+            adapter.name(),
+            auth.masked_key()
+        );
 
         // 发送请求
         log::info!("[{}] 发送请求到: {}", adapter.name(), url);
-        let response = request.json(&request_body).send().await.map_err(|e| {
+        let response = request.json(body).send().await.map_err(|e| {
             log::error!("[{}] 请求失败: {}", adapter.name(), e);
             if e.is_timeout() {
                 ProxyError::Timeout(format!("请求超时: {e}"))
