@@ -64,7 +64,7 @@ echo -e "${GREEN}✓${NC} Python 已安装: $PYTHON_VERSION"
 
 # 3. 安装 Python 依赖
 echo -e "${YELLOW}[3/8]${NC} 安装 Python 依赖..."
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REQUIREMENTS_FILE="$SCRIPT_DIR/claude_proxy/backend/requirements.txt"
 
 if [ ! -f "$REQUIREMENTS_FILE" ]; then

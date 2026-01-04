@@ -2,7 +2,7 @@
 //!
 //! 提供终端命令行控制功能，用于无GUI环境
 
-use cc_switch_lib::{AppError, AppType, Database, Provider};
+use cc_switch_lib::{AppError, Database, Provider};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 use std::path::PathBuf;
@@ -89,6 +89,13 @@ enum Commands {
         /// 供应商ID
         id: String,
     },
+    /// 测试供应商URL延迟
+    TestLatency {
+        /// 应用类型 (claude/codex/gemini)
+        app_type: String,
+        /// 供应商ID（可选，不指定则测试该类型所有供应商）
+        id: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -128,6 +135,7 @@ async fn main() {
         } => handle_set_priority(&app_type, &id, priority),
         Commands::AddToQueue { app_type, id } => handle_add_to_queue(&app_type, &id),
         Commands::RemoveFromQueue { app_type, id } => handle_remove_from_queue(&app_type, &id),
+        Commands::TestLatency { app_type, id } => handle_test_latency(&app_type, id).await,
     };
 
     if let Err(e) = result {
@@ -257,7 +265,7 @@ async fn proxy_status() -> Result<(), AppError> {
     // 检查进程是否存在
     #[cfg(unix)]
     {
-        use nix::sys::signal::{kill, Signal};
+        use nix::sys::signal::kill;
         use nix::unistd::Pid;
 
         match kill(Pid::from_raw(pid), None) {
@@ -466,6 +474,93 @@ fn handle_remove_from_queue(app_type: &str, id: &str) -> Result<(), AppError> {
 
     db.remove_from_failover_queue(&app_type_str, id)?;
     println!("✓ 已将供应商 {} 从故障转移队列移除", id);
+
+    Ok(())
+}
+
+async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), AppError> {
+    use cc_switch_lib::proxy::provider_router::ProviderRouter;
+    use std::collections::HashMap;
+
+    let db = Arc::new(Database::init()?);
+    let app_type_str = parse_app_type(app_type)?;
+
+    // 获取要测试的供应商列表
+    let providers = if let Some(provider_id) = id {
+        // 测试单个供应商
+        let all_providers = db.get_all_providers(&app_type_str)?;
+        let provider = all_providers.get(&provider_id)
+            .ok_or_else(|| AppError::Message(format!("供应商不存在: {}", provider_id)))?
+            .clone();
+        vec![provider]
+    } else {
+        // 测试所有在故障转移队列中的供应商
+        db.get_failover_providers(&app_type_str)?
+    };
+
+    if providers.is_empty() {
+        println!("没有可测试的供应商");
+        return Ok(());
+    }
+
+    // 按URL分组
+    let mut url_groups: HashMap<String, Vec<Provider>> = HashMap::new();
+    for provider in providers.into_iter() {
+        if let Some(base_url) = provider
+            .settings_config
+            .get("env")
+            .and_then(|env: &serde_json::Value| env.get("ANTHROPIC_BASE_URL"))
+            .and_then(|v: &serde_json::Value| v.as_str())
+        {
+            let url_string: String = base_url.to_string();
+            url_groups
+                .entry(url_string)
+                .or_insert_with(Vec::new)
+                .push(provider);
+        }
+    }
+
+    println!("\n开始URL延迟测试，共{}个URL\n", url_groups.len());
+
+    // 创建ProviderRouter用于测试
+    let router = ProviderRouter::new(db);
+
+    // 测试每个URL
+    let mut results = Vec::new();
+    for (url, providers) in &url_groups {
+        if let Some(provider) = providers.first() {
+            println!("测试URL: {} (使用provider: {})", url, provider.name);
+
+            match router.test_url_latency(provider, &app_type_str).await {
+                Ok(latency) => {
+                    println!("  ✓ 延迟: {}ms", latency);
+                    results.push((url.clone(), latency));
+                }
+                Err(e) => {
+                    println!("  ✗ 测试失败: {}", e);
+                    results.push((url.clone(), u64::MAX));
+                }
+            }
+        }
+    }
+
+    // 排序并显示结果
+    results.sort_by_key(|(_, latency)| *latency);
+
+    println!("\n=== 测试结果（按延迟排序）===");
+    for (i, (url, latency)) in results.iter().enumerate() {
+        if *latency == u64::MAX {
+            println!("{}. {} - 失败", i + 1, url);
+        } else {
+            println!("{}. {} - {}ms", i + 1, url, latency);
+        }
+    }
+
+    if let Some((fastest_url, fastest_latency)) = results.first() {
+        if *fastest_latency != u64::MAX {
+            println!("\n最快: {} ({}ms)", fastest_url, fastest_latency);
+        }
+    }
 
     Ok(())
 }

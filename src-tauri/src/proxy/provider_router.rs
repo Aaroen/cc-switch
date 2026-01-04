@@ -464,8 +464,10 @@ impl ProviderRouter {
 
     /// 测试URL的全链路延迟
     ///
-    /// 发送简单问答请求，测量从Rust -> Python -> 目标URL -> Python -> Rust的完整延迟
-    async fn test_url_latency(&self, provider: &Provider) -> Result<u64, String> {
+    /// 发送简单问答请求，测量完整延迟
+    /// - Claude: Rust -> Python -> 目标URL -> Python -> Rust
+    /// - Codex: Rust -> 目标URL -> Rust
+    pub async fn test_url_latency(&self, provider: &Provider, app_type: &str) -> Result<u64, String> {
         let base_url = provider
             .settings_config
             .get("env")
@@ -484,34 +486,56 @@ impl ProviderRouter {
             .and_then(|v| v.as_str())
             .ok_or_else(|| "Provider缺少API key配置".to_string())?;
 
-        // 构造简单的测试请求
-        let test_payload = serde_json::json!({
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 10,
-            "messages": [{
-                "role": "user",
-                "content": "1+1=?"
-            }]
-        });
-
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
 
-        // 通过Python代理发送请求（全链路测试）
         let start = std::time::Instant::now();
 
-        let response = client
-            .post("http://127.0.0.1:15722/v1/messages")
-            .header("Content-Type", "application/json")
-            .header("anthropic-version", "2023-06-01")
-            .header("x-api-key", api_key)
-            .header("x-target-base-url", base_url)
-            .json(&test_payload)
-            .send()
-            .await
-            .map_err(|e| format!("请求失败: {}", e))?;
+        let response = if app_type == "codex" {
+            // Codex: 直接测试目标URL，使用OpenAI格式
+            let test_payload = serde_json::json!({
+                "model": "gpt-3.5-turbo",
+                "max_tokens": 10,
+                "messages": [{
+                    "role": "user",
+                    "content": "1+1=?"
+                }]
+            });
+
+            let target_url = format!("{}/v1/chat/completions", base_url);
+
+            client
+                .post(&target_url)
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .json(&test_payload)
+                .send()
+                .await
+                .map_err(|e| format!("请求失败: {}", e))?
+        } else {
+            // Claude: 通过Python代理测试，使用Claude格式
+            let test_payload = serde_json::json!({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 10,
+                "messages": [{
+                    "role": "user",
+                    "content": "1+1=?"
+                }]
+            });
+
+            client
+                .post("http://127.0.0.1:15722/v1/messages")
+                .header("Content-Type", "application/json")
+                .header("anthropic-version", "2023-06-01")
+                .header("x-api-key", api_key)
+                .header("x-target-base-url", base_url)
+                .json(&test_payload)
+                .send()
+                .await
+                .map_err(|e| format!("请求失败: {}", e))?
+        };
 
         let status = response.status();
         if !status.is_success() {
@@ -542,7 +566,7 @@ impl ProviderRouter {
             if let Some(provider) = providers.first() {
                 log::info!("[{}] 测试URL: {} (使用provider: {})", app_type, url, provider.name);
 
-                match self.test_url_latency(provider).await {
+                match self.test_url_latency(provider, app_type).await {
                     Ok(latency) => {
                         log::info!("[{}] URL {} 延迟: {}ms", app_type, url, latency);
                         results.push((url.clone(), latency));

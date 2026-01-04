@@ -438,8 +438,30 @@ impl RequestForwarder {
             auth.masked_key()
         );
 
-        // 固定使用 Python 代理地址
-        let url = format!("http://127.0.0.1:15722{}", endpoint);
+        // 根据adapter类型选择转发目标
+        // Codex: 直接转发到目标URL
+        // Claude: 通过Python代理转发
+        let (url, target_description) = if adapter.name() == "Codex" {
+            // Codex直接转发到目标URL
+            let base_url = provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    ProxyError::ConfigError(format!(
+                        "Provider {} 缺少ANTHROPIC_BASE_URL配置",
+                        provider.id
+                    ))
+                })?;
+
+            let full_url = format!("{}{}", base_url, endpoint);
+            (full_url, format!("{}", base_url))
+        } else {
+            // Claude通过Python代理
+            let url = format!("http://127.0.0.1:15722{}", endpoint);
+            (url, "Python代理(15722)".to_string())
+        };
 
         // 记录请求摘要信息（精简日志）
         log::info!(
@@ -460,9 +482,10 @@ impl RequestForwarder {
         );
 
         log::info!(
-            "[{}] 转发请求: {} -> Python代理(15722) -> anyrouter",
+            "[{}] 转发请求: {} -> {}",
             adapter.name(),
-            provider.name
+            provider.name,
+            target_description
         );
 
         // 构建请求
@@ -491,14 +514,39 @@ impl RequestForwarder {
         // 确保 Content-Type 是 json
         request = request.header("Content-Type", "application/json");
 
-        // 添加 X-API-Key 头部（Python代理会使用这个Key）
-        request = request.header("X-API-Key", &auth.api_key);
+        // 根据转发目标添加不同的认证头部
+        if adapter.name() == "Codex" {
+            // Codex使用标准OpenAI格式：Authorization: Bearer <token>
+            request = request.header("Authorization", format!("Bearer {}", auth.api_key));
+            log::debug!(
+                "[{}] 添加 Authorization Bearer 头部: {}",
+                adapter.name(),
+                auth.masked_key()
+            );
+        } else {
+            // Claude通过Python代理，需要添加X-API-Key和x-target-base-url
+            // 获取目标base_url
+            let base_url = provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    ProxyError::ConfigError(format!(
+                        "Provider {} 缺少ANTHROPIC_BASE_URL配置",
+                        provider.id
+                    ))
+                })?;
 
-        log::debug!(
-            "[{}] 添加 X-API-Key 头部: {}",
-            adapter.name(),
-            auth.masked_key()
-        );
+            request = request.header("X-API-Key", &auth.api_key);
+            request = request.header("x-target-base-url", base_url);
+            log::debug!(
+                "[{}] 添加 X-API-Key 头部: {}, 目标URL: {}",
+                adapter.name(),
+                auth.masked_key(),
+                base_url
+            );
+        }
 
         // 发送请求
         log::info!("[{}] 发送请求到: {}", adapter.name(), url);
