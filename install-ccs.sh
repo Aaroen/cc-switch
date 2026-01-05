@@ -25,8 +25,8 @@ show_progress() {
 
     # 显示进度条
     printf "["
-    printf "%${filled}s" | tr ' ' '█'
-    printf "%${empty}s" | tr ' ' '░'
+    printf "%${filled}s" | tr ' ' '='
+    printf "%${empty}s" | tr ' ' '-'
     printf "] %3d%% " "$percent"
 
     # 显示状态
@@ -49,7 +49,7 @@ step_done() {
     local total=$2
     local step_name=$3
     show_progress "$current" "$total" "$step_name" "done"
-    echo ""
+    # 不换行，保持在同一行等待下一个步骤覆盖
 }
 
 # 步骤运行中函数
@@ -66,14 +66,12 @@ step_error() {
     local total=$2
     local step_name=$3
     show_progress "$current" "$total" "$step_name" "error"
-    echo ""
+    echo ""  # 错误时换行，因为后续会有错误信息
 }
 
 # 清屏并显示标题
 clear
-echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║     CC-Switch CLI 快速安装与部署工具          ║${NC}"
-echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+echo -e "${CYAN}     CC-Switch CLI 快速安装与部署工具          ${NC}"
 echo ""
 
 # 总步骤数
@@ -88,29 +86,120 @@ rm -f /tmp/cc-switch*.log 2>/dev/null || true
 rm -f "$LOG_DIR/rust_proxy.log" 2>/dev/null || true
 rm -f "$LOG_DIR/claude_proxy.log" 2>/dev/null || true
 
+# 检测操作系统类型
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        OS_VERSION=$VERSION_ID
+    elif type lsb_release >/dev/null 2>&1; then
+        OS=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+        OS_VERSION=$(lsb_release -sr)
+    elif [ -f /etc/lsb-release ]; then
+        . /etc/lsb-release
+        OS=$(echo $DISTRIB_ID | tr '[:upper:]' '[:lower:]')
+        OS_VERSION=$DISTRIB_RELEASE
+    elif [ "$(uname)" = "Darwin" ]; then
+        OS="macos"
+        OS_VERSION=$(sw_vers -productVersion)
+    else
+        OS="unknown"
+        OS_VERSION="unknown"
+    fi
+}
+
+detect_os
+
+# 检查并安装基础工具
+check_and_install_tools() {
+    local tools_missing=false
+
+    # 检查curl
+    if ! command -v curl &> /dev/null; then
+        echo -e "${YELLOW}curl 未安装，正在安装...${NC}"
+        case "$OS" in
+            ubuntu|debian)
+                sudo apt-get install -y curl > /dev/null 2>&1 || tools_missing=true
+                ;;
+            centos|rhel|fedora)
+                sudo yum install -y curl > /dev/null 2>&1 || sudo dnf install -y curl > /dev/null 2>&1 || tools_missing=true
+                ;;
+            macos)
+                # macOS默认自带curl
+                :
+                ;;
+        esac
+    fi
+
+    # 检查git（可选，但建议安装）
+    if ! command -v git &> /dev/null; then
+        echo -e "${YELLOW}git 未安装，正在安装...${NC}"
+        case "$OS" in
+            ubuntu|debian)
+                sudo apt-get install -y git > /dev/null 2>&1
+                ;;
+            centos|rhel|fedora)
+                sudo yum install -y git > /dev/null 2>&1 || sudo dnf install -y git > /dev/null 2>&1
+                ;;
+            macos)
+                if command -v brew &> /dev/null; then
+                    brew install git > /dev/null 2>&1
+                fi
+                ;;
+        esac
+    fi
+
+    if [ "$tools_missing" = true ]; then
+        echo -e "${RED}错误: 部分基础工具安装失败，请手动安装curl${NC}"
+        exit 1
+    fi
+}
+
+check_and_install_tools
+
 # ============================================================================
-# 步骤 1: 检查 Rust 工具链
+# 步骤 1: 检查并安装 Rust 工具链
 # ============================================================================
 CURRENT_STEP=1
 step_running $CURRENT_STEP $TOTAL_STEPS "检查 Rust 工具链"
 
 if ! command -v cargo &> /dev/null; then
-    step_error $CURRENT_STEP $TOTAL_STEPS "Rust 未安装"
     echo ""
-    echo -e "${RED}错误: Rust 未安装${NC}"
-    echo ""
-    echo "请运行以下命令安装 Rust:"
-    echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    echo "  source ~/.cargo/env"
-    echo ""
-    exit 1
+    echo -e "${YELLOW}Rust 未安装，正在自动安装...${NC}"
+
+    # 下载并安装 Rust
+    if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable > /dev/null 2>&1; then
+        # 加载 Rust 环境变量
+        if [ -f "$HOME/.cargo/env" ]; then
+            source "$HOME/.cargo/env"
+        fi
+
+        # 验证安装
+        if command -v cargo &> /dev/null; then
+            RUST_VERSION=$(rustc --version)
+            step_done $CURRENT_STEP $TOTAL_STEPS "安装 Rust 工具链 ($RUST_VERSION)"
+        else
+            step_error $CURRENT_STEP $TOTAL_STEPS "Rust 安装失败"
+            echo ""
+            echo -e "${RED}错误: Rust 自动安装失败${NC}"
+            echo "请手动运行: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+            echo ""
+            exit 1
+        fi
+    else
+        step_error $CURRENT_STEP $TOTAL_STEPS "Rust 安装失败"
+        echo ""
+        echo -e "${RED}错误: Rust 自动安装失败，请检查网络连接${NC}"
+        echo ""
+        exit 1
+    fi
+else
+    RUST_VERSION=$(rustc --version)
+    step_done $CURRENT_STEP $TOTAL_STEPS "检查 Rust 工具链 ($RUST_VERSION)"
 fi
 
-RUST_VERSION=$(rustc --version)
-step_done $CURRENT_STEP $TOTAL_STEPS "检查 Rust 工具链 ($RUST_VERSION)"
-
 # ============================================================================
-# 步骤 2: 检查 Python 环境
+# 步骤 2: 检查并安装 Python 环境
 # ============================================================================
 CURRENT_STEP=2
 step_running $CURRENT_STEP $TOTAL_STEPS "检查 Python 环境"
@@ -126,20 +215,59 @@ elif command -v python &> /dev/null; then
 fi
 
 if [ -z "$PYTHON_CMD" ]; then
-    step_error $CURRENT_STEP $TOTAL_STEPS "Python 3.8+ 未安装"
     echo ""
-    echo -e "${RED}错误: Python 3.8+ 未安装${NC}"
-    echo ""
-    echo "请安装 Python 3.8 或更高版本:"
-    echo "  Ubuntu/Debian: sudo apt-get install python3 python3-venv python3-pip"
-    echo "  CentOS/RHEL: sudo yum install python3 python3-pip"
-    echo "  macOS: brew install python@3"
-    echo ""
-    exit 1
-fi
+    echo -e "${YELLOW}Python 3.8+ 未安装，正在自动安装...${NC}"
 
-PYTHON_VERSION=$($PYTHON_CMD --version 2>&1)
-step_done $CURRENT_STEP $TOTAL_STEPS "检查 Python 环境 ($PYTHON_VERSION)"
+    # 根据操作系统自动安装Python
+    case "$OS" in
+        ubuntu|debian)
+            if command -v sudo &> /dev/null; then
+                sudo apt-get update -qq > /dev/null 2>&1
+                if sudo apt-get install -y python3 python3-venv python3-pip > /dev/null 2>&1; then
+                    PYTHON_CMD="python3"
+                fi
+            fi
+            ;;
+        centos|rhel|fedora)
+            if command -v sudo &> /dev/null; then
+                if sudo yum install -y python3 python3-pip > /dev/null 2>&1; then
+                    PYTHON_CMD="python3"
+                elif sudo dnf install -y python3 python3-pip > /dev/null 2>&1; then
+                    PYTHON_CMD="python3"
+                fi
+            fi
+            ;;
+        macos)
+            if command -v brew &> /dev/null; then
+                if brew install python@3 > /dev/null 2>&1; then
+                    PYTHON_CMD="python3"
+                fi
+            else
+                echo -e "${YELLOW}提示: macOS需要先安装Homebrew${NC}"
+                echo "请运行: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            fi
+            ;;
+    esac
+
+    # 验证Python安装
+    if [ -z "$PYTHON_CMD" ] || ! command -v $PYTHON_CMD &> /dev/null; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "Python 自动安装失败"
+        echo ""
+        echo -e "${RED}错误: Python 自动安装失败${NC}"
+        echo "请手动安装 Python 3.8+:"
+        echo "  Ubuntu/Debian: sudo apt-get install python3 python3-venv python3-pip"
+        echo "  CentOS/RHEL: sudo yum install python3 python3-pip"
+        echo "  macOS: brew install python@3"
+        echo ""
+        exit 1
+    fi
+
+    PYTHON_VERSION=$($PYTHON_CMD --version 2>&1)
+    step_done $CURRENT_STEP $TOTAL_STEPS "安装 Python 环境 ($PYTHON_VERSION)"
+else
+    PYTHON_VERSION=$($PYTHON_CMD --version 2>&1)
+    step_done $CURRENT_STEP $TOTAL_STEPS "检查 Python 环境 ($PYTHON_VERSION)"
+fi
 
 # ============================================================================
 # 步骤 3: 安装 Python 依赖
@@ -157,6 +285,28 @@ if [ ! -f "$REQUIREMENTS_FILE" ]; then
     exit 1
 fi
 
+# 确保pip可用
+if ! $PYTHON_CMD -m pip --version &> /dev/null; then
+    echo ""
+    echo -e "${YELLOW}pip 未安装，正在安装...${NC}"
+
+    # 尝试使用ensurepip安装pip
+    if $PYTHON_CMD -m ensurepip --upgrade &> /dev/null; then
+        echo -e "${GREEN}pip 安装成功${NC}"
+    else
+        # 使用get-pip.py安装
+        if curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_CMD - --user &> /dev/null; then
+            echo -e "${GREEN}pip 安装成功${NC}"
+        else
+            step_error $CURRENT_STEP $TOTAL_STEPS "pip 安装失败"
+            echo ""
+            echo -e "${RED}错误: pip 安装失败${NC}"
+            exit 1
+        fi
+    fi
+fi
+
+# 安装Python依赖
 if ! $PYTHON_CMD -c "import fastapi" &> /dev/null; then
     $PYTHON_CMD -m pip install -q --upgrade pip --user 2>&1 | grep -v "WARNING" || true
     if ! $PYTHON_CMD -m pip install -q -r "$REQUIREMENTS_FILE" --user 2>&1 | grep -v "WARNING"; then
@@ -429,15 +579,15 @@ fi
 
 if [ "$PYTHON_OK" = true ] && [ "$RUST_OK" = true ]; then
     step_done $CURRENT_STEP $TOTAL_STEPS "验证部署状态 (成功)"
+    echo ""  # 最后一步完成，换行
 else
     step_error $CURRENT_STEP $TOTAL_STEPS "验证部署状态 (部分失败)"
+    # step_error已经换行
 fi
 
 echo ""
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║          部署完成 - 服务状态报告              ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════╝${NC}"
+echo -e "${GREEN}          部署完成 - 服务状态报告              ${NC}"
 echo ""
 
 # 服务状态详情
@@ -470,28 +620,13 @@ else
 fi
 echo ""
 
-echo -e "${CYAN}┌─ 请求链路${NC}"
-echo -e "│  Claude/Codex CLI → Rust(15721) → Python(15722) → 上游API"
-echo -e "│                   ↑ Provider轮询/熔断器/故障转移"
-echo ""
-
 echo -e "${CYAN}┌─ 快速命令${NC}"
 echo -e "│  ${YELLOW}cc-switch-cli list${NC}          # 列出所有供应商"
 echo -e "│  ${YELLOW}cc-switch-cli proxy status${NC}  # 查看代理状态"
 echo -e "│  ${YELLOW}cc-switch-cli --help${NC}        # 查看帮助信息"
 echo ""
 
-echo -e "${CYAN}┌─ 环境变量${NC}"
-echo -e "│  ${GREEN}export ANTHROPIC_BASE_URL=\"http://127.0.0.1:15721\"${NC}"
-echo -e "│  ${GREEN}export OPENAI_BASE_URL=\"http://127.0.0.1:15721\"${NC}"
-echo -e "│  ${YELLOW}# API Key 由 Rust 后端动态管理${NC}"
-
-if [ -n "$SHELL_CONFIG" ] && [ "$ENV_NEEDS_FIX" = true ]; then
-    echo ""
-    echo -e "${YELLOW}┌─ 使配置立即生效${NC}"
-    echo -e "│  ${CYAN}source $SHELL_CONFIG${NC}"
-fi
 
 echo ""
-echo -e "${BLUE}完整文档: ${CYAN}$SCRIPT_DIR/docs/USER-GUIDE.md${NC}"
+echo -e "│  ${BLUE}完整文档: ${CYAN}$SCRIPT_DIR/docs/USER-GUIDE.md${NC}"
 echo ""

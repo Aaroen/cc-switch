@@ -25,11 +25,13 @@ pub struct ProviderRouter {
     db: Arc<Database>,
     /// 熔断器管理器 - key 格式: "app_type:provider_id"
     circuit_breakers: Arc<RwLock<HashMap<String, Arc<CircuitBreaker>>>>,
-    /// URL内轮询计数器 - key 格式: "app_type:base_url", value: 当前索引
+    /// URL内轮询计数器 - key 格式: "app_type:priority:层级", value: 当前索引
     round_robin_counters: Arc<RwLock<HashMap<String, usize>>>,
-    /// URL粘性跟踪 - key 格式: "app_type", value: 当前使用的base_url
-    url_sticky: Arc<RwLock<HashMap<String, String>>>,
-    /// URL延迟缓存 - key 格式: "app_type:base_url", value: 延迟测试结果
+    /// 当前激活层级 - key 格式: "app_type", value: 当前使用的优先级层级
+    active_priority_level: Arc<RwLock<HashMap<String, usize>>>,
+    /// 层级URL已测试标记 - key 格式: "app_type:priority", value: 是否已测试过URL延迟
+    priority_level_tested: Arc<RwLock<HashMap<String, bool>>>,
+    /// URL延迟缓存 - key 格式: "app_type:priority:base_url", value: 延迟测试结果
     url_latencies: Arc<RwLock<HashMap<String, UrlLatency>>>,
 }
 
@@ -40,7 +42,8 @@ impl ProviderRouter {
             db,
             circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
             round_robin_counters: Arc::new(RwLock::new(HashMap::new())),
-            url_sticky: Arc::new(RwLock::new(HashMap::new())),
+            active_priority_level: Arc::new(RwLock::new(HashMap::new())),
+            priority_level_tested: Arc::new(RwLock::new(HashMap::new())),
             url_latencies: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -87,182 +90,230 @@ impl ProviderRouter {
                 failover_providers.len()
             );
 
-            // 按 base_url 分组
-            let mut url_groups: HashMap<String, Vec<Provider>> = HashMap::new();
+            // 按优先级分组providers
+            let mut priority_groups: std::collections::BTreeMap<usize, Vec<Provider>> = std::collections::BTreeMap::new();
             for provider in failover_providers {
-                // 从 settings_config.env.ANTHROPIC_BASE_URL 提取 URL
-                if let Some(base_url) = provider
-                    .settings_config
-                    .get("env")
-                    .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
-                    .and_then(|v| v.as_str())
-                {
-                    url_groups
-                        .entry(base_url.to_string())
-                        .or_insert_with(Vec::new)
-                        .push(provider);
-                }
+                let priority = provider.sort_index.unwrap_or(999999);
+                priority_groups
+                    .entry(priority)
+                    .or_insert_with(Vec::new)
+                    .push(provider);
             }
-
-            // 获取所有URL并排序（确保稳定顺序）
-            let mut urls: Vec<String> = url_groups.keys().cloned().collect();
-            urls.sort();
 
             log::info!(
-                "[{}] Grouped into {} URLs: {}",
+                "[{}] Grouped into {} priority levels: {:?}",
                 app_type,
-                urls.len(),
-                urls.join(", ")
+                priority_groups.len(),
+                priority_groups.keys().collect::<Vec<_>>()
             );
 
-            // 读取当前粘性URL
-            let sticky_url = {
-                let sticky_map = self.url_sticky.read().await;
-                sticky_map.get(app_type).cloned()
-            };
-
-            // 判断是否需要进行延迟测试
-            let needs_benchmark = sticky_url.is_none();
-
-            // 如果需要测试，执行全链路延迟测试并选择最快URL
-            let ordered_urls = if needs_benchmark {
-                log::info!("[{}] 首次使用或URL切换，执行延迟测试", app_type);
-                let benchmark_results = self.benchmark_urls(app_type, &url_groups).await;
-
-                // 从benchmark结果提取URL顺序
-                benchmark_results
-                    .into_iter()
-                    .filter(|(_, latency)| *latency != u64::MAX) // 过滤失败的URL
-                    .map(|(url, _)| url)
-                    .collect::<Vec<_>>()
-            } else {
-                // 使用现有顺序，但将粘性URL放在首位
-                if let Some(ref sticky) = sticky_url {
-                    let mut reordered = vec![sticky.clone()];
-                    reordered.extend(urls.into_iter().filter(|u| u != sticky));
-                    reordered
-                } else {
-                    urls
-                }
-            };
-
-            if ordered_urls.is_empty() {
-                log::error!("[{}] 所有URL测试失败", app_type);
-                return Err(AppError::Config(format!(
-                    "No available URLs for {app_type} (all latency tests failed)"
-                )));
-            }
-
-            // 确定起始URL索引
-            let start_url_index = if let Some(ref sticky) = sticky_url {
-                ordered_urls.iter().position(|u| u == sticky).unwrap_or(0)
-            } else {
-                0
-            };
-
-            // 从粘性URL开始尝试（如果当前URL无可用provider，则尝试下一个URL）
-            let mut current_url_index = start_url_index;
-            let mut tried_urls = 0;
-
-            while tried_urls < ordered_urls.len() {
-                let current_url = &ordered_urls[current_url_index];
-                let providers_in_url = url_groups.get(current_url).unwrap();
-
-                log::info!(
-                    "[{}] Trying URL: {} ({} providers)",
-                    app_type,
-                    current_url,
-                    providers_in_url.len()
-                );
-
-                // 在当前URL内过滤可用的providers（熔断器检查）
-                let mut available_in_url = Vec::new();
-                for provider in providers_in_url {
+            // 找到第一个有可用providers的层级（用于确定需要测试哪个层级的URL）
+            let mut first_available_priority: Option<usize> = None;
+            for (priority, providers_in_level) in priority_groups.iter() {
+                // 检查该层级是否有任何可用的provider（熔断器未打开）
+                let mut has_available = false;
+                for provider in providers_in_level {
                     let circuit_key = format!("{}:{}", app_type, provider.id);
                     let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
-
                     if breaker.is_available().await {
-                        available_in_url.push(provider.clone());
-                    } else {
-                        log::debug!(
-                            "[{}] Provider {} circuit breaker open, skipping",
-                            app_type,
-                            provider.name
-                        );
+                        has_available = true;
+                        break;
                     }
                 }
 
-                // 如果当前URL有可用providers，进行URL内轮询并返回
-                if !available_in_url.is_empty() {
+                if has_available {
+                    first_available_priority = Some(*priority);
                     log::info!(
-                        "[{}] URL {} has {} available providers",
+                        "[{}] First available priority level: {} ({} providers)",
                         app_type,
-                        current_url,
-                        available_in_url.len()
+                        priority,
+                        providers_in_level.len()
                     );
+                    break;
+                }
+            }
 
-                    // URL内轮询
-                    let counter_key = format!("{}:{}", app_type, current_url);
+            // 如果没有任何可用的层级，返回错误
+            let target_priority = match first_available_priority {
+                Some(p) => p,
+                None => {
+                    log::error!("[{}] 所有优先级层级的providers都不可用（熔断器全部打开）", app_type);
+                    return Err(AppError::Config(format!(
+                        "No available providers for {app_type} (all circuit breakers open)"
+                    )));
+                }
+            };
+
+            // 检查当前激活层级，判断是否发生了层级切换
+            let mut active_levels = self.active_priority_level.write().await;
+            let previous_priority = active_levels.get(app_type).copied();
+            let priority_changed = previous_priority != Some(target_priority);
+
+            if priority_changed {
+                log::info!(
+                    "[{}] Priority level switch detected: {:?} -> {}",
+                    app_type,
+                    previous_priority,
+                    target_priority
+                );
+                // 更新当前层级
+                active_levels.insert(app_type.to_string(), target_priority);
+            }
+            drop(active_levels);
+
+            // 存储所有层级的providers（按优先级顺序）
+            let mut all_providers_ordered = Vec::new();
+
+            // 处理每个优先级层级
+            for (priority, providers_in_level) in priority_groups.iter() {
+                log::info!(
+                    "[{}] Processing priority level {}: {} providers",
+                    app_type,
+                    priority,
+                    providers_in_level.len()
+                );
+
+                // 在当前层级内按URL分组
+                let mut url_groups_in_level: HashMap<String, Vec<Provider>> = HashMap::new();
+                for provider in providers_in_level {
+                    if let Some(base_url) = provider
+                        .settings_config
+                        .get("env")
+                        .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                        .and_then(|v| v.as_str())
+                    {
+                        url_groups_in_level
+                            .entry(base_url.to_string())
+                            .or_insert_with(Vec::new)
+                            .push(provider.clone());
+                    }
+                }
+
+                // 获取当前层级的URL顺序
+                let ordered_urls_in_level = if *priority == target_priority {
+                    // 只对首次可用的层级进行延迟测试（启动时或层级切换时）
+                    let test_key = format!("{}:{}", app_type, priority);
+                    let mut tested_map = self.priority_level_tested.write().await;
+                    let already_tested = tested_map.get(&test_key).copied().unwrap_or(false);
+
+                    if !already_tested || priority_changed {
+                        log::info!(
+                            "[{}] Priority {} - Performing latency test for {} URLs (first use or level switch)",
+                            app_type,
+                            priority,
+                            url_groups_in_level.len()
+                        );
+
+                        let benchmark_results = self.benchmark_urls(app_type, *priority, &url_groups_in_level).await;
+                        tested_map.insert(test_key, true);
+                        drop(tested_map);
+
+                        benchmark_results
+                            .into_iter()
+                            .filter(|(_, latency)| *latency != u64::MAX)
+                            .map(|(url, latency)| {
+                                log::info!("[{}] Priority {} URL {}: {}ms", app_type, priority, url, latency);
+                                url
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        drop(tested_map);
+                        // 使用缓存的延迟结果排序
+                        let latencies = self.url_latencies.read().await;
+                        let mut urls_with_latency: Vec<(String, u64)> = url_groups_in_level
+                            .keys()
+                            .map(|url| {
+                                let cache_key = format!("{}:{}:{}", app_type, priority, url);
+                                let latency = latencies
+                                    .get(&cache_key)
+                                    .map(|l| l.latency_ms)
+                                    .unwrap_or(u64::MAX);
+                                (url.clone(), latency)
+                            })
+                            .collect();
+                        urls_with_latency.sort_by_key(|(_, latency)| *latency);
+                        urls_with_latency.into_iter().map(|(url, _)| url).collect()
+                    }
+                } else {
+                    // 其他层级不进行延迟测试，使用字母序
+                    let mut urls: Vec<String> = url_groups_in_level.keys().cloned().collect();
+                    urls.sort();
+                    log::debug!(
+                        "[{}] Priority {}: Using default order for {} URLs (not target level)",
+                        app_type,
+                        priority,
+                        urls.len()
+                    );
+                    urls
+                };
+
+                // 收集当前层级所有可用的providers
+                let mut providers_in_this_level = Vec::new();
+                for url in ordered_urls_in_level {
+                    if let Some(providers_in_url) = url_groups_in_level.get(&url) {
+                        for provider in providers_in_url {
+                            // 熔断器检查
+                            let circuit_key = format!("{}:{}", app_type, provider.id);
+                            let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+
+                            if breaker.is_available().await {
+                                providers_in_this_level.push(provider.clone());
+                            } else {
+                                log::debug!(
+                                    "[{}] Provider {} (priority {}) circuit breaker open, skipping",
+                                    app_type,
+                                    provider.name,
+                                    priority
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // 在当前层级内应用round-robin轮询
+                if !providers_in_this_level.is_empty() {
+                    let counter_key = format!("{}:priority:{}", app_type, priority);
                     let rotate_count = {
                         let mut counters = self.round_robin_counters.write().await;
                         let counter = counters.entry(counter_key.clone()).or_insert(0);
-                        let count = *counter % available_in_url.len();
-                        // 递增计数器，下次选择下一个provider
-                        *counter = (*counter + 1) % available_in_url.len();
+                        let count = *counter % providers_in_this_level.len();
+                        // 递增计数器，下次请求会从下一个provider开始
+                        *counter = (*counter + 1) % providers_in_this_level.len();
                         count
                     };
 
-                    // 旋转列表，使索引为rotate_count的provider移到首位
-                    available_in_url.rotate_left(rotate_count);
+                    // 旋转列表，使轮询选中的provider移到层级首位
+                    providers_in_this_level.rotate_left(rotate_count);
 
                     log::info!(
-                        "[{}] Round-robin in URL {}: selected {} (rotation {}/{})",
+                        "[{}] Priority {} round-robin: starting with {} (rotation {}/{})",
                         app_type,
-                        current_url,
-                        available_in_url[0].name,
+                        priority,
+                        providers_in_this_level[0].name,
                         rotate_count,
-                        available_in_url.len()
+                        providers_in_this_level.len()
                     );
 
-                    // 更新URL粘性
-                    {
-                        let mut sticky_map = self.url_sticky.write().await;
-                        sticky_map.insert(app_type.to_string(), current_url.clone());
-                    }
-
-                    result = available_in_url;
-                    break;
-                } else {
-                    // 当前URL无可用providers，尝试下一个URL
-                    log::warn!(
-                        "[{}] URL {} has no available providers, will retry with fresh benchmark",
-                        app_type,
-                        current_url
-                    );
-
-                    // 在切换URL前，重新测试所有URL延迟
-                    if tried_urls == 0 {
-                        // 第一次切换时才重新测试，避免循环测试
-                        log::info!("[{}] 当前URL失效，重新测试所有URL延迟", app_type);
-
-                        // 清除粘性URL，强制下次重新选择
-                        {
-                            let mut sticky_map = self.url_sticky.write().await;
-                            sticky_map.remove(app_type);
-                        }
-
-                        // 使用递归调用select_providers，会自动Box::pin包装
-                        return self.select_providers(app_type).await;
-                    }
-
-                    current_url_index = (current_url_index + 1) % ordered_urls.len();
-                    tried_urls += 1;
+                    // 将轮询后的providers添加到总列表
+                    all_providers_ordered.extend(providers_in_this_level);
                 }
             }
 
-            if result.is_empty() {
-                log::error!("[{}] All URLs exhausted, no available providers", app_type);
+            if all_providers_ordered.is_empty() {
+                log::error!("[{}] 没有可用的providers（所有providers都被熔断器阻止或测试失败）", app_type);
+                return Err(AppError::Config(format!(
+                    "No available providers for {app_type}"
+                )));
             }
+
+            log::info!(
+                "[{}] Provider chain ready: {} providers across {} priority levels",
+                app_type,
+                all_providers_ordered.len(),
+                priority_groups.len()
+            );
+
+            result = all_providers_ordered;
         } else {
             // 故障转移关闭：仅使用当前供应商，跳过熔断器检查
             // 原因：单 Provider 场景下，熔断器打开会导致所有请求失败，用户体验差
@@ -555,24 +606,25 @@ impl ProviderRouter {
     pub async fn benchmark_urls(
         &self,
         app_type: &str,
+        priority: usize,
         url_groups: &HashMap<String, Vec<Provider>>,
     ) -> Vec<(String, u64)> {
-        log::info!("[{}] 开始URL延迟测试，共{}个URL", app_type, url_groups.len());
+        log::info!("[{}:{}] 开始URL延迟测试，共{}个URL", app_type, priority, url_groups.len());
 
         let mut results = Vec::new();
 
         for (url, providers) in url_groups {
             // 选择该URL的第一个provider进行测试
             if let Some(provider) = providers.first() {
-                log::info!("[{}] 测试URL: {} (使用provider: {})", app_type, url, provider.name);
+                log::info!("[{}:{}] 测试URL: {} (使用provider: {})", app_type, priority, url, provider.name);
 
                 match self.test_url_latency(provider, app_type).await {
                     Ok(latency) => {
-                        log::info!("[{}] URL {} 延迟: {}ms", app_type, url, latency);
+                        log::info!("[{}:{}] URL {} 延迟: {}ms", app_type, priority, url, latency);
                         results.push((url.clone(), latency));
 
-                        // 缓存测试结果
-                        let cache_key = format!("{}:{}", app_type, url);
+                        // 缓存测试结果（包含优先级信息）
+                        let cache_key = format!("{}:{}:{}", app_type, priority, url);
                         let mut latencies = self.url_latencies.write().await;
                         latencies.insert(
                             cache_key,
@@ -583,7 +635,7 @@ impl ProviderRouter {
                         );
                     }
                     Err(e) => {
-                        log::warn!("[{}] URL {} 测试失败: {}", app_type, url, e);
+                        log::warn!("[{}:{}] URL {} 测试失败: {}", app_type, priority, url, e);
                         // 失败的URL设置高延迟值，排序时会靠后
                         results.push((url.clone(), u64::MAX));
                     }
@@ -595,8 +647,9 @@ impl ProviderRouter {
         results.sort_by_key(|(_, latency)| *latency);
 
         log::info!(
-            "[{}] URL延迟测试完成，最快: {} ({}ms)",
+            "[{}:{}] URL延迟测试完成，最快: {} ({}ms)",
             app_type,
+            priority,
             results.first().map(|(u, _)| u.as_str()).unwrap_or("N/A"),
             results.first().map(|(_, l)| *l).unwrap_or(0)
         );

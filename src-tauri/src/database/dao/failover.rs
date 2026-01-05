@@ -45,14 +45,26 @@ impl Database {
         Ok(items)
     }
 
-    /// 获取故障转移队列中的供应商（完整 Provider 信息，按顺序）
+    /// 获取故障转移队列中的供应商（完整 Provider 信息，按 sort_index 排序）
     pub fn get_failover_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
         let all_providers = self.get_all_providers(app_type)?;
 
-        let result: Vec<Provider> = all_providers
+        let mut result: Vec<Provider> = all_providers
             .into_values()
             .filter(|p| p.in_failover_queue)
             .collect();
+
+        // 按 sort_index 排序（越小优先级越高，None 排最后）
+        result.sort_by(|a, b| {
+            let a_index = a.sort_index.unwrap_or(999999);
+            let b_index = b.sort_index.unwrap_or(999999);
+            a_index.cmp(&b_index).then_with(|| a.id.cmp(&b.id))
+        });
+
+        log::debug!(
+            "[{app_type}] Failover providers sorted by priority: {}",
+            result.iter().map(|p| format!("{}({})", p.name, p.sort_index.unwrap_or(999999))).collect::<Vec<_>>().join(", ")
+        );
 
         Ok(result)
     }
