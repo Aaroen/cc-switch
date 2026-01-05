@@ -176,14 +176,39 @@ impl ProviderRouter {
                 // 在当前层级内按URL分组
                 let mut url_groups_in_level: HashMap<String, Vec<Provider>> = HashMap::new();
                 for provider in providers_in_level {
-                    if let Some(base_url) = provider
-                        .settings_config
-                        .get("env")
-                        .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
-                        .and_then(|v| v.as_str())
-                    {
+                    // Debug: 输出provider配置
+                    log::debug!(
+                        "[{}] Provider {} settingsConfig: {:?}",
+                        app_type,
+                        provider.name,
+                        provider.settings_config
+                    );
+
+                    // 根据app_type选择正确的环境变量名
+                    let base_url = match app_type {
+                        "claude" => provider
+                            .settings_config
+                            .get("env")
+                            .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                            .and_then(|v| v.as_str()),
+                        "gemini" => provider
+                            .settings_config
+                            .get("env")
+                            .and_then(|env| env.get("GOOGLE_GEMINI_BASE_URL"))
+                            .and_then(|v| v.as_str()),
+                        "codex" => {
+                            // Codex的base_url直接在settingsConfig根级别
+                            provider
+                                .settings_config
+                                .get("base_url")
+                                .and_then(|v| v.as_str())
+                        }
+                        _ => None,
+                    };
+
+                    if let Some(url) = base_url {
                         url_groups_in_level
-                            .entry(base_url.to_string())
+                            .entry(url.to_string())
                             .or_insert_with(Vec::new)
                             .push(provider.clone());
                     }
@@ -519,23 +544,56 @@ impl ProviderRouter {
     /// - Claude: Rust -> Python -> 目标URL -> Python -> Rust
     /// - Codex: Rust -> 目标URL -> Rust
     pub async fn test_url_latency(&self, provider: &Provider, app_type: &str) -> Result<u64, String> {
-        let base_url = provider
-            .settings_config
-            .get("env")
-            .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Provider缺少ANTHROPIC_BASE_URL配置".to_string())?;
+        // 根据app_type提取base_url
+        let base_url = match app_type {
+            "claude" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Provider缺少ANTHROPIC_BASE_URL配置".to_string())?,
+            "gemini" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("GOOGLE_GEMINI_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Provider缺少GOOGLE_GEMINI_BASE_URL配置".to_string())?,
+            "codex" => {
+                // Codex的base_url直接在settingsConfig根级别
+                provider
+                    .settings_config
+                    .get("base_url")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "Provider缺少base_url配置".to_string())?
+            }
+            _ => return Err(format!("不支持的app_type: {}", app_type)),
+        };
 
-        // 尝试多个可能的API key字段名
-        let api_key = provider
-            .settings_config
-            .get("env")
-            .and_then(|env| {
-                env.get("ANTHROPIC_API_KEY")
-                    .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
-            })
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Provider缺少API key配置".to_string())?;
+        // 根据app_type提取API key
+        let api_key = match app_type {
+            "claude" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| {
+                    env.get("ANTHROPIC_API_KEY")
+                        .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
+                })
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Provider缺少API key配置".to_string())?,
+            "gemini" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("GOOGLE_API_KEY"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Provider缺少GOOGLE_API_KEY配置".to_string())?,
+            "codex" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("OPENAI_API_KEY"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Provider缺少OPENAI_API_KEY配置".to_string())?,
+            _ => return Err(format!("不支持的app_type: {}", app_type)),
+        };
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))

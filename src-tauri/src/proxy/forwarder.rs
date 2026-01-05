@@ -439,23 +439,10 @@ impl RequestForwarder {
         );
 
         // 根据adapter类型选择转发目标
-        // Codex: 直接转发到目标URL
-        // Claude: 通过Python代理转发
         let (url, target_description) = if adapter.name() == "Codex" {
             // Codex直接转发到目标URL
-            let base_url = provider
-                .settings_config
-                .get("env")
-                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    ProxyError::ConfigError(format!(
-                        "Provider {} 缺少ANTHROPIC_BASE_URL配置",
-                        provider.id
-                    ))
-                })?;
-
-            let full_url = format!("{}{}", base_url, endpoint);
+            let base_url = adapter.extract_base_url(provider)?;
+            let full_url = adapter.build_url(&base_url, endpoint);
             (full_url, format!("{}", base_url))
         } else {
             // Claude通过Python代理

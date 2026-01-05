@@ -107,6 +107,13 @@ pub async fn handle_messages(
     let status = response.status();
     log::info!("[Claude] 上游响应状态: {status}");
 
+    // 调试：记录响应的Content-Type，用于诊断流式检测问题
+    let content_type = response.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("未设置");
+    log::info!("[Claude] 响应Content-Type: {}, 请求is_stream: {}", content_type, is_stream);
+
     // Claude 特有：格式转换处理
     if needs_transform {
         return handle_claude_transform(response, &ctx, &state, &body, is_stream).await;
@@ -219,9 +226,22 @@ async fn handle_claude_transform(
     })?;
 
     log::info!("[Claude] 解析 OpenAI 响应成功");
+
+    // 只记录响应摘要，不输出完整JSON
+    let model_str = openai_response.get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let finish_reason = openai_response.get("choices")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|choice| choice.get("finish_reason"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
     log::info!(
-        "[Claude] <<< OpenAI 响应 JSON:\n{}",
-        serde_json::to_string_pretty(&openai_response).unwrap_or_default()
+        "[Claude] <<< OpenAI 响应摘要: model={}, finish_reason={}",
+        model_str,
+        finish_reason
     );
 
     let anthropic_response = transform::openai_to_anthropic(openai_response).map_err(|e| {
@@ -230,9 +250,19 @@ async fn handle_claude_transform(
     })?;
 
     log::info!("[Claude] 转换响应成功");
+
+    // 只记录响应摘要
+    let model_str = anthropic_response.get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let stop_reason = anthropic_response.get("stop_reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
     log::info!(
-        "[Claude] <<< Anthropic 响应 JSON:\n{}",
-        serde_json::to_string_pretty(&anthropic_response).unwrap_or_default()
+        "[Claude] <<< Anthropic 响应摘要: model={}, stop_reason={}",
+        model_str,
+        stop_reason
     );
 
     // 记录使用量

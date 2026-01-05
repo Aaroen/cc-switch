@@ -438,51 +438,14 @@ check_env_config() {
     return 1
 }
 
-# 检查Codex配置是否正确
-check_codex_config() {
-    local config_file="$1"
-    local auth_file="$2"
-
-    if [ ! -f "$config_file" ] || [ ! -f "$auth_file" ]; then
-        return 1
-    fi
-
-    # 检查base_url是否指向本地代理
-    if grep -q 'base_url = "http://127.0.0.1:15721' "$config_file" 2>/dev/null; then
-        # 检查API Key是否为占位符
-        if grep -q '"OPENAI_API_KEY": "sk-placeholder-managed-by-cc-switch"' "$auth_file" 2>/dev/null; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
-# 检查Gemini配置是否正确
-check_gemini_config() {
-    local env_file="$1"
-
-    if [ ! -f "$env_file" ]; then
-        return 1
-    fi
-
-    # 检查base_url是否指向本地代理
-    if grep -q 'GEMINI_API_BASE_URL=http://127.0.0.1:15721' "$env_file" 2>/dev/null; then
-        return 0
-    fi
-    return 1
-}
-
-# ============================================================================
-# 配置 Claude CLI 环境变量
-# ============================================================================
-CLAUDE_CONFIG_STATUS="跳过"
-CLAUDE_CONFIG_RESULT=""
+# 检查是否需要配置Claude环境变量
 ENV_NEEDS_FIX=false
 
 if ! check_env_config "$SHELL_CONFIG" "ANTHROPIC_BASE_URL" && [ -z "$ANTHROPIC_BASE_URL" ]; then
     ENV_NEEDS_FIX=true
 fi
 
+# 配置Claude CLI环境变量
 if [ "$ENV_NEEDS_FIX" = true ] && [ -n "$SHELL_CONFIG" ]; then
     cp "$SHELL_CONFIG" "${SHELL_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
 
@@ -491,64 +454,51 @@ if [ "$ENV_NEEDS_FIX" = true ] && [ -n "$SHELL_CONFIG" ]; then
         echo "# CC-Switch 环境变量配置 (Claude CLI)" >> "$SHELL_CONFIG"
         echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:15721"' >> "$SHELL_CONFIG"
         echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-rust-backend"' >> "$SHELL_CONFIG"
-        CLAUDE_CONFIG_STATUS="已修改"
-        CLAUDE_CONFIG_RESULT="→ http://127.0.0.1:15721"
     fi
-else
-    CLAUDE_CONFIG_STATUS="已配置"
-    CLAUDE_CONFIG_RESULT="http://127.0.0.1:15721 ✓"
 fi
 
-# ============================================================================
-# 配置 Codex CLI
-# ============================================================================
+# 配置Codex CLI配置文件（静默备份，稍后统一提示）
 CODEX_CONFIG_DIR="$HOME/.codex"
 CODEX_AUTH_FILE="$CODEX_CONFIG_DIR/auth.json"
 CODEX_CONFIG_FILE="$CODEX_CONFIG_DIR/config.toml"
-CODEX_CONFIG_STATUS="跳过"
-CODEX_CONFIG_RESULT=""
+CODEX_CONFIG_DETECTED=false
 CODEX_CONFIG_ORIGINAL=""
 
-if check_codex_config "$CODEX_CONFIG_FILE" "$CODEX_AUTH_FILE"; then
-    # 配置已正确，跳过修改
-    CODEX_CONFIG_STATUS="已配置"
-    CODEX_CONFIG_RESULT="http://127.0.0.1:15721/v1 ✓"
-else
-    # 配置不正确，需要备份和修改
-    if [ -f "$CODEX_AUTH_FILE" ] || [ -f "$CODEX_CONFIG_FILE" ]; then
-        # 备份现有配置
-        mkdir -p "$CODEX_CONFIG_DIR/backups"
-        [ -f "$CODEX_AUTH_FILE" ] && cp "$CODEX_AUTH_FILE" "$CODEX_CONFIG_DIR/backups/auth.json.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-        [ -f "$CODEX_CONFIG_FILE" ] && cp "$CODEX_CONFIG_FILE" "$CODEX_CONFIG_DIR/backups/config.toml.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+if [ -f "$CODEX_AUTH_FILE" ]; then
+    # 备份现有配置
+    mkdir -p "$CODEX_CONFIG_DIR/backups"
+    cp "$CODEX_AUTH_FILE" "$CODEX_CONFIG_DIR/backups/auth.json.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    [ -f "$CODEX_CONFIG_FILE" ] && cp "$CODEX_CONFIG_FILE" "$CODEX_CONFIG_DIR/backups/config.toml.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    CODEX_CONFIG_DETECTED=true
 
-        # 读取原配置中的base_url
-        if [ -f "$CODEX_CONFIG_FILE" ]; then
-            CODEX_CONFIG_ORIGINAL=$(grep -A 2 "\[model_providers\." "$CODEX_CONFIG_FILE" | grep "base_url" | head -1 | cut -d'"' -f2 2>/dev/null || echo "")
-        fi
-        CODEX_CONFIG_STATUS="已修改"
-    else
-        CODEX_CONFIG_STATUS="已创建"
+    # 读取原配置中的base_url作为记录
+    if [ -f "$CODEX_CONFIG_FILE" ]; then
+        CODEX_CONFIG_ORIGINAL=$(grep -A 2 "\[model_providers\." "$CODEX_CONFIG_FILE" | grep "base_url" | head -1 | cut -d'"' -f2 2>/dev/null || echo "")
     fi
+fi
 
-    # 创建Codex配置目录
-    mkdir -p "$CODEX_CONFIG_DIR"
+# 创建Codex配置目录（如果不存在）
+mkdir -p "$CODEX_CONFIG_DIR"
 
-    # 写入CC-Switch接管配置
-    cat > "$CODEX_AUTH_FILE" <<'EOF'
+# 写入CC-Switch接管配置
+# auth.json: 使用占位符API Key
+cat > "$CODEX_AUTH_FILE" <<'EOF'
 {
   "OPENAI_API_KEY": "sk-placeholder-managed-by-cc-switch"
 }
 EOF
 
-    # config.toml: 指向本地代理，保留现有的projects配置
-    if [ -f "$CODEX_CONFIG_FILE" ]; then
-        PROJECTS_SECTION=$(awk '/^\[projects\./,0' "$CODEX_CONFIG_FILE" 2>/dev/null || echo "")
-    else
-        PROJECTS_SECTION=""
-    fi
+# config.toml: 指向本地代理
+# 保留现有的projects和其他配置，只修改model_providers部分
+if [ -f "$CODEX_CONFIG_FILE" ]; then
+    # 如果配置文件存在，提取projects部分
+    PROJECTS_SECTION=$(awk '/^\[projects\./,0' "$CODEX_CONFIG_FILE" 2>/dev/null || echo "")
+else
+    PROJECTS_SECTION=""
+fi
 
-    cat > "$CODEX_CONFIG_FILE" <<EOF
-# CC-Switch 接管配置 - 由应用自动管理
+cat > "$CODEX_CONFIG_FILE" <<EOF
+# CC-Switch 接管配置 
 # 原配置已备份到 backups/ 目录
 model = "gpt-4o-2024-08-06"
 model_provider = "cc-switch-proxy"
@@ -563,49 +513,33 @@ wire_api = "responses"
 $PROJECTS_SECTION
 EOF
 
-    if [ -n "$CODEX_CONFIG_ORIGINAL" ]; then
-        CODEX_CONFIG_RESULT="$CODEX_CONFIG_ORIGINAL → http://127.0.0.1:15721/v1"
-    else
-        CODEX_CONFIG_RESULT="→ http://127.0.0.1:15721/v1"
-    fi
-fi
-
-# ============================================================================
-# 配置 Gemini CLI
-# ============================================================================
+# 配置Gemini CLI配置文件（静默备份，稍后统一提示）
 GEMINI_CONFIG_DIR="$HOME/.gemini"
 GEMINI_ENV_FILE="$GEMINI_CONFIG_DIR/.env"
 GEMINI_SETTINGS_FILE="$GEMINI_CONFIG_DIR/settings.json"
-GEMINI_CONFIG_STATUS="跳过"
-GEMINI_CONFIG_RESULT=""
+GEMINI_CONFIG_DETECTED=false
 
-if check_gemini_config "$GEMINI_ENV_FILE"; then
-    # 配置已正确，跳过修改
-    GEMINI_CONFIG_STATUS="已配置"
-    GEMINI_CONFIG_RESULT="http://127.0.0.1:15721 ✓"
-else
-    # 配置不正确，需要备份和修改
-    if [ -f "$GEMINI_ENV_FILE" ] || [ -f "$GEMINI_SETTINGS_FILE" ]; then
-        # 备份现有配置
-        mkdir -p "$GEMINI_CONFIG_DIR/backups"
-        [ -f "$GEMINI_ENV_FILE" ] && cp "$GEMINI_ENV_FILE" "$GEMINI_CONFIG_DIR/backups/.env.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-        [ -f "$GEMINI_SETTINGS_FILE" ] && cp "$GEMINI_SETTINGS_FILE" "$GEMINI_CONFIG_DIR/backups/settings.json.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-        GEMINI_CONFIG_STATUS="已修改"
-    else
-        GEMINI_CONFIG_STATUS="已创建"
-    fi
+if [ -f "$GEMINI_ENV_FILE" ] || [ -f "$GEMINI_SETTINGS_FILE" ]; then
+    # 备份现有配置
+    mkdir -p "$GEMINI_CONFIG_DIR/backups"
+    [ -f "$GEMINI_ENV_FILE" ] && cp "$GEMINI_ENV_FILE" "$GEMINI_CONFIG_DIR/backups/.env.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    [ -f "$GEMINI_SETTINGS_FILE" ] && cp "$GEMINI_SETTINGS_FILE" "$GEMINI_CONFIG_DIR/backups/settings.json.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    GEMINI_CONFIG_DETECTED=true
+fi
 
-    # 创建Gemini配置目录
-    mkdir -p "$GEMINI_CONFIG_DIR"
+# 创建Gemini配置目录（如果不存在）
+mkdir -p "$GEMINI_CONFIG_DIR"
 
-    # 写入CC-Switch接管配置
-    cat > "$GEMINI_ENV_FILE" <<'EOF'
-# CC-Switch 接管配置 - 由应用自动管理
+# 写入CC-Switch接管配置
+# .env: 设置API基础URL和占位符Key
+cat > "$GEMINI_ENV_FILE" <<'EOF'
+# CC-Switch 接管配置 
 GEMINI_API_BASE_URL=http://127.0.0.1:15721
 GEMINI_API_KEY=sk-placeholder-managed-by-cc-switch
 EOF
 
-    cat > "$GEMINI_SETTINGS_FILE" <<'EOF'
+# settings.json: Gemini CLI配置
+cat > "$GEMINI_SETTINGS_FILE" <<'EOF'
 {
   "model": "gemini-2.0-flash-exp",
   "provider": "cc-switch-proxy",
@@ -613,10 +547,11 @@ EOF
 }
 EOF
 
-    GEMINI_CONFIG_RESULT="→ http://127.0.0.1:15721"
+if [ "$ENV_NEEDS_FIX" = true ]; then
+    step_done $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置 (已配置Claude)"
+else
+    step_done $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置 (正常)"
 fi
-
-step_done $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置 (完成)"
 
 # 日志轮转函数
 rotate_log_if_needed() {
@@ -767,24 +702,23 @@ fi
 echo ""
 
 # 显示CLI配置提示
-if [ "$CLAUDE_CONFIG_STATUS" != "跳过" ] || [ "$CODEX_CONFIG_STATUS" != "跳过" ] || [ "$GEMINI_CONFIG_STATUS" != "跳过" ]; then
+if [ "$CODEX_CONFIG_DETECTED" = true ] || [ "$GEMINI_CONFIG_DETECTED" = true ]; then
     echo -e "   ${CYAN}CLI配置接管${NC}"
-
-    if [ "$CLAUDE_CONFIG_STATUS" != "跳过" ]; then
-        echo -e "   ${YELLOW}Claude CLI${NC}: [$CLAUDE_CONFIG_STATUS]"
-        echo -e "     $CLAUDE_CONFIG_RESULT"
+    if [ "$CODEX_CONFIG_DETECTED" = true ]; then
+        echo -e "   ${YELLOW}Codex CLI${NC}:"
+        echo -e "     • 原配置已备份: $CODEX_CONFIG_DIR/backups/"
+        echo -e "     • 新base_url: http://127.0.0.1:15721/v1"
+        echo -e "     • 配置由CC-Switch应用管理"
     fi
-
-    if [ "$CODEX_CONFIG_STATUS" != "跳过" ]; then
-        echo -e "   ${YELLOW}Codex CLI${NC}: [$CODEX_CONFIG_STATUS]"
-        echo -e "     $CODEX_CONFIG_RESULT"
+    if [ "$GEMINI_CONFIG_DETECTED" = true ]; then
+        echo -e "   ${YELLOW}Gemini CLI${NC}:"
+        echo -e "     • 原配置已备份: $GEMINI_CONFIG_DIR/backups/"
+        echo -e "     • 新base_url: http://127.0.0.1:15721"
+        echo -e "     • 配置由CC-Switch应用管理"
     fi
-
-    if [ "$GEMINI_CONFIG_STATUS" != "跳过" ]; then
-        echo -e "   ${YELLOW}Gemini CLI${NC}: [$GEMINI_CONFIG_STATUS]"
-        echo -e "     $GEMINI_CONFIG_RESULT"
+    if [ "$CODEX_CONFIG_DETECTED" = false ] && [ "$GEMINI_CONFIG_DETECTED" = false ]; then
+        echo -e "   ${YELLOW}Codex & Gemini CLI${NC}: 已初始化配置，指向本地代理"
     fi
-
     echo ""
 fi
 

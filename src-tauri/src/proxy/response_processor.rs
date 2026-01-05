@@ -31,12 +31,23 @@ use tokio::sync::Mutex;
 /// 检测响应是否为 SSE 流式响应
 #[inline]
 pub fn is_sse_response(response: &reqwest::Response) -> bool {
-    response
+    let content_type = response
         .headers()
         .get("content-type")
-        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.to_str().ok());
+
+    let is_sse = content_type
         .map(|ct| ct.contains("text/event-stream"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+    // 调试日志：记录Content-Type检测结果
+    log::debug!(
+        "is_sse_response检测: content_type={:?}, is_sse={}",
+        content_type.unwrap_or("未设置"),
+        is_sse
+    );
+
+    is_sse
 }
 
 /// 处理流式响应
@@ -93,10 +104,19 @@ pub async fn handle_non_streaming(
 
     // 解析并记录使用量
     if let Ok(json_value) = serde_json::from_slice::<Value>(&body_bytes) {
+        // 只记录响应摘要，不输出完整JSON（避免泄露thinking等敏感内容）
+        let status_str = json_value.get("stop_reason")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let model_str = json_value.get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
         log::info!(
-            "[{}] <<< 响应 JSON:\n{}",
+            "[{}] <<< 响应摘要: model={}, stop_reason={}",
             ctx.tag,
-            serde_json::to_string_pretty(&json_value).unwrap_or_default()
+            model_str,
+            status_str
         );
 
         // 解析使用量
@@ -112,16 +132,39 @@ pub async fn handle_non_streaming(
 
             spawn_log_usage(state, ctx, usage, &model, status.as_u16(), false);
         } else {
+            // 即使未能解析usage，也要记录默认值（保持原始逻辑）
+            let model = json_value
+                .get("model")
+                .and_then(|m| m.as_str())
+                .unwrap_or(&ctx.request_model)
+                .to_string();
+            spawn_log_usage(
+                state,
+                ctx,
+                TokenUsage::default(),
+                &model,
+                status.as_u16(),
+                false,
+            );
             log::debug!(
-                "[{}] 未能解析 usage 信息，跳过记录",
+                "[{}] 未能解析 usage 信息，使用默认值记录",
                 parser_config.app_type_str
             );
         }
     } else {
+        // 非JSON响应，记录默认usage
         log::info!(
             "[{}] <<< 响应 (非 JSON): {} bytes",
             ctx.tag,
             body_bytes.len()
+        );
+        spawn_log_usage(
+            state,
+            ctx,
+            TokenUsage::default(),
+            &ctx.request_model,
+            status.as_u16(),
+            false,
         );
     }
 
@@ -430,8 +473,14 @@ pub fn create_logged_passthrough_stream(
                                             // 精简日志：仅记录事件类型，不输出完整JSON
                                             if let Some(event_type) = json_value.get("type").and_then(|v| v.as_str()) {
                                                 log::debug!("[{tag}] SSE event: {event_type}");
+                                            } else {
+                                                log::debug!("[{tag}] SSE event: (无type字段)");
                                             }
+                                        } else {
+                                            log::debug!("[{tag}] SSE data (非JSON): {}", &data[..data.len().min(100)]);
                                         }
+                                    } else {
+                                        log::debug!("[{tag}] SSE: [DONE]");
                                     }
                                 }
                             }

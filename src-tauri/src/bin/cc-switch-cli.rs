@@ -337,6 +337,11 @@ fn handle_list(app_type: Option<String>) -> Result<(), AppError> {
                 in_queue,
                 marker
             );
+
+            // Debug: 输出settingsConfig
+            if std::env::var("DEBUG_CONFIG").is_ok() {
+                println!("    settingsConfig: {}", serde_json::to_string_pretty(&provider.settings_config).unwrap_or_default());
+            }
         }
     }
 
@@ -354,13 +359,25 @@ fn handle_add(
     let db = Arc::new(Database::init()?);
     let app_type_str = parse_app_type(app_type)?;
 
-    // 构建 settings_config
-    let settings_config = json!({
-        "env": {
-            "ANTHROPIC_BASE_URL": base_url,
-            "ANTHROPIC_API_KEY": api_key,
-        }
-    });
+    // 构建 settings_config - 根据app_type使用不同的字段名
+    let settings_config = match app_type {
+        "codex" => json!({
+            "env": {
+                "OPENAI_API_KEY": api_key,
+            },
+            "base_url": base_url,
+        }),
+        "gemini" => json!({
+            "apiKey": api_key,
+            "baseUrl": base_url,
+        }),
+        _ => json!({
+            "env": {
+                "ANTHROPIC_API_KEY": api_key,
+                "ANTHROPIC_BASE_URL": base_url,
+            }
+        }),
+    };
 
     let provider = Provider {
         id: id.to_string(),
