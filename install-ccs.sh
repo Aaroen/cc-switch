@@ -591,42 +591,42 @@ echo -e "${GREEN}          部署完成 - 服务状态报告              ${NC}"
 echo ""
 
 # 服务状态详情
-echo -e "${BLUE}┌─ Python 代理层 (端口 15722)${NC}"
+echo -e "${BLUE}   Python 代理层 (端口 15722)${NC}"
 if [ "$PYTHON_OK" = true ]; then
-    echo -e "│  状态: ${GREEN}✓ 运行中${NC}"
-    echo -e "│  地址: 127.0.0.1:15722"
-    echo -e "│  日志: tail -f $LOG_DIR/claude_proxy.log"
+    echo -e "   状态: ${GREEN}✓ 运行中${NC}"
+    echo -e "   地址: 127.0.0.1:15722"
+    echo -e "   日志: tail -f $LOG_DIR/claude_proxy.log"
 else
-    echo -e "│  状态: ${RED}✗ 未运行${NC}"
+    echo -e "   状态: ${RED}✗ 未运行${NC}"
 fi
 echo ""
 
-echo -e "${BLUE}┌─ Rust 代理层 (端口 15721)${NC}"
+echo -e "${BLUE}   Rust 代理层 (端口 15721)${NC}"
 if [ "$RUST_OK" = true ]; then
-    echo -e "│  状态: ${GREEN}✓ 运行中${NC}"
-    echo -e "│  地址: 127.0.0.1:15721"
-    echo -e "│  日志: tail -f $LOG_DIR/rust_proxy.log"
+    echo -e "   状态: ${GREEN}✓ 运行中${NC}"
+    echo -e "   地址: 127.0.0.1:15721"
+    echo -e "   日志: tail -f $LOG_DIR/rust_proxy.log"
 else
-    echo -e "│  状态: ${RED}✗ 未运行${NC}"
+    echo -e "   状态: ${RED}✗ 未运行${NC}"
 fi
 echo ""
 
-echo -e "${BLUE}┌─ 数据库${NC}"
+echo -e "${BLUE}   数据库${NC}"
 if [ "$DB_OK" = true ]; then
-    echo -e "│  状态: ${GREEN}✓ 已初始化${NC}"
-    echo -e "│  位置: ~/.cc-switch/cc-switch.db"
+    echo -e "   状态: ${GREEN}✓ 已初始化${NC}"
+    echo -e "   位置: ~/.cc-switch/cc-switch.db"
 else
-    echo -e "│  状态: ${YELLOW}⚠ 未初始化${NC} (首次运行时自动创建)"
+    echo -e "   状态: ${YELLOW}⚠ 未初始化${NC} (首次运行时自动创建)"
 fi
 echo ""
 
-echo -e "${CYAN}┌─ 快速命令${NC}"
-echo -e "│  ${YELLOW}cc-switch-cli list${NC}          # 列出所有供应商"
-echo -e "│  ${YELLOW}cc-switch-cli proxy status${NC}  # 查看代理状态"
-echo -e "│  ${YELLOW}cc-switch-cli --help${NC}        # 查看帮助信息"
+echo -e "   ${CYAN}快速命令${NC}"
+echo -e "   ${YELLOW}cc-switch-cli list${NC}          # 列出所有供应商"
+echo -e "   ${YELLOW}cc-switch-cli proxy status${NC}  # 查看代理状态"
+echo -e "   ${YELLOW}cc-switch-cli --help${NC}        # 查看帮助信息"
 echo ""
 
 
 echo ""
-echo -e "│  ${BLUE}完整文档: ${CYAN}$SCRIPT_DIR/docs/USER-GUIDE.md${NC}"
+echo -e "   ${BLUE}完整文档: ${CYAN}$SCRIPT_DIR/docs/USER-GUIDE.md${NC}"
 echo ""
