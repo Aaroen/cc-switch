@@ -466,78 +466,224 @@ ccswitch://provider?name=<name>&url=<url>&key=<key>
 
 ## 命令行工具
 
-### 1. 基础命令
+CC-Switch CLI 提供了完整的终端命令行接口，支持代理服务控制和供应商管理。
 
-**列出所有供应商**：
+### 1. 代理服务控制
+
+**启动代理服务器**（前台模式）：
+```bash
+cc-switch-cli proxy start
+```
+
+**停止代理服务器**：
+```bash
+cc-switch-cli proxy stop
+```
+
+**重启代理服务器**：
+```bash
+cc-switch-cli proxy restart
+```
+
+**查看代理服务器状态**：
+```bash
+cc-switch-cli proxy status
+```
+
+### 2. 供应商管理
+
+#### 2.1 列出供应商
+
+**列出所有应用的供应商**：
 ```bash
 cc-switch-cli list
 ```
 
-**查看当前激活的供应商**：
+**列出指定应用的供应商**：
+```bash
+cc-switch-cli list claude    # Claude 应用
+cc-switch-cli list codex     # Codex 应用
+cc-switch-cli list gemini    # Gemini 应用
+```
+
+#### 2.2 查看当前供应商
+
+**查看所有应用的当前供应商**：
 ```bash
 cc-switch-cli current
 ```
 
-**切换供应商**：
+**查看指定应用的当前供应商**：
 ```bash
-cc-switch-cli enable <provider-name>
+cc-switch-cli current claude
+cc-switch-cli current codex
+cc-switch-cli current gemini
 ```
 
-**添加供应商**：
+#### 2.3 添加供应商
+
+**添加新供应商**：
 ```bash
-cc-switch-cli add --name <name> --url <url> --key <key>
+cc-switch-cli add <app_type> <provider_id> \
+  --name "供应商名称" \
+  --api-key "sk-xxxx" \
+  --base-url "https://api.example.com" \
+  --priority 0
 ```
 
-**删除供应商**：
+**示例**：
 ```bash
-cc-switch-cli remove <provider-name>
+cc-switch-cli add claude my-provider-1 \
+  --name "My Claude Provider" \
+  --api-key "sk-ant-xxx" \
+  --base-url "https://api.anthropic.com" \
+  --priority 0
 ```
 
-### 2. 批量操作
+参数说明：
+- `app_type`: 应用类型（claude/codex/gemini）
+- `provider_id`: 供应商唯一标识符
+- `--name`: 供应商显示名称
+- `--api-key`: API 密钥
+- `--base-url`: API 基础 URL
+- `--priority`: 优先级层级（默认 0，数字越小优先级越高）
 
-**批量添加供应商组**：
+#### 2.4 删除供应商
+
 ```bash
-cc-switch-cli add-group \
-  --name "GroupName" \
-  --urls "url1,url2,url3" \
-  --keys "key1,key2" \
-  --cooldown-hours 72
+cc-switch-cli remove <app_type> <provider_id>
 ```
 
-### 3. 冷静期管理
-
-**列出冷静期供应商**：
+**示例**：
 ```bash
-cc-switch-cli cooldown list
+cc-switch-cli remove claude my-provider-1
 ```
 
-**设置冷静期**：
+#### 2.5 启用供应商
+
+**切换到指定供应商**：
 ```bash
-cc-switch-cli cooldown set <provider-name> --hours <hours>
+cc-switch-cli enable <app_type> <provider_id>
 ```
 
-**清除冷静期**：
+**示例**：
 ```bash
-cc-switch-cli cooldown clear <provider-name>
+cc-switch-cli enable claude my-provider-1
 ```
 
-### 4. 配置管理
+### 3. 优先级管理
 
-**导出配置**：
+**设置供应商优先级层级**：
 ```bash
-cc-switch-cli export <path>
+cc-switch-cli set-priority <app_type> <provider_id> <priority>
 ```
 
-**导入配置**：
+**示例**：
 ```bash
-cc-switch-cli import <path>
+cc-switch-cli set-priority claude my-provider-1 0
+cc-switch-cli set-priority claude backup-provider 1
+```
+
+优先级说明：
+- 层级 0 为最高优先级（主力供应商）
+- 层级 1 为次级优先级（备用供应商）
+- 只有层级 0 的所有供应商都失败后，才会尝试层级 1
+
+### 4. 故障转移队列管理
+
+#### 4.1 添加到故障转移队列
+
+```bash
+cc-switch-cli add-to-queue <app_type> <provider_id>
+```
+
+**示例**：
+```bash
+cc-switch-cli add-to-queue claude my-provider-1
+```
+
+#### 4.2 从故障转移队列移除
+
+```bash
+cc-switch-cli remove-from-queue <app_type> <provider_id>
+```
+
+**示例**：
+```bash
+cc-switch-cli remove-from-queue claude my-provider-1
 ```
 
 ### 5. 性能测试
 
-**测试供应商延迟**：
+**测试指定应用类型的所有在队列中的供应商延迟**：
 ```bash
-cc-switch-cli test <provider-name>
+cc-switch-cli test-latency <app_type>
+```
+
+**测试指定供应商的延迟**：
+```bash
+cc-switch-cli test-latency <app_type> <provider_id>
+```
+
+**示例**：
+```bash
+# 测试所有 Claude 供应商
+cc-switch-cli test-latency claude
+
+# 测试特定供应商
+cc-switch-cli test-latency claude my-provider-1
+```
+
+测试结果将按延迟从低到高排序，帮助您选择最快的供应商。
+
+### 6. 完整命令示例
+
+**完整工作流程**：
+```bash
+# 1. 添加多个供应商
+cc-switch-cli add claude provider-a \
+  --name "Provider A" \
+  --api-key "sk-xxx" \
+  --base-url "https://api-a.com" \
+  --priority 0
+
+cc-switch-cli add claude provider-b \
+  --name "Provider B" \
+  --api-key "sk-yyy" \
+  --base-url "https://api-b.com" \
+  --priority 0
+
+cc-switch-cli add claude provider-backup \
+  --name "Backup Provider" \
+  --api-key "sk-zzz" \
+  --base-url "https://backup-api.com" \
+  --priority 1
+
+# 2. 添加到故障转移队列
+cc-switch-cli add-to-queue claude provider-a
+cc-switch-cli add-to-queue claude provider-b
+cc-switch-cli add-to-queue claude provider-backup
+
+# 3. 测试延迟
+cc-switch-cli test-latency claude
+
+# 4. 启用最快的供应商
+cc-switch-cli enable claude provider-a
+
+# 5. 查看当前配置
+cc-switch-cli current claude
+cc-switch-cli list claude
+
+# 6. 启动代理服务
+cc-switch-cli proxy start
+```
+
+### 7. 帮助信息
+
+**查看帮助**：
+```bash
+cc-switch-cli --help
+cc-switch-cli <subcommand> --help
 ```
 
 ---
