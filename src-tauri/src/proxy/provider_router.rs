@@ -9,6 +9,7 @@ use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerC
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 
 /// URL延迟测试结果
@@ -30,14 +31,20 @@ pub struct ProviderRouter {
     round_robin_counters: Arc<RwLock<HashMap<String, usize>>>,
     /// 当前激活层级 - key 格式: "app_type", value: 当前使用的优先级层级
     active_priority_level: Arc<RwLock<HashMap<String, usize>>>,
-    /// 层级URL已测试标记 - key 格式: "app_type:priority", value: 是否已测试过URL延迟
+    /// 供应商URL已测试标记 - key 格式: "app_type:priority:supplier", value: 是否已测试过URL延迟
     priority_level_tested: Arc<RwLock<HashMap<String, bool>>>,
-    /// URL延迟缓存 - key 格式: "app_type:priority:base_url", value: 延迟测试结果
+    /// URL延迟缓存 - key 格式: "app_type:priority:supplier:base_url", value: 延迟测试结果
     url_latencies: Arc<RwLock<HashMap<String, UrlLatency>>>,
     /// 供应商冷静期 - key 格式: "app_type:priority:supplier", value: 冷静期结束时间
     supplier_cooldowns: Arc<RwLock<HashMap<String, std::time::Instant>>>,
     /// URL 疑似失效标记 - key 格式: "app_type:supplier:base_url", value: 解除时间
     suspect_urls: Arc<RwLock<HashMap<String, std::time::Instant>>>,
+    /// 每个供应商当前选中的 URL（同一时刻只使用一个“最快 URL”）
+    /// key 格式: "app_type:priority:supplier", value: base_url
+    supplier_current_url: Arc<RwLock<HashMap<String, String>>>,
+    /// 供应商测速锁（避免并发请求触发重复测速）
+    /// key 格式: "app_type:priority:supplier"
+    supplier_benchmark_locks: Arc<RwLock<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
 impl ProviderRouter {
@@ -55,7 +62,82 @@ impl ProviderRouter {
             url_latencies: Arc::new(RwLock::new(HashMap::new())),
             supplier_cooldowns: Arc::new(RwLock::new(HashMap::new())),
             suspect_urls: Arc::new(RwLock::new(HashMap::new())),
+            supplier_current_url: Arc::new(RwLock::new(HashMap::new())),
+            supplier_benchmark_locks: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    #[inline]
+    fn supplier_key(app_type: &str, priority: usize, supplier: &str) -> String {
+        format!("{app_type}:{priority}:{supplier}")
+    }
+
+    #[inline]
+    fn url_latency_key(app_type: &str, priority: usize, supplier: &str, url: &str) -> String {
+        format!("{app_type}:{priority}:{supplier}:{url}")
+    }
+
+    async fn get_supplier_current_url(
+        &self,
+        app_type: &str,
+        priority: usize,
+        supplier: &str,
+    ) -> Option<String> {
+        let key = Self::supplier_key(app_type, priority, supplier);
+        let map = self.supplier_current_url.read().await;
+        map.get(&key).cloned()
+    }
+
+    async fn set_supplier_current_url(
+        &self,
+        app_type: &str,
+        priority: usize,
+        supplier: &str,
+        url: &str,
+    ) {
+        let key = Self::supplier_key(app_type, priority, supplier);
+        let mut map = self.supplier_current_url.write().await;
+        map.insert(key, url.to_string());
+    }
+
+    async fn clear_supplier_current_url(&self, app_type: &str, priority: usize, supplier: &str) {
+        let key = Self::supplier_key(app_type, priority, supplier);
+        let mut map = self.supplier_current_url.write().await;
+        map.remove(&key);
+    }
+
+    async fn get_supplier_benchmark_lock(
+        &self,
+        app_type: &str,
+        priority: usize,
+        supplier: &str,
+    ) -> Arc<Mutex<()>> {
+        let key = Self::supplier_key(app_type, priority, supplier);
+
+        {
+            let map = self.supplier_benchmark_locks.read().await;
+            if let Some(lock) = map.get(&key) {
+                return lock.clone();
+            }
+        }
+
+        let mut map = self.supplier_benchmark_locks.write().await;
+        map.entry(key).or_insert_with(|| Arc::new(Mutex::new(()))).clone()
+    }
+
+    fn is_likely_network_error(err: &str) -> bool {
+        err.contains("超时")
+            || err.contains("连接失败")
+            || err.contains("Connection refused")
+            || err.contains("connection refused")
+            || err.contains("dns")
+            || err.contains("DNS")
+            || err.contains("timed out")
+            || err.contains("error sending request")
+            || err.contains("connection closed")
+            || err.contains("请求转发失败: error")
+            || err.contains("请求转发失败: timed out")
+            || err.contains("请求转发失败: Connection refused")
     }
 
     fn supplier_name(provider: &Provider) -> String {
@@ -252,89 +334,141 @@ impl ProviderRouter {
                         continue;
                     }
 
-                    // 生成该供应商的 URL 有序列表（优先使用缓存；若都被标记为 suspect，则重新测速）
-                    let tested_key = format!("{app_type}:{priority}:{request_model}:{supplier}");
-                    let mut should_benchmark = false;
+                    // 正常请求不应反复测速：
+                    // - 启动时为每个 supplier 选一次最快 URL；
+                    // - 仅当该 URL 被标记 suspect（链路失效）时，才清空并重新测速/切换。
+                    let mut selected_url: Option<String> = None;
+
+                    if url_map.len() == 1 {
+                        if let Some(url) = url_map.keys().next() {
+                            if !self.is_url_suspect(app_type, supplier, url).await {
+                                selected_url = Some(url.clone());
+                                self.set_supplier_current_url(app_type, *priority, supplier, url)
+                                    .await;
+                            }
+                        }
+                    } else if let Some(current_url) =
+                        self.get_supplier_current_url(app_type, *priority, supplier).await
                     {
-                        let tested_map = self.priority_level_tested.read().await;
-                        if tested_map.get(&tested_key).copied().unwrap_or(false) == false {
-                            should_benchmark = true;
-                        }
-                    }
-
-                    let mut urls_with_latency: Vec<(String, u64)> = Vec::new();
-                    if !should_benchmark {
-                        // 使用缓存的延迟结果排序
-                        let latencies = self.url_latencies.read().await;
-                        urls_with_latency = url_map
-                            .keys()
-                            .map(|url| {
-                                let cache_key = format!(
-                                    "{app_type}:{priority}:{request_model}:{supplier}:{url}"
-                                );
-                                let latency = latencies
-                                    .get(&cache_key)
-                                    .map(|l| l.latency_ms)
-                                    .unwrap_or(u64::MAX);
-                                (url.clone(), latency)
-                            })
-                            .collect();
-                        urls_with_latency.sort_by_key(|(_, latency)| *latency);
-                    }
-
-                    // 过滤掉 suspect URL
-                    let mut filtered_urls = Vec::new();
-                    let mut best_known_latency: Option<u64> = None;
-                    for (url, latency) in urls_with_latency.iter() {
-                        if self.is_url_suspect(app_type, supplier, url).await {
-                            continue;
-                        }
-                        if best_known_latency.is_none() {
-                            best_known_latency = Some(*latency);
-                        }
-                        filtered_urls.push(url.clone());
-                    }
-
-                    // 如果该供应商存在多个 URL，但缓存里全是未知延迟（u64::MAX），需要重新测速来选出“当前最快 URL”
-                    if !should_benchmark
-                        && url_map.len() > 1
-                        && best_known_latency.unwrap_or(u64::MAX) == u64::MAX
-                    {
-                        should_benchmark = true;
-                    }
-
-                    if should_benchmark || filtered_urls.is_empty() {
-                        // 需要重新测速（首次/缓存不足/全部 URL suspect）
-                        let benchmark_results = self
-                            .benchmark_urls(app_type, *priority, request_model, supplier, url_map)
-                            .await;
-
-                        // 标记已测速
+                        if url_map.contains_key(&current_url)
+                            && !self.is_url_suspect(app_type, supplier, &current_url).await
                         {
-                            let mut tested_map = self.priority_level_tested.write().await;
-                            tested_map.insert(tested_key.clone(), true);
+                            selected_url = Some(current_url);
+                        } else {
+                            self.clear_supplier_current_url(app_type, *priority, supplier).await;
                         }
-
-                        let mut ok = Vec::new();
-                        for (url, latency) in benchmark_results {
-                            if latency == u64::MAX {
-                                continue;
-                            }
-                            if self.is_url_suspect(app_type, supplier, &url).await {
-                                continue;
-                            }
-                            ok.push(url);
-                        }
-                        filtered_urls = ok;
                     }
 
-                    let selected_url = match filtered_urls.first() {
-                        Some(u) => u.clone(),
-                        None => {
-                            // 该供应商当前无可用 URL：进入短暂冷静期
-                            self.set_supplier_cooldown(app_type, *priority, supplier, 20).await;
-                            continue;
+                    if selected_url.is_none() {
+                        // 使用锁避免并发请求导致重复测速
+                        let lock = self
+                            .get_supplier_benchmark_lock(app_type, *priority, supplier)
+                            .await;
+                        let _guard = lock.lock().await;
+
+                        // 二次检查：可能在等待锁期间已有其它任务选出了 current_url
+                        if let Some(current_url) =
+                            self.get_supplier_current_url(app_type, *priority, supplier).await
+                        {
+                            if url_map.contains_key(&current_url)
+                                && !self.is_url_suspect(app_type, supplier, &current_url).await
+                            {
+                                selected_url = Some(current_url);
+                            } else {
+                                self.clear_supplier_current_url(app_type, *priority, supplier)
+                                    .await;
+                            }
                         }
+
+                        if selected_url.is_none() {
+                            // 生成该供应商的 URL 有序列表（优先使用缓存；缓存缺失/URL失效时才测速）
+                            let tested_key = Self::supplier_key(app_type, *priority, supplier);
+                            let mut should_benchmark = false;
+                            {
+                                let tested_map = self.priority_level_tested.read().await;
+                                if tested_map.get(&tested_key).copied().unwrap_or(false) == false {
+                                    should_benchmark = true;
+                                }
+                            }
+
+                            let mut urls_with_latency: Vec<(String, u64)> = Vec::new();
+                            if !should_benchmark {
+                                let latencies = self.url_latencies.read().await;
+                                urls_with_latency = url_map
+                                    .keys()
+                                    .map(|url| {
+                                        let cache_key =
+                                            Self::url_latency_key(app_type, *priority, supplier, url);
+                                        let latency = latencies
+                                            .get(&cache_key)
+                                            .map(|l| l.latency_ms)
+                                            .unwrap_or(u64::MAX);
+                                        (url.clone(), latency)
+                                    })
+                                    .collect();
+                                urls_with_latency.sort_by_key(|(_, latency)| *latency);
+
+                                // 缓存完全缺失：需要测速一次选出最快 URL
+                                let has_any_latency =
+                                    urls_with_latency.iter().any(|(_, l)| *l != u64::MAX);
+                                if !has_any_latency {
+                                    should_benchmark = true;
+                                }
+                            }
+
+                            // 过滤掉 suspect URL
+                            let mut filtered_urls = Vec::new();
+                            for (url, latency) in urls_with_latency.iter() {
+                                if *latency == u64::MAX {
+                                    continue;
+                                }
+                                if self.is_url_suspect(app_type, supplier, url).await {
+                                    continue;
+                                }
+                                filtered_urls.push(url.clone());
+                            }
+
+                            if should_benchmark || filtered_urls.is_empty() {
+                                let benchmark_results = self
+                                    .benchmark_urls(
+                                        app_type,
+                                        *priority,
+                                        request_model,
+                                        supplier,
+                                        url_map,
+                                    )
+                                    .await;
+
+                                {
+                                    let mut tested_map = self.priority_level_tested.write().await;
+                                    tested_map.insert(tested_key.clone(), true);
+                                }
+
+                                let mut ok = Vec::new();
+                                for (url, latency) in benchmark_results {
+                                    if latency == u64::MAX {
+                                        continue;
+                                    }
+                                    if self.is_url_suspect(app_type, supplier, &url).await {
+                                        continue;
+                                    }
+                                    ok.push(url);
+                                }
+                                filtered_urls = ok;
+                            }
+
+                            if let Some(url) = filtered_urls.first() {
+                                selected_url = Some(url.clone());
+                                self.set_supplier_current_url(app_type, *priority, supplier, url)
+                                    .await;
+                            }
+                        }
+                    }
+
+                    let Some(selected_url) = selected_url else {
+                        // 该供应商当前无可用 URL：进入短暂冷静期
+                        self.set_supplier_cooldown(app_type, *priority, supplier, 20).await;
+                        continue;
                     };
 
                     let Some(providers_at_url) = url_map.get(&selected_url) else {
@@ -476,29 +610,19 @@ impl ProviderRouter {
             );
         }
 
-        // 2.5 失败时：如果像是 URL 失效（网络/超时/5xx），标记该 supplier 的该 URL 为 suspect，
+        // 2.5 失败时：只有在“明显链路错误”时才标记 URL suspect（避免因上游满载/策略/5xx 误判导致反复测速刷屏）
         // 促使下次选择时在同供应商内切换到其它 URL 并重新测速。
         if !success {
             if let Some(err) = error_msg.as_deref() {
-                let mut mark_seconds: Option<u64> = None;
-                if err.contains("超时") || err.contains("连接失败") || err.contains("请求转发失败") {
-                    mark_seconds = Some(60);
-                } else if let Some(idx) = err.find("上游错误 (状态码 ") {
-                    let s = &err[idx + "上游错误 (状态码 ".len()..];
-                    if let Some(end) = s.find(')') {
-                        if let Ok(code) = s[..end].parse::<u16>() {
-                            if code >= 500 {
-                                mark_seconds = Some(30);
-                            }
-                        }
-                    }
-                }
-
-                if let Some(seconds) = mark_seconds {
+                if Self::is_likely_network_error(err) {
+                    let seconds = 60;
                     if let Some(provider) = self.db.get_provider_by_id(provider_id, app_type)? {
                         let supplier = Self::supplier_name(&provider);
                         if let Some(url) = Self::extract_base_url(&provider, app_type) {
                             self.set_url_suspect(app_type, &supplier, &url, seconds).await;
+                            let priority = provider.sort_index.unwrap_or(999999);
+                            self.clear_supplier_current_url(app_type, priority, &supplier)
+                                .await;
                         }
                     }
                 }
@@ -769,11 +893,11 @@ impl ProviderRouter {
         // 简化测试：仅检查HTTP状态码和连通性
         if status.is_success() {
             // HTTP 200-299，连接成功
-            log::info!("正常 {} - {}", status.as_u16(), provider.name);
+            log::debug!("探测正常 {} - {}", status.as_u16(), provider.name);
             Ok(latency)
         } else {
             // 非200状态码，记录详细错误
-            log::error!("错误 {} - {} - 详情: {}", status.as_u16(), provider.name, status);
+            log::debug!("探测失败 {} - {} - 详情: {}", status.as_u16(), provider.name, status);
             Err(format!("HTTP错误: {}", status))
         }
     }
@@ -809,7 +933,7 @@ impl ProviderRouter {
         supplier: &str,
         url_groups: &HashMap<String, Vec<Provider>>,
     ) -> Vec<(String, u64)> {
-        log::info!(
+        log::debug!(
             "[{}:{}] 开始URL延迟测试，共{}个URL (supplier={}, model={})",
             app_type,
             priority,
@@ -821,20 +945,79 @@ impl ProviderRouter {
         let mut results = Vec::new();
 
         for (url, providers) in url_groups {
-            // 选择该URL的第一个provider进行测试
-            if let Some(provider) = providers.first() {
-                log::info!("[{}:{}] 测试URL: {} (使用provider: {})", app_type, priority, url, provider.name);
+            // 尽量模拟真实环境：同一 URL 下可能有多个 key，真实使用会在同一 URL 上轮询 key。
+            // 因此测速不能“只测第一个 key 就判死”；这里按 key 去重并尝试少量 key，避免测速过重。
+            const MAX_KEYS_PER_URL: usize = 2;
+
+            let mut unique_by_key: HashMap<String, Provider> = HashMap::new();
+            for p in providers {
+                let Some(key_value) = Self::extract_api_key_value(p, app_type) else {
+                    continue;
+                };
+                unique_by_key.entry(key_value).or_insert_with(|| p.clone());
+            }
+
+            let mut tested_providers: Vec<Provider> = unique_by_key.into_values().collect();
+            tested_providers.truncate(MAX_KEYS_PER_URL);
+
+            let mut full_chain_ok: Option<u64> = None;
+            let mut full_chain_errs: Vec<String> = Vec::new();
+
+            for provider in tested_providers.iter() {
+                log::debug!(
+                    "[{}:{}] 测试URL: {} (使用provider: {})",
+                    app_type,
+                    priority,
+                    url,
+                    provider.name
+                );
 
                 match self.test_url_latency(provider, app_type, request_model).await {
                     Ok(latency) => {
-                        log::info!("[{}:{}] URL {} 延迟: {}ms", app_type, priority, url, latency);
+                        full_chain_ok = Some(latency);
+                        break;
+                    }
+                    Err(e) => full_chain_errs.push(e),
+                }
+            }
+
+            if let Some(latency) = full_chain_ok {
+                results.push((url.clone(), latency));
+
+                let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
+                let mut latencies = self.url_latencies.write().await;
+                latencies.insert(
+                    cache_key,
+                    UrlLatency {
+                        latency_ms: latency,
+                        tested_at: std::time::Instant::now(),
+                    },
+                );
+            } else {
+                let err_summary = if full_chain_errs.is_empty() {
+                    "未知错误".to_string()
+                } else {
+                    full_chain_errs.join("; ")
+                };
+
+                // 回退到简单连通性测试，避免“全链路测试形态不一致”导致把可用URL判死
+                match self.connectivity_latency(url).await {
+                    Ok(connect_latency) => {
+                        let latency =
+                            connect_latency.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
+                        log::warn!(
+                            "[{}:{}] URL {} 全链路测试失败，回退连通性探测成功: {}ms (+{}ms penalty)，原因: {}",
+                            app_type,
+                            priority,
+                            url,
+                            connect_latency,
+                            Self::CONNECTIVITY_PENALTY_MS,
+                            err_summary
+                        );
                         results.push((url.clone(), latency));
 
-                        // 缓存测试结果（包含优先级信息）
-                        let cache_key = format!(
-                            "{}:{}:{}:{}:{}",
-                            app_type, priority, request_model, supplier, url
-                        );
+                        // 缓存回退结果（带 penalty 的延迟），避免每次请求都因“无有效测速结果”而重复测速刷屏
+                        let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
                         let mut latencies = self.url_latencies.write().await;
                         latencies.insert(
                             cache_key,
@@ -844,35 +1027,16 @@ impl ProviderRouter {
                             },
                         );
                     }
-                    Err(e) => {
-                        // 回退到简单连通性测试，避免“全链路测试形态不一致”导致把可用URL判死
-                        match self.connectivity_latency(url).await {
-                            Ok(connect_latency) => {
-                                let latency = connect_latency.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
-                                log::warn!(
-                                    "[{}:{}] URL {} 全链路测试失败，回退连通性探测成功: {}ms (+{}ms penalty)，原因: {}",
-                                    app_type,
-                                    priority,
-                                    url,
-                                    connect_latency,
-                                    Self::CONNECTIVITY_PENALTY_MS,
-                                    e
-                                );
-                                results.push((url.clone(), latency));
-                            }
-                            Err(connect_err) => {
-                                log::warn!(
-                                    "[{}:{}] URL {} 测试失败（全链路+连通性均失败）: {}, {}",
-                                    app_type,
-                                    priority,
-                                    url,
-                                    e,
-                                    connect_err
-                                );
-                                // 失败的URL设置高延迟值，排序时会靠后
-                                results.push((url.clone(), u64::MAX));
-                            }
-                        }
+                    Err(connect_err) => {
+                        log::warn!(
+                            "[{}:{}] URL {} 测试失败（全链路+连通性均失败）: {}, {}",
+                            app_type,
+                            priority,
+                            url,
+                            err_summary,
+                            connect_err
+                        );
+                        results.push((url.clone(), u64::MAX));
                     }
                 }
             }
@@ -926,7 +1090,7 @@ mod tests {
         // 单元测试不跑真实网络测速：手动标记该供应商已测试过URL
         {
             let mut tested = router.priority_level_tested.write().await;
-            tested.insert("claude:1:unknown:anyrouter".to_string(), true);
+            tested.insert("claude:1:anyrouter".to_string(), true);
         }
         let providers = router.select_providers("claude", None).await.unwrap();
 
@@ -982,7 +1146,7 @@ mod tests {
         // 单元测试不跑真实网络测速：手动标记该供应商已测试过URL
         {
             let mut tested = router.priority_level_tested.write().await;
-            tested.insert("claude:1:unknown:anyrouter".to_string(), true);
+            tested.insert("claude:1:anyrouter".to_string(), true);
         }
         let providers = router.select_providers("claude", None).await.unwrap();
 
@@ -1049,7 +1213,7 @@ mod tests {
         // 单元测试不跑真实网络测速：手动标记该供应商已测试过URL
         {
             let mut tested = router.priority_level_tested.write().await;
-            tested.insert("claude:999999:unknown:anyrouter".to_string(), true);
+            tested.insert("claude:999999:anyrouter".to_string(), true);
         }
         let providers = router.select_providers("claude", None).await.unwrap();
         assert_eq!(providers.len(), 2);
