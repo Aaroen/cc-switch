@@ -857,7 +857,7 @@ pub(crate) fn find_model_pricing_row(
 
         if exact.is_some() {
             if id != model_id {
-                log::info!("模型 {model_id} 标准化后精确匹配到: {id}");
+                log::debug!("模型 {model_id} 标准化后精确匹配到: {id}");
             }
             return Ok(exact);
         }
@@ -889,7 +889,7 @@ pub(crate) fn find_model_pricing_row(
             .map_err(|e| AppError::Database(format!("查询模型定价失败: {e}")))?;
 
         if result.is_some() {
-            log::info!("模型 {model_id} 通过删除后缀匹配到: {current}");
+            log::debug!("模型 {model_id} 通过删除后缀匹配到: {current}");
             return Ok(result);
         }
     }

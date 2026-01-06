@@ -103,7 +103,7 @@ impl RequestForwarder {
             if attempt > 0 {
                 // 指数退避：100ms, 200ms, 400ms, ...
                 let delay_ms = 100 * 2u64.pow(attempt as u32 - 1);
-                log::info!(
+                log::debug!(
                     "[{}] 重试第 {}/{} 次（等待 {}ms）",
                     adapter.name(),
                     attempt,
@@ -166,7 +166,7 @@ impl RequestForwarder {
             });
         }
 
-        log::info!(
+        log::debug!(
             "[{}] 故障转移链: {} 个可用供应商",
             app_type_str,
             providers.len()
@@ -204,7 +204,7 @@ impl RequestForwarder {
 
             attempted_providers += 1;
 
-            log::info!(
+            log::debug!(
                 "[{}] 尝试 {}/{} - 使用Provider: {} (sort_index: {})",
                 app_type_str,
                 attempted_providers,
@@ -265,14 +265,8 @@ impl RequestForwarder {
                             self.current_provider_id_at_start.as_str() != provider.id.as_str();
                         if should_switch {
                             status.failover_count += 1;
-                            log::info!(
-                                "[{}] 代理目标已切换到 Provider: {} (耗时: {}ms)",
-                                app_type_str,
-                                provider.name,
-                                latency
-                            );
 
-                            // 异步触发供应商切换，更新 UI/托盘，并把“当前供应商”同步为实际使用的 provider
+                            // 异步触发供应商切换，更新 UI/托盘，并把"当前供应商"同步为实际使用的 provider
                             let fm = self.failover_manager.clone();
                             let ah = self.app_handle.clone();
                             let pid = provider.id.clone();
@@ -294,9 +288,9 @@ impl RequestForwarder {
                         }
                     }
 
+                    // 统一日志：一次请求仅记录一条
                     log::info!(
-                        "[{}] 请求成功 - Provider: {} - {}ms",
-                        app_type_str,
+                        "正常 200 - {} (耗时: {}ms)",
                         provider.name,
                         latency
                     );
@@ -336,7 +330,7 @@ impl RequestForwarder {
                                     Some(format!("Provider {} 失败: {}", provider.name, e));
                             }
 
-                            log::warn!(
+                            log::debug!(
                                 "[{}] Provider {} 失败（可重试）: {} - {}ms",
                                 app_type_str,
                                 provider.name,
@@ -431,13 +425,6 @@ impl RequestForwarder {
             ProxyError::AuthError(format!("Provider {} 缺少认证信息", provider.id))
         })?;
 
-        log::info!(
-            "[{}] Provider: {}, API Key: {}",
-            adapter.name(),
-            provider.name,
-            auth.masked_key()
-        );
-
         // 根据adapter类型选择转发目标
         let (url, target_description) = if adapter.name() == "Codex" {
             // Codex直接转发到目标URL
@@ -449,31 +436,6 @@ impl RequestForwarder {
             let url = format!("http://127.0.0.1:15722{}", endpoint);
             (url, "Python代理(15722)".to_string())
         };
-
-        // 记录请求摘要信息（精简日志）
-        log::info!(
-            "[{}] 请求摘要 - model: {}, max_tokens: {}, messages: {}, tools: {}, system: {}",
-            adapter.name(),
-            body.get("model").and_then(|v| v.as_str()).unwrap_or("N/A"),
-            body.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-            body.get("messages").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
-            body.get("tools").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
-            body.get("system").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0)
-        );
-
-        // 完整JSON仅在DEBUG级别输出
-        log::debug!(
-            "[{}] 完整请求 JSON:\n{}",
-            adapter.name(),
-            serde_json::to_string_pretty(body).unwrap_or_else(|_| body.to_string())
-        );
-
-        log::info!(
-            "[{}] 转发请求: {} -> {}",
-            adapter.name(),
-            provider.name,
-            target_description
-        );
 
         // 构建请求
         let mut request = self.client.post(&url);
@@ -505,14 +467,8 @@ impl RequestForwarder {
         if adapter.name() == "Codex" {
             // Codex使用标准OpenAI格式：Authorization: Bearer <token>
             request = request.header("Authorization", format!("Bearer {}", auth.api_key));
-            log::debug!(
-                "[{}] 添加 Authorization Bearer 头部: {}",
-                adapter.name(),
-                auth.masked_key()
-            );
         } else {
             // Claude通过Python代理，需要添加X-API-Key和x-target-base-url
-            // 获取目标base_url
             let base_url = provider
                 .settings_config
                 .get("env")
@@ -527,18 +483,11 @@ impl RequestForwarder {
 
             request = request.header("X-API-Key", &auth.api_key);
             request = request.header("x-target-base-url", base_url);
-            log::debug!(
-                "[{}] 添加 X-API-Key 头部: {}, 目标URL: {}",
-                adapter.name(),
-                auth.masked_key(),
-                base_url
-            );
         }
 
         // 发送请求
-        log::info!("[{}] 发送请求到: {}", adapter.name(), url);
         let response = request.json(body).send().await.map_err(|e| {
-            log::error!("[{}] 请求失败: {}", adapter.name(), e);
+            log::error!("错误 - {} - 详情: 请求失败 {}", provider.name, e);
             if e.is_timeout() {
                 ProxyError::Timeout(format!("请求超时: {e}"))
             } else if e.is_connect() {
@@ -550,7 +499,6 @@ impl RequestForwarder {
 
         // 检查响应状态
         let status = response.status();
-        log::info!("[{}] 响应状态: {}", adapter.name(), status);
 
         if status.is_success() {
             Ok(response)
@@ -558,9 +506,9 @@ impl RequestForwarder {
             let status_code = status.as_u16();
             let body_text = response.text().await.ok();
             log::error!(
-                "[{}] 上游错误 ({}): {:?}",
-                adapter.name(),
+                "错误 {} - {} - 详情: {:?}",
                 status_code,
+                provider.name,
                 body_text
             );
 

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Parser)]
-#[command(name = "cc-switch-cli")]
+#[command(name = "csc")]
 #[command(about = "CC-Switch 命令行工具", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -18,17 +18,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 代理服务器控制
+    /// 代理服务器控制 (别名: p)
+    #[command(alias = "p")]
     Proxy {
         #[command(subcommand)]
         action: ProxyAction,
     },
-    /// 列出所有供应商
+    /// 列出所有供应商 (别名: ls)
+    #[command(alias = "ls")]
     List {
         /// 应用类型 (claude/codex/gemini)
         app_type: Option<String>,
     },
-    /// 添加供应商
+    /// 添加供应商 (别名: a)
+    #[command(alias = "a")]
     Add {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
@@ -47,26 +50,36 @@ enum Commands {
         #[arg(long, default_value = "0")]
         priority: usize,
     },
-    /// 删除供应商
+    /// 删除供应商 (别名: rm)
+    #[command(alias = "rm")]
     Remove {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
         /// 供应商ID
         id: String,
     },
-    /// 启用供应商（设置为当前）
+    /// 启用供应商（设置为当前） (别名: en)
+    #[command(alias = "en")]
     Enable {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
         /// 供应商ID
         id: String,
     },
-    /// 查看当前供应商
+    /// 取消当前指定的供应商（回到层级轮询） (别名: dis)
+    #[command(alias = "dis")]
+    Disable {
+        /// 应用类型 (claude/codex/gemini)
+        app_type: String,
+    },
+    /// 查看当前供应商 (别名: c)
+    #[command(alias = "c")]
     Current {
         /// 应用类型 (claude/codex/gemini)
         app_type: Option<String>,
     },
-    /// 设置供应商优先级层级
+    /// 设置供应商优先级层级 (别名: sp)
+    #[command(alias = "sp")]
     SetPriority {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
@@ -75,38 +88,57 @@ enum Commands {
         /// 优先级层级 (0为最高优先级，数字越大优先级越低)
         priority: usize,
     },
-    /// 添加供应商到故障转移队列
+    /// 添加供应商到故障转移队列 (别名: qa)
+    #[command(alias = "qa")]
     AddToQueue {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
         /// 供应商ID
         id: String,
     },
-    /// 从故障转移队列移除供应商
+    /// 从故障转移队列移除供应商 (别名: qr)
+    #[command(alias = "qr")]
     RemoveFromQueue {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
         /// 供应商ID
         id: String,
     },
-    /// 测试供应商URL延迟
+    /// 测试供应商URL延迟 (别名: t)
+    #[command(alias = "t")]
     TestLatency {
         /// 应用类型 (claude/codex/gemini)
         app_type: String,
         /// 供应商ID（可选，不指定则测试该类型所有供应商）
         id: Option<String>,
     },
+    /// 导出配置到 SQL 文件 (别名: ex)
+    #[command(alias = "ex")]
+    Export {
+        /// 导出文件路径
+        file_path: String,
+    },
+    /// 从 SQL 文件导入配置 (别名: im)
+    #[command(alias = "im")]
+    Import {
+        /// 导入文件路径
+        file_path: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum ProxyAction {
-    /// 启动代理服务器(前台模式)
+    /// 启动代理服务器(前台模式) (别名: s)
+    #[command(alias = "s")]
     Start,
-    /// 停止代理服务器
+    /// 停止代理服务器 (别名: x)
+    #[command(alias = "x")]
     Stop,
-    /// 重启代理服务器
+    /// 重启代理服务器 (别名: r)
+    #[command(alias = "r")]
     Restart,
-    /// 查看代理服务器状态
+    /// 查看代理服务器状态 (别名: st)
+    #[command(alias = "st")]
     Status,
 }
 
@@ -127,6 +159,7 @@ async fn main() {
         } => handle_add(&app_type, &id, &name, &api_key, &base_url, priority),
         Commands::Remove { app_type, id } => handle_remove(&app_type, &id),
         Commands::Enable { app_type, id } => handle_enable(&app_type, &id),
+        Commands::Disable { app_type } => handle_disable(&app_type),
         Commands::Current { app_type } => handle_current(app_type),
         Commands::SetPriority {
             app_type,
@@ -136,6 +169,8 @@ async fn main() {
         Commands::AddToQueue { app_type, id } => handle_add_to_queue(&app_type, &id),
         Commands::RemoveFromQueue { app_type, id } => handle_remove_from_queue(&app_type, &id),
         Commands::TestLatency { app_type, id } => handle_test_latency(&app_type, id).await,
+        Commands::Export { file_path } => handle_export(&file_path),
+        Commands::Import { file_path } => handle_import(&file_path),
     };
 
     if let Err(e) = result {
@@ -417,6 +452,20 @@ fn handle_enable(app_type: &str, id: &str) -> Result<(), AppError> {
 
     db.set_current_provider(&app_type_str, id)?;
     println!("✓ 已启用供应商: {}", id);
+    println!("\n提示: 该供应商将被优先使用（优先于故障转移队列）");
+    println!("      如需应用更改，请重启代理服务器: csc p r");
+
+    Ok(())
+}
+
+fn handle_disable(app_type: &str) -> Result<(), AppError> {
+    let db = Arc::new(Database::init()?);
+    let app_type_str = parse_app_type(app_type)?;
+
+    db.clear_current_provider(&app_type_str)?;
+    println!("✓ 已取消 {} 的当前指定供应商", app_type_str);
+    println!("\n提示: 系统将自动使用故障转移队列中最优先层级的供应商");
+    println!("      如需应用更改，请重启代理服务器: csc p r");
 
     Ok(())
 }
@@ -601,4 +650,38 @@ fn get_config_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".cc-switch")
+}
+
+// ============================================================================
+// 配置导出/导入
+// ============================================================================
+
+fn handle_export(file_path: &str) -> Result<(), AppError> {
+    let db = Arc::new(Database::init()?);
+    let target_path = PathBuf::from(file_path);
+
+    db.export_sql(&target_path)?;
+    println!("✓ 配置已成功导出到: {}", file_path);
+
+    Ok(())
+}
+
+fn handle_import(file_path: &str) -> Result<(), AppError> {
+    let db = Arc::new(Database::init()?);
+    let source_path = PathBuf::from(file_path);
+
+    if !source_path.exists() {
+        return Err(AppError::Message(format!("文件不存在: {}", file_path)));
+    }
+
+    println!("正在导入配置，导入前会自动备份现有配置...");
+    let backup_id = db.import_sql(&source_path)?;
+
+    if !backup_id.is_empty() {
+        println!("✓ 现有配置已备份: {}", backup_id);
+    }
+    println!("✓ 配置已成功从文件导入: {}", file_path);
+    println!("\n提示: 如需应用导入的配置，请重启代理服务器");
+
+    Ok(())
 }

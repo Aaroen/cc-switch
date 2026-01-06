@@ -192,7 +192,7 @@ async def proxy(path: str, request: Request):
         request_id = None
 
     # 从请求头读取动态目标 URL（用于 cc-switch 集成）
-    dynamic_target = request.headers.get("X-Target-URL")
+    dynamic_target = request.headers.get("x-target-base-url")  # 修复：使用正确的header名称
     if dynamic_target:
         # cc-switch 模式：使用动态目标
         base_url = dynamic_target.rstrip('/')

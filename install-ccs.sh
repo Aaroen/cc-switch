@@ -70,7 +70,7 @@ step_error() {
 
 # 清屏并显示标题
 clear
-echo -e "${CYAN}     CC-Switch 快速安装与部署工具          ${NC}"
+echo -e "${CYAN}     CC-Switch 一键安装与部署脚本          ${NC}"
 echo ""
 
 # 总步骤数
@@ -341,7 +341,7 @@ else
 fi
 
 if [ "$NEED_REBUILD" = true ]; then
-    if cargo build --release --bin cc-switch-cli > "$LOG_DIR/build.log" 2>&1; then
+    if cargo build --release --bin cc-switch-cli --bin csc > "$LOG_DIR/build.log" 2>&1; then
         if grep -q "^error" "$LOG_DIR/build.log"; then
             step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
             echo ""
@@ -407,6 +407,13 @@ INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 cp "$CLI_PATH" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/cc-switch-cli"
+
+# 同时安装 csc 别名
+CSC_PATH="$SCRIPT_DIR/src-tauri/target/release/csc"
+if [ -f "$CSC_PATH" ]; then
+    cp "$CSC_PATH" "$INSTALL_DIR/"
+    chmod +x "$INSTALL_DIR/csc"
+fi
 
 step_done $CURRENT_STEP $TOTAL_STEPS "安装到系统路径 ($INSTALL_DIR)"
 
@@ -789,9 +796,11 @@ if [ "$CLAUDE_CONFIG_STATUS" != "跳过" ] || [ "$CODEX_CONFIG_STATUS" != "跳�
 fi
 
 echo -e "   ${CYAN}快速命令${NC}"
-echo -e "   ${YELLOW}cc-switch-cli list${NC}          # 列出所有供应商"
-echo -e "   ${YELLOW}cc-switch-cli proxy status${NC}  # 查看代理状态"
-echo -e "   ${YELLOW}cc-switch-cli --help${NC}        # 查看帮助信息"
+echo -e "   ${YELLOW}csc ls${NC}                      # 列出所有供应商"
+echo -e "   ${YELLOW}csc p st${NC}                    # 查看代理状态"
+echo -e "   ${YELLOW}csc ex <文件>${NC}               # 导出配置"
+echo -e "   ${YELLOW}csc im <文件>${NC}               # 导入配置"
+echo -e "   ${YELLOW}csc --help${NC}                  # 查看帮助信息"
 echo ""
 
 echo ""

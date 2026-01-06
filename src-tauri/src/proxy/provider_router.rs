@@ -70,7 +70,7 @@ impl ProviderRouter {
         let auto_failover_enabled = match self.db.get_proxy_config_for_app(app_type).await {
             Ok(config) => {
                 let enabled = config.auto_failover_enabled;
-                log::info!("[{app_type}] Failover enabled from proxy_config: {enabled}");
+                log::debug!("[{app_type}] Failover enabled from proxy_config: {enabled}");
                 enabled
             }
             Err(e) => {
@@ -81,18 +81,77 @@ impl ProviderRouter {
             }
         };
 
+        // 首先检查是否有用户指定的当前供应商
+        let current_provider_id = self.db.get_current_provider(app_type)?;
+
+        if let Some(ref current_id) = current_provider_id {
+            // 获取当前供应商的详细信息
+            if let Some(current_provider) = self.db.get_provider_by_id(current_id, app_type)? {
+                // 检查当前供应商是否在故障转移队列中
+                let in_failover_queue = current_provider.in_failover_queue;
+
+                log::debug!(
+                    "[{}] User specified current provider: {} (in_failover_queue: {})",
+                    app_type,
+                    current_id,
+                    in_failover_queue
+                );
+
+                // 用户指定的当前供应商始终优先，无论故障转移是否开启
+                // 检查熔断器状态
+                let circuit_key = format!("{}:{}", app_type, current_id);
+                let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+
+                if breaker.is_available().await {
+                    log::debug!(
+                        "[{}] Using user-specified current provider: {} (circuit breaker: available)",
+                        app_type,
+                        current_id
+                    );
+                    result.push(current_provider.clone());
+                } else {
+                    log::warn!(
+                        "[{}] User-specified current provider {} has open circuit breaker, falling back to failover",
+                        app_type,
+                        current_id
+                    );
+                }
+            }
+        }
+
         if auto_failover_enabled {
             // 故障转移开启：使用 in_failover_queue 标记的供应商，按 sort_index 排序
+            // 如果用户已指定当前供应商，则故障转移队列作为备用
             let failover_providers = self.db.get_failover_providers(app_type)?;
-            log::info!(
-                "[{}] Failover enabled, {} providers in queue",
-                app_type,
+
+            let providers_count = if result.is_empty() {
                 failover_providers.len()
+            } else {
+                failover_providers.len() + 1 // +1 for user-specified current provider
+            };
+
+            log::debug!(
+                "[{}] Failover enabled, {} providers in queue (including current: {})",
+                app_type,
+                providers_count,
+                !result.is_empty()
             );
 
-            // 按优先级分组providers
+            // 按优先级分组providers（排除已经作为当前供应商使用的）
             let mut priority_groups: std::collections::BTreeMap<usize, Vec<Provider>> = std::collections::BTreeMap::new();
             for provider in failover_providers {
+                // 如果该供应商已经作为当前供应商使用，则跳过（避免重复）
+                if let Some(ref current_id) = current_provider_id {
+                    if &provider.id == current_id {
+                        log::debug!(
+                            "[{}] Skipping provider {} in failover queue (already used as current)",
+                            app_type,
+                            provider.id
+                        );
+                        continue;
+                    }
+                }
+
                 let priority = provider.sort_index.unwrap_or(999999);
                 priority_groups
                     .entry(priority)
@@ -100,7 +159,7 @@ impl ProviderRouter {
                     .push(provider);
             }
 
-            log::info!(
+            log::debug!(
                 "[{}] Grouped into {} priority levels: {:?}",
                 app_type,
                 priority_groups.len(),
@@ -123,7 +182,7 @@ impl ProviderRouter {
 
                 if has_available {
                     first_available_priority = Some(*priority);
-                    log::info!(
+                    log::debug!(
                         "[{}] First available priority level: {} ({} providers)",
                         app_type,
                         priority,
@@ -150,7 +209,7 @@ impl ProviderRouter {
             let priority_changed = previous_priority != Some(target_priority);
 
             if priority_changed {
-                log::info!(
+                log::debug!(
                     "[{}] Priority level switch detected: {:?} -> {}",
                     app_type,
                     previous_priority,
@@ -166,7 +225,7 @@ impl ProviderRouter {
 
             // 处理每个优先级层级
             for (priority, providers_in_level) in priority_groups.iter() {
-                log::info!(
+                log::debug!(
                     "[{}] Processing priority level {}: {} providers",
                     app_type,
                     priority,
@@ -222,7 +281,7 @@ impl ProviderRouter {
                     let already_tested = tested_map.get(&test_key).copied().unwrap_or(false);
 
                     if !already_tested || priority_changed {
-                        log::info!(
+                        log::debug!(
                             "[{}] Priority {} - Performing latency test for {} URLs (first use or level switch)",
                             app_type,
                             priority,
@@ -272,45 +331,96 @@ impl ProviderRouter {
                     urls
                 };
 
-                // 收集当前层级所有可用的providers
-                let mut providers_in_this_level = Vec::new();
-                for url in ordered_urls_in_level {
-                    if let Some(providers_in_url) = url_groups_in_level.get(&url) {
-                        for provider in providers_in_url {
-                            // 熔断器检查
-                            let circuit_key = format!("{}:{}", app_type, provider.id);
-                            let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+                // 第一步：按供应商分组（供应商 -> URL -> Vec<Provider>）
+                let mut supplier_url_groups: HashMap<String, HashMap<String, Vec<Provider>>> = HashMap::new();
 
-                            if breaker.is_available().await {
-                                providers_in_this_level.push(provider.clone());
-                            } else {
-                                log::debug!(
-                                    "[{}] Provider {} (priority {}) circuit breaker open, skipping",
-                                    app_type,
-                                    provider.name,
-                                    priority
-                                );
+                for (url, providers) in &url_groups_in_level {
+                    for provider in providers {
+                        // 提取供应商名称（第一个'-'之前，如果没有'-'则整个name）
+                        let supplier_name = provider.name
+                            .split('-')
+                            .next()
+                            .unwrap_or(&provider.name)
+                            .to_string();
+
+                        supplier_url_groups
+                            .entry(supplier_name)
+                            .or_insert_with(HashMap::new)
+                            .entry(url.clone())
+                            .or_insert_with(Vec::new)
+                            .push(provider.clone());
+                    }
+                }
+
+                log::debug!(
+                    "[{}] Priority {}: Found {} suppliers",
+                    app_type,
+                    priority,
+                    supplier_url_groups.len()
+                );
+
+                // 第二步：为每个供应商选择最快的URL
+                let mut supplier_selected_url: HashMap<String, String> = HashMap::new();
+
+                for (supplier_name, url_map) in &supplier_url_groups {
+                    // 按ordered_urls_in_level顺序查找第一个可用的URL（即最快的）
+                    for url in &ordered_urls_in_level {
+                        if url_map.contains_key(url) {
+                            supplier_selected_url.insert(supplier_name.clone(), url.clone());
+                            log::debug!(
+                                "[{}] Priority {}: Supplier '{}' selected URL: {}",
+                                app_type,
+                                priority,
+                                supplier_name,
+                                url
+                            );
+                            break;
+                        }
+                    }
+                }
+
+                // 第三步：收集所有可用的keys（以key为单位）
+                let mut providers_in_this_level = Vec::new();
+
+                for (supplier_name, selected_url) in &supplier_selected_url {
+                    if let Some(url_map) = supplier_url_groups.get(supplier_name) {
+                        if let Some(providers) = url_map.get(selected_url) {
+                            for provider in providers {
+                                // 熔断器检查
+                                let circuit_key = format!("{}:{}", app_type, provider.id);
+                                let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+
+                                if breaker.is_available().await {
+                                    providers_in_this_level.push(provider.clone());
+                                } else {
+                                    log::debug!(
+                                        "[{}] Provider {} (priority {}) circuit breaker open, skipping",
+                                        app_type,
+                                        provider.name,
+                                        priority
+                                    );
+                                }
                             }
                         }
                     }
                 }
 
-                // 在当前层级内应用round-robin轮询
+                // 第四步：在所有keys上应用简单的round-robin轮询
                 if !providers_in_this_level.is_empty() {
                     let counter_key = format!("{}:priority:{}", app_type, priority);
                     let rotate_count = {
                         let mut counters = self.round_robin_counters.write().await;
                         let counter = counters.entry(counter_key.clone()).or_insert(0);
                         let count = *counter % providers_in_this_level.len();
-                        // 递增计数器，下次请求会从下一个provider开始
+                        // 递增计数器，下次请求会从下一个key开始
                         *counter = (*counter + 1) % providers_in_this_level.len();
                         count
                     };
 
-                    // 旋转列表，使轮询选中的provider移到层级首位
+                    // 旋转列表，使轮询选中的key移到首位
                     providers_in_this_level.rotate_left(rotate_count);
 
-                    log::info!(
+                    log::debug!(
                         "[{}] Priority {} round-robin: starting with {} (rotation {}/{})",
                         app_type,
                         priority,
@@ -319,7 +429,7 @@ impl ProviderRouter {
                         providers_in_this_level.len()
                     );
 
-                    // 将轮询后的providers添加到总列表
+                    // 将轮询后的keys添加到总列表
                     all_providers_ordered.extend(providers_in_this_level);
                 }
             }
@@ -331,7 +441,7 @@ impl ProviderRouter {
                 )));
             }
 
-            log::info!(
+            log::debug!(
                 "[{}] Provider chain ready: {} providers across {} priority levels",
                 app_type,
                 all_providers_ordered.len(),
@@ -346,7 +456,7 @@ impl ProviderRouter {
 
             if let Some(current_id) = self.db.get_current_provider(app_type)? {
                 if let Some(current) = self.db.get_provider_by_id(&current_id, app_type)? {
-                    log::info!(
+                    log::debug!(
                         "[{}] Current provider: {} ({})",
                         app_type,
                         current.name,
@@ -363,7 +473,7 @@ impl ProviderRouter {
             )));
         }
 
-        log::info!(
+        log::debug!(
             "[{}] Provider chain: {} provider(s) available",
             app_type,
             result.len()
@@ -415,7 +525,7 @@ impl ProviderRouter {
             log::debug!("Provider {provider_id} request succeeded");
         } else {
             breaker.record_failure(used_half_open_permit).await;
-            log::warn!(
+            log::debug!(
                 "Provider {} request failed: {}",
                 provider_id,
                 error_msg.as_deref().unwrap_or("Unknown error")
@@ -605,11 +715,13 @@ impl ProviderRouter {
         let response = if app_type == "codex" {
             // Codex: 直接测试目标URL，使用OpenAI格式
             let test_payload = serde_json::json!({
-                "model": "gpt-3.5-turbo",
-                "max_tokens": 10,
+                "model": "gpt-5.2",
+                "max_tokens": 100,
+                "temperature": 0.7,
+                "stream": false,
                 "messages": [{
                     "role": "user",
-                    "content": "1+1=?"
+                    "content": "请简短回答：什么是人工智能？"
                 }]
             });
 
@@ -625,20 +737,23 @@ impl ProviderRouter {
                 .map_err(|e| format!("请求失败: {}", e))?
         } else {
             // Claude: 通过Python代理测试，使用Claude格式
+            // 模拟生产环境中的完整请求头
             let test_payload = serde_json::json!({
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 10,
+                "model": "claude-sonnet-4-5-20250929",
+                "max_tokens": 100,
+                "temperature": 1.0,
+                "stream": false,
                 "messages": [{
                     "role": "user",
-                    "content": "1+1=?"
+                    "content": "请用一句话简短介绍你自己。"
                 }]
             });
 
+            // 模拟生产环境的请求头（与forwarder.rs完全一致）
             client
                 .post("http://127.0.0.1:15722/v1/messages")
                 .header("Content-Type", "application/json")
-                .header("anthropic-version", "2023-06-01")
-                .header("x-api-key", api_key)
+                .header("X-API-Key", api_key)
                 .header("x-target-base-url", base_url)
                 .json(&test_payload)
                 .send()
@@ -647,15 +762,18 @@ impl ProviderRouter {
         };
 
         let status = response.status();
-        if !status.is_success() {
-            return Err(format!("HTTP错误: {}", status));
-        }
-
-        // 等待响应体完成（确保测量完整响应时间）
-        let _ = response.bytes().await.map_err(|e| format!("读取响应失败: {}", e))?;
-
         let latency = start.elapsed().as_millis() as u64;
-        Ok(latency)
+
+        // 简化测试：仅检查HTTP状态码和连通性
+        if status.is_success() {
+            // HTTP 200-299，连接成功
+            log::info!("正常 {} - {}", status.as_u16(), provider.name);
+            Ok(latency)
+        } else {
+            // 非200状态码，记录详细错误
+            log::error!("错误 {} - {} - 详情: {}", status.as_u16(), provider.name, status);
+            Err(format!("HTTP错误: {}", status))
+        }
     }
 
     /// 测试所有URL并返回延迟排序结果
@@ -704,7 +822,7 @@ impl ProviderRouter {
         // 按延迟排序
         results.sort_by_key(|(_, latency)| *latency);
 
-        log::info!(
+        log::debug!(
             "[{}:{}] URL延迟测试完成，最快: {} ({}ms)",
             app_type,
             priority,

@@ -81,7 +81,7 @@ impl FailoverSwitchManager {
         provider_id: &str,
         provider_name: &str,
     ) -> Result<bool, AppError> {
-        log::info!("[Failover] 开始切换供应商: {app_type} -> {provider_name} ({provider_id})");
+        log::debug!("[Failover] 开始切换供应商: {app_type} -> {provider_name} ({provider_id})");
 
         // 1. 更新数据库 is_current
         self.db.set_current_provider(app_type, provider_id)?;
@@ -127,7 +127,7 @@ impl FailoverSwitchManager {
             }
         }
 
-        log::info!("[Failover] 供应商切换完成: {app_type} -> {provider_name} ({provider_id})");
+        log::debug!("[Failover] 供应商切换完成: {app_type} -> {provider_name} ({provider_id})");
 
         Ok(true)
     }

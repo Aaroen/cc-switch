@@ -102,7 +102,7 @@ impl RequestContext {
             .cloned()
             .ok_or(ProxyError::NoAvailableProvider)?;
 
-        log::info!(
+        log::debug!(
             "[{}] Provider: {}, model: {}, failover chain: {} providers",
             tag,
             provider.name,
@@ -141,7 +141,7 @@ impl RequestContext {
             .unwrap_or("unknown")
             .to_string();
 
-        log::info!("[{}] 从 URI 提取模型: {}", self.tag, self.request_model);
+        log::debug!("[{}] 从 URI 提取模型: {}", self.tag, self.request_model);
         self
     }
 

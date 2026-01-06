@@ -313,6 +313,20 @@ impl Database {
         Ok(())
     }
 
+    /// 清除当前供应商设置（回到层级轮询模式）
+    pub fn clear_current_provider(&self, app_type: &str) -> Result<(), AppError> {
+        let mut conn = lock_conn!(self.conn);
+
+        // 重置所有为 0
+        conn.execute(
+            "UPDATE providers SET is_current = 0 WHERE app_type = ?1",
+            params![app_type],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// 更新供应商的 settings_config（仅更新配置，不改变其他字段）
     pub fn update_provider_settings_config(
         &self,

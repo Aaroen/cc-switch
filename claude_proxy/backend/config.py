@@ -7,6 +7,7 @@
 from dotenv import load_dotenv
 import json
 import os
+from pathlib import Path
 
 # 加载环境变量
 load_dotenv()
@@ -63,16 +64,27 @@ def load_custom_headers() -> dict:
     Returns:
         dict: 自定义请求头字典，如果加载失败则返回空字典 {}
     """
-    headers_file = "env/.env.headers.json"
+    # 兼容多种部署/启动目录：
+    # - 原项目推荐路径：<project_root>/env/.env.headers.json
+    # - cc-switch 融合后，Python 进程的 CWD 可能不是项目根目录，因此不能依赖相对路径
+    project_root = Path(__file__).resolve().parent.parent  # backend/ 的上一级
+    candidates = [
+        project_root / "env" / ".env.headers.json",
+        project_root / ".env.headers.json",
+        Path.cwd() / "env" / ".env.headers.json",
+        Path.cwd() / ".env.headers.json",
+    ]
 
-    # 检查文件是否存在
-    if not os.path.exists(headers_file):
-        print(f"[Custom Headers] Config file '{headers_file}' not found, using default empty dict {{}}")
+    headers_path = next((p for p in candidates if p.exists()), None)
+    if headers_path is None:
+        print(
+            "[Custom Headers] Config file not found in candidates, using default empty dict {}"
+        )
         return {}
 
     # 尝试读取和解析 JSON 文件
     try:
-        with open(headers_file, 'r', encoding='utf-8') as f:
+        with open(headers_path, 'r', encoding='utf-8') as f:
             headers = json.load(f)
 
         # 验证是否为字典类型
@@ -83,17 +95,17 @@ def load_custom_headers() -> dict:
         # 过滤掉以 __ 开头的注释字段
         filtered_headers = {k: v for k, v in headers.items() if not k.startswith("__")}
 
-        print(f"[Custom Headers] Successfully loaded {len(filtered_headers)} custom headers from '{headers_file}'")
+        print(f"[Custom Headers] Successfully loaded {len(filtered_headers)} custom headers from '{headers_path}'")
         if filtered_headers:
             print(f"[Custom Headers] Loaded headers: {list(filtered_headers.keys())}")
 
         return filtered_headers
 
     except json.JSONDecodeError as e:
-        print(f"[Custom Headers] Failed to parse JSON from '{headers_file}': {e}, using default empty dict {{}}")
+        print(f"[Custom Headers] Failed to parse JSON from '{headers_path}': {e}, using default empty dict {{}}")
         return {}
     except Exception as e:
-        print(f"[Custom Headers] Failed to load '{headers_file}': {e}, using default empty dict {{}}")
+        print(f"[Custom Headers] Failed to load '{headers_path}': {e}, using default empty dict {{}}")
         return {}
 
 

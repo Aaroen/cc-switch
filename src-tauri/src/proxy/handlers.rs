@@ -97,7 +97,7 @@ pub async fn handle_messages(
     let adapter = get_adapter(&AppType::Claude);
     let needs_transform = adapter.needs_transform(&ctx.provider);
 
-    log::info!(
+    log::debug!(
         "[Claude] Provider: {}, needs_transform: {}, is_stream: {}",
         ctx.provider.name,
         needs_transform,
@@ -105,14 +105,14 @@ pub async fn handle_messages(
     );
 
     let status = response.status();
-    log::info!("[Claude] 上游响应状态: {status}");
+    log::debug!("[Claude] 上游响应状态: {status}");
 
     // 调试：记录响应的Content-Type，用于诊断流式检测问题
     let content_type = response.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("未设置");
-    log::info!("[Claude] 响应Content-Type: {}, 请求is_stream: {}", content_type, is_stream);
+    log::debug!("[Claude] 响应Content-Type: {}, 请求is_stream: {}", content_type, is_stream);
 
     // Claude 特有：格式转换处理
     if needs_transform {
@@ -137,7 +137,7 @@ async fn handle_claude_transform(
 
     if is_stream {
         // 流式响应转换 (OpenAI SSE → Anthropic SSE)
-        log::info!("[Claude] 开始流式响应转换 (OpenAI SSE → Anthropic SSE)");
+        log::debug!("[Claude] 开始流式响应转换 (OpenAI SSE → Anthropic SSE)");
 
         let stream = response.bytes_stream();
         let sse_stream = create_anthropic_sse_stream(stream);
@@ -202,12 +202,12 @@ async fn handle_claude_transform(
         );
 
         let body = axum::body::Body::from_stream(logged_stream);
-        log::info!("[Claude] ====== 请求结束 (流式转换) ======");
+        log::debug!("[Claude] ====== 请求结束 (流式转换) ======");
         return Ok((headers, body).into_response());
     }
 
     // 非流式响应转换 (OpenAI → Anthropic)
-    log::info!("[Claude] 开始转换响应 (OpenAI → Anthropic)");
+    log::debug!("[Claude] 开始转换响应 (OpenAI → Anthropic)");
 
     let response_headers = response.headers().clone();
 
@@ -217,7 +217,7 @@ async fn handle_claude_transform(
     })?;
 
     let body_str = String::from_utf8_lossy(&body_bytes);
-    log::info!("[Claude] OpenAI 响应长度: {} bytes", body_bytes.len());
+    log::debug!("[Claude] OpenAI 响应长度: {} bytes", body_bytes.len());
     log::debug!("[Claude] OpenAI 原始响应: {body_str}");
 
     let openai_response: Value = serde_json::from_slice(&body_bytes).map_err(|e| {
@@ -225,7 +225,7 @@ async fn handle_claude_transform(
         ProxyError::TransformError(format!("Failed to parse OpenAI response: {e}"))
     })?;
 
-    log::info!("[Claude] 解析 OpenAI 响应成功");
+    log::debug!("[Claude] 解析 OpenAI 响应成功");
 
     // 只记录响应摘要，不输出完整JSON
     let model_str = openai_response.get("model")
@@ -238,7 +238,7 @@ async fn handle_claude_transform(
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
 
-    log::info!(
+    log::debug!(
         "[Claude] <<< OpenAI 响应摘要: model={}, finish_reason={}",
         model_str,
         finish_reason
@@ -249,7 +249,7 @@ async fn handle_claude_transform(
         e
     })?;
 
-    log::info!("[Claude] 转换响应成功");
+    log::debug!("[Claude] 转换响应成功");
 
     // 只记录响应摘要
     let model_str = anthropic_response.get("model")
@@ -259,7 +259,7 @@ async fn handle_claude_transform(
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
 
-    log::info!(
+    log::debug!(
         "[Claude] <<< Anthropic 响应摘要: model={}, stop_reason={}",
         model_str,
         stop_reason
@@ -294,7 +294,7 @@ async fn handle_claude_transform(
         });
     }
 
-    log::info!("[Claude] ====== 请求结束 ======");
+    log::debug!("[Claude] ====== 请求结束 ======");
 
     // 构建响应
     let mut builder = axum::response::Response::builder().status(status);
@@ -314,7 +314,7 @@ async fn handle_claude_transform(
         ProxyError::TransformError(format!("Failed to serialize response: {e}"))
     })?;
 
-    log::info!(
+    log::debug!(
         "[Claude] 返回转换后的响应, 长度: {} bytes",
         response_body.len()
     );
@@ -333,7 +333,7 @@ pub async fn handle_chat_completions(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
-    log::info!("[Codex] ====== /v1/chat/completions 请求开始 ======");
+    log::debug!("[Codex] ====== /v1/chat/completions 请求开始 ======");
 
     let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
@@ -342,7 +342,7 @@ pub async fn handle_chat_completions(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    log::info!(
+    log::debug!(
         "[Codex] 请求模型: {}, 流式: {}",
         ctx.request_model,
         is_stream
@@ -372,7 +372,7 @@ pub async fn handle_chat_completions(
     ctx.provider = result.provider;
     let response = result.response;
 
-    log::info!("[Codex] 上游响应状态: {}", response.status());
+    log::debug!("[Codex] 上游响应状态: {}", response.status());
 
     process_response(response, &ctx, &state, &OPENAI_PARSER_CONFIG).await
 }
@@ -414,7 +414,7 @@ pub async fn handle_responses(
     ctx.provider = result.provider;
     let response = result.response;
 
-    log::info!("[Codex] 上游响应状态: {}", response.status());
+    log::debug!("[Codex] 上游响应状态: {}", response.status());
 
     process_response(response, &ctx, &state, &CODEX_PARSER_CONFIG).await
 }
@@ -441,7 +441,7 @@ pub async fn handle_gemini(
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
 
-    log::info!("[Gemini] 请求端点: {endpoint}");
+    log::debug!("[Gemini] 请求端点: {endpoint}");
 
     let is_stream = body
         .get("stream")
@@ -472,7 +472,7 @@ pub async fn handle_gemini(
     ctx.provider = result.provider;
     let response = result.response;
 
-    log::info!("[Gemini] 上游响应状态: {}", response.status());
+    log::debug!("[Gemini] 上游响应状态: {}", response.status());
 
     process_response(response, &ctx, &state, &GEMINI_PARSER_CONFIG).await
 }

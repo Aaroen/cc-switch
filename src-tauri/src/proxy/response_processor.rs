@@ -112,7 +112,7 @@ pub async fn handle_non_streaming(
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
 
-        log::info!(
+        log::debug!(
             "[{}] <<< 响应摘要: model={}, stop_reason={}",
             ctx.tag,
             model_str,
@@ -153,7 +153,7 @@ pub async fn handle_non_streaming(
         }
     } else {
         // 非JSON响应，记录默认usage
-        log::info!(
+        log::debug!(
             "[{}] <<< 响应 (非 JSON): {} bytes",
             ctx.tag,
             body_bytes.len()
@@ -168,7 +168,7 @@ pub async fn handle_non_streaming(
         );
     }
 
-    log::info!("[{}] ====== 请求结束 ======", ctx.tag);
+    log::debug!("[{}] ====== 请求结束 ======", ctx.tag);
 
     // 构建响应
     let mut builder = axum::response::Response::builder().status(status);
