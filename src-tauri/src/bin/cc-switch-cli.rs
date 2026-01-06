@@ -597,7 +597,17 @@ async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), A
         if let Some(provider) = providers.first() {
             println!("测试URL: {} (使用provider: {})", url, provider.name);
 
-            match router.test_url_latency(provider, &app_type_str).await {
+            let test_model = match app_type_str.as_str() {
+                "claude" => "claude-sonnet-4-5-20250929",
+                "codex" => "gpt-5.2",
+                "gemini" => "gemini-2.0-flash",
+                _ => "unknown",
+            };
+
+            match router
+                .test_url_latency(provider, &app_type_str, test_model)
+                .await
+            {
                 Ok(latency) => {
                     println!("  ✓ 延迟: {}ms", latency);
                     results.push((url.clone(), latency));
