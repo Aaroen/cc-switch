@@ -140,6 +140,21 @@ impl ProviderRouter {
             || err.contains("请求转发失败: Connection refused")
     }
 
+    fn shorten_for_log(text: &str, max_chars: usize) -> String {
+        if max_chars == 0 {
+            return String::new();
+        }
+        let mut out = String::new();
+        for (i, ch) in text.chars().enumerate() {
+            if i >= max_chars {
+                out.push_str("…");
+                break;
+            }
+            out.push(ch);
+        }
+        out
+    }
+
     fn supplier_name(provider: &Provider) -> String {
         provider
             .name
@@ -933,16 +948,22 @@ impl ProviderRouter {
         supplier: &str,
         url_groups: &HashMap<String, Vec<Provider>>,
     ) -> Vec<(String, u64)> {
-        log::debug!(
-            "[{}:{}] 开始URL延迟测试，共{}个URL (supplier={}, model={})",
-            app_type,
-            priority,
-            url_groups.len(),
-            supplier,
-            request_model
-        );
+        #[derive(Debug)]
+        enum ProbeSummary {
+            FullChainOk { latency_ms: u64 },
+            FallbackOk {
+                connect_ms: u64,
+                total_ms: u64,
+                reason: String,
+            },
+            Failed { reason: String },
+        }
 
         let mut results = Vec::new();
+        let mut summaries: Vec<(String, ProbeSummary)> = Vec::new();
+        let mut full_ok_count: usize = 0;
+        let mut fallback_ok_count: usize = 0;
+        let mut fail_count: usize = 0;
 
         for (url, providers) in url_groups {
             // 尽量模拟真实环境：同一 URL 下可能有多个 key，真实使用会在同一 URL 上轮询 key。
@@ -983,6 +1004,13 @@ impl ProviderRouter {
 
             if let Some(latency) = full_chain_ok {
                 results.push((url.clone(), latency));
+                full_ok_count += 1;
+                summaries.push(
+                    (
+                        url.clone(),
+                        ProbeSummary::FullChainOk { latency_ms: latency },
+                    )
+                );
 
                 let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
                 let mut latencies = self.url_latencies.write().await;
@@ -999,20 +1027,23 @@ impl ProviderRouter {
                 } else {
                     full_chain_errs.join("; ")
                 };
+                let err_short = Self::shorten_for_log(&err_summary, 80);
 
                 // 回退到简单连通性测试，避免“全链路测试形态不一致”导致把可用URL判死
                 match self.connectivity_latency(url).await {
                     Ok(connect_latency) => {
                         let latency =
                             connect_latency.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
-                        log::warn!(
-                            "[{}:{}] URL {} 全链路测试失败，回退连通性探测成功: {}ms (+{}ms penalty)，原因: {}",
-                            app_type,
-                            priority,
-                            url,
-                            connect_latency,
-                            Self::CONNECTIVITY_PENALTY_MS,
-                            err_summary
+                        fallback_ok_count += 1;
+                        summaries.push(
+                            (
+                                url.clone(),
+                                ProbeSummary::FallbackOk {
+                                    connect_ms: connect_latency,
+                                    total_ms: latency,
+                                    reason: err_short,
+                                },
+                            )
                         );
                         results.push((url.clone(), latency));
 
@@ -1028,13 +1059,18 @@ impl ProviderRouter {
                         );
                     }
                     Err(connect_err) => {
-                        log::warn!(
-                            "[{}:{}] URL {} 测试失败（全链路+连通性均失败）: {}, {}",
-                            app_type,
-                            priority,
-                            url,
-                            err_summary,
-                            connect_err
+                        fail_count += 1;
+                        summaries.push(
+                            (
+                                url.clone(),
+                                ProbeSummary::Failed {
+                                    reason: format!(
+                                        "全链路失败={}; 连通性失败={}",
+                                        err_short,
+                                        Self::shorten_for_log(&connect_err, 80)
+                                    ),
+                                },
+                            )
                         );
                         results.push((url.clone(), u64::MAX));
                     }
@@ -1045,13 +1081,68 @@ impl ProviderRouter {
         // 按延迟排序
         results.sort_by_key(|(_, latency)| *latency);
 
-        log::debug!(
-            "[{}:{}] URL延迟测试完成，最快: {} ({}ms)",
-            app_type,
-            priority,
-            results.first().map(|(u, _)| u.as_str()).unwrap_or("N/A"),
-            results.first().map(|(_, l)| *l).unwrap_or(0)
-        );
+        // 计算“最终选择”：排除 MAX 与 suspect 后的最低延迟 URL（与 select_providers 的过滤规则保持一致）
+        let mut selected_url: Option<String> = None;
+        let mut selected_latency: Option<u64> = None;
+        for (u, l) in results.iter() {
+            if *l == u64::MAX {
+                continue;
+            }
+            if self.is_url_suspect(app_type, supplier, u).await {
+                continue;
+            }
+            selected_url = Some(u.clone());
+            selected_latency = Some(*l);
+            break;
+        }
+
+        // 组装简洁摘要（INFO）：只在测速结束时输出，不输出过程性冗余内容
+        summaries.sort_by(|a, b| a.0.cmp(&b.0));
+        let detail = summaries
+            .iter()
+            .map(|(u, s)| match s {
+                ProbeSummary::FullChainOk { latency_ms } => format!("{u}=OK({latency_ms}ms)"),
+                ProbeSummary::FallbackOk {
+                    connect_ms,
+                    total_ms,
+                    reason,
+                } => format!("{u}=FB({connect_ms}ms→{total_ms}ms, {reason})"),
+                ProbeSummary::Failed { reason } => format!("{u}=FAIL({reason})"),
+            })
+            .collect::<Vec<String>>()
+            .join("; ");
+
+        let selected_text = match (&selected_url, selected_latency) {
+            (Some(u), Some(l)) => format!("{u} ({l}ms)"),
+            _ => "N/A".to_string(),
+        };
+
+        // 若全失败，用 WARN 提醒；否则用 INFO 给出清晰结论。
+        if full_ok_count == 0 && fallback_ok_count == 0 {
+            log::warn!(
+                "[{}:{}] 测速结束 supplier={} model={} 结果: 全失败(full_ok=0 fallback_ok=0 fail={}) 选用={} 详情: {}",
+                app_type,
+                priority,
+                supplier,
+                request_model,
+                fail_count,
+                selected_text,
+                detail
+            );
+        } else {
+            log::info!(
+                "[{}:{}] 测速结束 supplier={} model={} 结果: full_ok={} fallback_ok={} fail={} 选用={} 详情: {}",
+                app_type,
+                priority,
+                supplier,
+                request_model,
+                full_ok_count,
+                fallback_ok_count,
+                fail_count,
+                selected_text,
+                detail
+            );
+        }
 
         results
     }
