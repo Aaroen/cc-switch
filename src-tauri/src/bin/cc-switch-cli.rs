@@ -585,31 +585,50 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
             result: Option<cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult>,
         }
 
-        // 1) 读取代理端口（以便调用本地测试覆盖接口）
-        let proxy_cfg = db
-            .get_proxy_config()
-            .await
-            .map_err(|e| AppError::Message(format!("读取代理配置失败: {e}")))?;
-        let port = proxy_cfg.listen_port;
-        let base = format!("http://127.0.0.1:{port}");
-
-        // 2) 健康检查：确保代理服务正在运行
+        // 1) 发现代理端口：优先使用默认端口/常用端口探测，其次使用数据库端口记录（历史可能不一致）
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(2))
             .build()
             .map_err(|e| AppError::Message(format!("创建HTTP客户端失败: {e}")))?;
 
-        let health = client.get(format!("{base}/health")).send().await;
-        if health
-            .as_ref()
-            .ok()
-            .map(|r| r.status().is_success())
-            != Some(true)
-        {
-            return Err(AppError::Message(format!(
-                "代理服务未运行或不可达，请先启动 cc-switch 代理（目标: {base}）"
-            )));
+        async fn find_running_proxy_base(
+            db: &Database,
+            client: &reqwest::Client,
+        ) -> Result<String, AppError> {
+            let mut ports: Vec<u16> = Vec::new();
+
+            // 真实运行默认端口（当前安装脚本与运行日志均以此为主）
+            ports.push(15721);
+
+            // 兼容历史配置/数据库记录
+            if let Ok(cfg) = db.get_proxy_config().await {
+                ports.push(cfg.listen_port);
+            }
+
+            // 常见端口兜底
+            ports.push(5000);
+            ports.push(8080);
+
+            // 去重保序
+            let mut seen = std::collections::HashMap::<u16, ()>::new();
+            ports.retain(|p| seen.insert(*p, ()).is_none());
+
+            for port in ports {
+                let base = format!("http://127.0.0.1:{port}");
+                if let Ok(resp) = client.get(format!("{base}/health")).send().await {
+                    if resp.status().is_success() {
+                        return Ok(base);
+                    }
+                }
+            }
+
+            Err(AppError::Message(
+                "代理服务未运行或不可达，请先启动 cc-switch 代理（默认端口 15721）".to_string(),
+            ))
         }
+
+        let base = find_running_proxy_base(db.as_ref(), &client).await?;
+        println!("✓ 已检测到代理服务: {base}");
 
         // 3) 生成需要测试的 supplier 列表（按层级聚合）
         let mut targets: Vec<Target> = Vec::new();
