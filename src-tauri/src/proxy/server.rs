@@ -187,6 +187,17 @@ impl ProxyServer {
             // 健康检查
             .route("/health", get(handlers::health_check))
             .route("/status", get(handlers::get_status))
+            // 内部测速 API（供 CLI 复用同一条选路/测速链路；不依赖启动 Claude）
+            .route("/__cc_switch/benchmark", post(handlers::benchmark_all_suppliers))
+            // 启动即测速：测试覆盖（强制下一次请求走指定 supplier），供 CLI 编排多次启动测试
+            .route(
+                "/__cc_switch/test_override/start",
+                post(handlers::start_test_override),
+            )
+            .route(
+                "/__cc_switch/test_override/result/:run_id",
+                get(handlers::get_test_result),
+            )
             // Claude API (支持带前缀和不带前缀两种格式)
             .route("/v1/messages", post(handlers::handle_messages))
             .route("/claude/v1/messages", post(handlers::handle_messages))

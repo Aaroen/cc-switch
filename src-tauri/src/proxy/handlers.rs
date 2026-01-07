@@ -23,6 +23,7 @@ use super::{
 use crate::app_config::AppType;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::str::FromStr;
 
@@ -45,6 +46,125 @@ pub async fn health_check() -> (StatusCode, Json<Value>) {
 pub async fn get_status(State(state): State<ProxyState>) -> Result<Json<ProxyStatus>, ProxyError> {
     let status = state.status.read().await.clone();
     Ok(Json(status))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BenchmarkRequest {
+    pub app_type: String,
+    pub model: Option<String>,
+    pub only_priority: Option<usize>,
+    pub only_supplier: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BenchmarkResponse {
+    pub app_type: String,
+    pub model: String,
+    pub results: Vec<crate::proxy::provider_router::BenchmarkSupplierResult>,
+}
+
+pub async fn benchmark_all_suppliers(
+    State(state): State<ProxyState>,
+    Json(req): Json<BenchmarkRequest>,
+) -> Result<Json<BenchmarkResponse>, ProxyError> {
+    let app_type = req.app_type.trim().to_lowercase();
+    if !matches!(app_type.as_str(), "claude" | "codex" | "gemini") {
+        return Err(ProxyError::InvalidRequest(format!(
+            "无效app_type: {}",
+            req.app_type
+        )));
+    }
+
+    let model = req
+        .model
+        .as_deref()
+        .unwrap_or_else(|| match app_type.as_str() {
+            "claude" => "claude-sonnet-4-5-20250929",
+            "codex" => "gpt-5.2",
+            "gemini" => "gemini-2.0-flash",
+            _ => "unknown",
+        })
+        .to_string();
+
+    let results = state
+        .provider_router
+        .benchmark_all_suppliers(
+            &app_type,
+            &model,
+            req.only_priority,
+            req.only_supplier.as_deref(),
+        )
+        .await
+        .map_err(|e| ProxyError::Internal(format!("测速失败: {e}")))?;
+
+    Ok(Json(BenchmarkResponse {
+        app_type,
+        model,
+        results,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestOverrideStartRequest {
+    pub app_type: String,
+    pub priority: usize,
+    pub supplier: String,
+    pub run_id: String,
+    pub ttl_secs: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestOverrideStartResponse {
+    pub ok: bool,
+    pub run_id: String,
+    pub ttl_secs: u64,
+}
+
+pub async fn start_test_override(
+    State(state): State<ProxyState>,
+    Json(req): Json<TestOverrideStartRequest>,
+) -> Result<Json<TestOverrideStartResponse>, ProxyError> {
+    let app_type = req.app_type.trim().to_lowercase();
+    if !matches!(app_type.as_str(), "claude" | "codex" | "gemini") {
+        return Err(ProxyError::InvalidRequest(format!(
+            "无效app_type: {}",
+            req.app_type
+        )));
+    }
+
+    let supplier = req.supplier.trim();
+    if supplier.is_empty() {
+        return Err(ProxyError::InvalidRequest("supplier不能为空".to_string()));
+    }
+
+    let ttl_secs = req.ttl_secs.unwrap_or(20).clamp(5, 120);
+    state
+        .provider_router
+        .set_test_override(&app_type, req.priority, supplier, &req.run_id, ttl_secs)
+        .await;
+
+    Ok(Json(TestOverrideStartResponse {
+        ok: true,
+        run_id: req.run_id,
+        ttl_secs,
+    }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestOverrideResultResponse {
+    pub ready: bool,
+    pub result: Option<crate::proxy::provider_router::BenchmarkSupplierResult>,
+}
+
+pub async fn get_test_result(
+    State(state): State<ProxyState>,
+    axum::extract::Path(run_id): axum::extract::Path<String>,
+) -> Result<Json<TestOverrideResultResponse>, ProxyError> {
+    let result = state.provider_router.get_test_result(&run_id).await;
+    Ok(Json(TestOverrideResultResponse {
+        ready: result.is_some(),
+        result,
+    }))
 }
 
 // ============================================================================

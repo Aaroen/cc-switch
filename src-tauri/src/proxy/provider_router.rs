@@ -6,6 +6,7 @@ use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
 use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -52,6 +53,28 @@ enum UrlProbeErrorKind {
     Network { message: String },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkUrlResult {
+    pub url: String,
+    /// OK / OV / FB / FAIL
+    pub kind: String,
+    pub latency_ms: Option<u64>,
+    pub penalty_ms: Option<u64>,
+    pub message: Option<String>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkSupplierResult {
+    pub priority: usize,
+    pub supplier: String,
+    pub chosen_url: Option<String>,
+    /// OK / OV / FB / FAIL / COOLDOWN
+    pub chosen_kind: String,
+    pub metric_ms: Option<u64>,
+    pub urls: Vec<BenchmarkUrlResult>,
+}
+
 /// 供应商路由器
 pub struct ProviderRouter {
     /// 数据库连接
@@ -76,6 +99,19 @@ pub struct ProviderRouter {
     /// 供应商测速锁（避免并发请求触发重复测速）
     /// key 格式: "app_type:priority:supplier"
     supplier_benchmark_locks: Arc<RwLock<HashMap<String, Arc<Mutex<()>>>>>,
+    /// 启动即测速（保底）模式下的测试覆盖：用于将下一次（或短时间内）请求强制路由到指定 supplier
+    test_override: Arc<RwLock<Option<TestOverride>>>,
+    /// 测试结果（run_id -> result），供 CLI 轮询读取
+    test_results: Arc<RwLock<HashMap<String, BenchmarkSupplierResult>>>,
+}
+
+#[derive(Debug, Clone)]
+struct TestOverride {
+    app_type: String,
+    priority: usize,
+    supplier: String,
+    run_id: String,
+    expires_at: std::time::Instant,
 }
 
 impl ProviderRouter {
@@ -96,6 +132,8 @@ impl ProviderRouter {
             suspect_urls: Arc::new(RwLock::new(HashMap::new())),
             supplier_current_url: Arc::new(RwLock::new(HashMap::new())),
             supplier_benchmark_locks: Arc::new(RwLock::new(HashMap::new())),
+            test_override: Arc::new(RwLock::new(None)),
+            test_results: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -136,6 +174,105 @@ impl ProviderRouter {
         let key = Self::supplier_key(app_type, priority, supplier);
         let mut map = self.supplier_current_url.write().await;
         map.remove(&key);
+    }
+
+    async fn get_active_test_override(&self, app_type: &str) -> Option<TestOverride> {
+        let mut guard = self.test_override.write().await;
+        if let Some(o) = guard.as_ref() {
+            if o.app_type == app_type && std::time::Instant::now() < o.expires_at {
+                return Some(o.clone());
+            }
+        }
+        // 过期清理
+        *guard = None;
+        None
+    }
+
+    pub async fn set_test_override(
+        &self,
+        app_type: &str,
+        priority: usize,
+        supplier: &str,
+        run_id: &str,
+        ttl_secs: u64,
+    ) {
+        // 为了保证触发 benchmark：清空该 supplier 的 “已测试” 与 “current_url” 状态
+        self.clear_supplier_current_url(app_type, priority, supplier).await;
+        {
+            let key = Self::supplier_key(app_type, priority, supplier);
+            let mut tested_map = self.priority_level_tested.write().await;
+            tested_map.remove(&key);
+        }
+
+        {
+            let mut results = self.test_results.write().await;
+            results.remove(run_id);
+        }
+
+        let override_state = TestOverride {
+            app_type: app_type.to_string(),
+            priority,
+            supplier: supplier.to_string(),
+            run_id: run_id.to_string(),
+            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(ttl_secs),
+        };
+        *self.test_override.write().await = Some(override_state);
+    }
+
+    pub async fn get_test_result(&self, run_id: &str) -> Option<BenchmarkSupplierResult> {
+        let map = self.test_results.read().await;
+        map.get(run_id).cloned()
+    }
+
+    fn details_to_benchmark_url_results(details: &[UrlProbeDetail]) -> Vec<BenchmarkUrlResult> {
+        details
+            .iter()
+            .map(|d| {
+                let (kind, latency_ms, penalty_ms, message, reason) = match &d.kind {
+                    UrlProbeKind::FullOk { latency_ms } => (
+                        "OK".to_string(),
+                        Some(*latency_ms),
+                        None,
+                        None,
+                        None,
+                    ),
+                    UrlProbeKind::Overloaded { latency_ms, message } => (
+                        "OV".to_string(),
+                        Some(*latency_ms),
+                        Some(Self::CONNECTIVITY_PENALTY_MS),
+                        Some(message.clone()),
+                        None,
+                    ),
+                    UrlProbeKind::FallbackOk {
+                        connect_ms,
+                        penalty_ms,
+                        reason,
+                    } => (
+                        "FB".to_string(),
+                        Some(*connect_ms),
+                        Some(*penalty_ms),
+                        None,
+                        Some(reason.clone()),
+                    ),
+                    UrlProbeKind::Failed { reason } => (
+                        "FAIL".to_string(),
+                        None,
+                        None,
+                        None,
+                        Some(reason.clone()),
+                    ),
+                };
+
+                BenchmarkUrlResult {
+                    url: d.url.clone(),
+                    kind,
+                    latency_ms,
+                    penalty_ms,
+                    message,
+                    reason,
+                }
+            })
+            .collect()
     }
 
     async fn get_supplier_benchmark_lock(
@@ -465,13 +602,25 @@ impl ProviderRouter {
             let mut first_priority: Option<usize> = None;
             let mut selected_chain: Vec<Provider> = Vec::new();
 
+            let test_override = self.get_active_test_override(app_type).await;
+
             for (priority, providers_in_level) in priority_groups.iter() {
+                if let Some(o) = test_override.as_ref() {
+                    if *priority != o.priority {
+                        continue;
+                    }
+                }
                 // 在当前层级内按供应商 -> URL -> providers 分组
                 let mut supplier_urls: HashMap<String, HashMap<String, Vec<Provider>>> =
                     HashMap::new();
 
                 for provider in providers_in_level {
                     let supplier = Self::supplier_name(provider);
+                    if let Some(o) = test_override.as_ref() {
+                        if supplier != o.supplier {
+                            continue;
+                        }
+                    }
                     let Some(base_url) = Self::extract_base_url(provider, app_type) else {
                         continue;
                     };
@@ -490,7 +639,11 @@ impl ProviderRouter {
                 let mut candidates: Vec<Provider> = Vec::new();
 
                 for (supplier, url_map) in supplier_urls.iter() {
-                    if self.is_supplier_in_cooldown(app_type, *priority, supplier).await {
+                    if test_override.is_none()
+                        && self
+                            .is_supplier_in_cooldown(app_type, *priority, supplier)
+                            .await
+                    {
                         continue;
                     }
 
@@ -1572,7 +1725,248 @@ impl ProviderRouter {
             }
         }
 
+        // startup 测速模式：若存在测试覆盖并匹配当前 supplier，则记录结果供 CLI 轮询读取
+        if let Some(o) = self.get_active_test_override(app_type).await {
+            if o.priority == priority && o.supplier == supplier {
+                let urls = Self::details_to_benchmark_url_results(&details);
+
+                let (chosen_url, chosen_kind, metric_ms) = if let Some(p) = selected {
+                    match &p.kind {
+                        UrlProbeKind::FullOk { latency_ms } => {
+                            (Some(p.url.clone()), "OK".to_string(), Some(*latency_ms))
+                        }
+                        UrlProbeKind::Overloaded { latency_ms, .. } => (
+                            Some(p.url.clone()),
+                            "OV".to_string(),
+                            Some(latency_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS)),
+                        ),
+                        UrlProbeKind::FallbackOk {
+                            connect_ms,
+                            penalty_ms,
+                            ..
+                        } => (
+                            Some(p.url.clone()),
+                            "FB".to_string(),
+                            Some(connect_ms.saturating_add(*penalty_ms)),
+                        ),
+                        UrlProbeKind::Failed { .. } => (None, "FAIL".to_string(), None),
+                    }
+                } else {
+                    (None, "FAIL".to_string(), None)
+                };
+
+                let result = BenchmarkSupplierResult {
+                    priority,
+                    supplier: supplier.to_string(),
+                    chosen_url: chosen_url.clone(),
+                    chosen_kind,
+                    metric_ms,
+                    urls,
+                };
+
+                {
+                    let mut map = self.test_results.write().await;
+                    map.insert(o.run_id.clone(), result);
+                }
+
+                // 防止测试覆盖影响后续正常请求
+                *self.test_override.write().await = None;
+            }
+        }
+
         details
+    }
+
+    pub async fn benchmark_all_suppliers(
+        &self,
+        app_type: &str,
+        request_model: &str,
+        only_priority: Option<usize>,
+        only_supplier: Option<&str>,
+    ) -> Result<Vec<BenchmarkSupplierResult>, AppError> {
+        let providers = self.db.get_failover_providers(app_type)?;
+        if providers.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut priority_groups: std::collections::BTreeMap<usize, Vec<Provider>> =
+            std::collections::BTreeMap::new();
+        for provider in providers {
+            let priority = provider.sort_index.unwrap_or(999999);
+            if let Some(p) = only_priority {
+                if priority != p {
+                    continue;
+                }
+            }
+            priority_groups.entry(priority).or_default().push(provider);
+        }
+
+        let mut out: Vec<BenchmarkSupplierResult> = Vec::new();
+
+        for (priority, providers_in_level) in priority_groups.into_iter() {
+            let mut supplier_urls: HashMap<String, HashMap<String, Vec<Provider>>> = HashMap::new();
+
+            for provider in providers_in_level {
+                let supplier = Self::supplier_name(&provider);
+                if let Some(s) = only_supplier {
+                    if supplier != s {
+                        continue;
+                    }
+                }
+                let Some(base_url) = Self::extract_base_url(&provider, app_type) else {
+                    continue;
+                };
+                supplier_urls
+                    .entry(supplier)
+                    .or_default()
+                    .entry(base_url)
+                    .or_default()
+                    .push(provider);
+            }
+
+            for (supplier, url_groups) in supplier_urls.into_iter() {
+                if self.is_supplier_in_cooldown(app_type, priority, &supplier).await {
+                    out.push(BenchmarkSupplierResult {
+                        priority,
+                        supplier,
+                        chosen_url: None,
+                        chosen_kind: "COOLDOWN".to_string(),
+                        metric_ms: None,
+                        urls: Vec::new(),
+                    });
+                    continue;
+                }
+
+                let details = self
+                    .benchmark_urls_detailed(app_type, priority, request_model, &supplier, &url_groups)
+                    .await;
+
+                let mut urls: Vec<BenchmarkUrlResult> = Vec::with_capacity(details.len());
+                for d in details.iter() {
+                    let (kind, latency_ms, penalty_ms, message, reason) = match &d.kind {
+                        UrlProbeKind::FullOk { latency_ms } => (
+                            "OK".to_string(),
+                            Some(*latency_ms),
+                            None,
+                            None,
+                            None,
+                        ),
+                        UrlProbeKind::Overloaded { latency_ms, message } => (
+                            "OV".to_string(),
+                            Some(*latency_ms),
+                            Some(Self::CONNECTIVITY_PENALTY_MS),
+                            Some(message.clone()),
+                            None,
+                        ),
+                        UrlProbeKind::FallbackOk {
+                            connect_ms,
+                            penalty_ms,
+                            reason,
+                        } => (
+                            "FB".to_string(),
+                            Some(*connect_ms),
+                            Some(*penalty_ms),
+                            None,
+                            Some(reason.clone()),
+                        ),
+                        UrlProbeKind::Failed { reason } => (
+                            "FAIL".to_string(),
+                            None,
+                            None,
+                            None,
+                            Some(reason.clone()),
+                        ),
+                    };
+
+                    urls.push(BenchmarkUrlResult {
+                        url: d.url.clone(),
+                        kind,
+                        latency_ms,
+                        penalty_ms,
+                        message,
+                        reason,
+                    });
+                }
+
+                let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(&supplier)
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                if let Some(p) = url_groups.values().flat_map(|v| v.first()).next() {
+                    preferred.extend(Self::parse_url_priority_from_provider(p));
+                }
+                {
+                    let mut seen = std::collections::HashMap::<String, ()>::new();
+                    preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
+                }
+
+                let preferred_ok = preferred.iter().find_map(|u| {
+                    details
+                        .iter()
+                        .find(|d| d.url == *u && matches!(d.kind, UrlProbeKind::FullOk { .. }))
+                });
+
+                let pick = preferred_ok
+                    .or_else(|| {
+                        details
+                            .iter()
+                            .find(|d| matches!(d.kind, UrlProbeKind::FullOk { .. }))
+                    })
+                    .or_else(|| {
+                        details
+                            .iter()
+                            .find(|d| matches!(d.kind, UrlProbeKind::Overloaded { .. }))
+                    })
+                    .or_else(|| {
+                        details
+                            .iter()
+                            .find(|d| matches!(d.kind, UrlProbeKind::FallbackOk { .. }))
+                    });
+
+                let (chosen_url, chosen_kind, metric_ms) = if let Some(p) = pick {
+                    match &p.kind {
+                        UrlProbeKind::FullOk { latency_ms } => {
+                            (Some(p.url.clone()), "OK".to_string(), Some(*latency_ms))
+                        }
+                        UrlProbeKind::Overloaded { latency_ms, .. } => (
+                            Some(p.url.clone()),
+                            "OV".to_string(),
+                            Some(latency_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS)),
+                        ),
+                        UrlProbeKind::FallbackOk {
+                            connect_ms,
+                            penalty_ms,
+                            ..
+                        } => (
+                            Some(p.url.clone()),
+                            "FB".to_string(),
+                            Some(connect_ms.saturating_add(*penalty_ms)),
+                        ),
+                        UrlProbeKind::Failed { .. } => (None, "FAIL".to_string(), None),
+                    }
+                } else {
+                    (None, "FAIL".to_string(), None)
+                };
+
+                if let Some(url) = chosen_url.as_deref() {
+                    self.set_supplier_current_url(app_type, priority, &supplier, url)
+                        .await;
+                    let mut tested_map = self.priority_level_tested.write().await;
+                    tested_map.insert(Self::supplier_key(app_type, priority, &supplier), true);
+                }
+
+                out.push(BenchmarkSupplierResult {
+                    priority,
+                    supplier,
+                    chosen_url,
+                    chosen_kind,
+                    metric_ms,
+                    urls,
+                });
+            }
+        }
+
+        Ok(out)
     }
 }
 
