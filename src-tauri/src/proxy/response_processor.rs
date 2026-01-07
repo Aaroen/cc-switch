@@ -422,6 +422,7 @@ pub fn create_logged_passthrough_stream(
         let mut buffer = String::new();
         let mut collector = usage_collector;
         let mut is_first_chunk = true;
+        let mut saw_completion_marker = false;
 
         // 超时配置
         let first_byte_timeout = if timeout_config.first_byte_timeout > 0 {
@@ -487,6 +488,13 @@ pub fn create_logged_passthrough_stream(
                                             }
                                             // 精简日志：仅记录事件类型，不输出完整JSON
                                             if let Some(event_type) = json_value.get("type").and_then(|v| v.as_str()) {
+                                                if event_type == "message_stop"
+                                                    || event_type == "response.completed"
+                                                    || event_type == "response.failed"
+                                                    || event_type == "response.cancelled"
+                                                {
+                                                    saw_completion_marker = true;
+                                                }
                                                 log::debug!("[{tag}] SSE event: {event_type}");
                                             } else {
                                                 log::debug!("[{tag}] SSE event: (无type字段)");
@@ -495,6 +503,7 @@ pub fn create_logged_passthrough_stream(
                                             log::debug!("[{tag}] SSE data (非JSON): {}", &data[..data.len().min(100)]);
                                         }
                                     } else {
+                                        saw_completion_marker = true;
                                         log::debug!("[{tag}] SSE: [DONE]");
                                     }
                                 }
@@ -513,6 +522,19 @@ pub fn create_logged_passthrough_stream(
                 }
                 None => {
                     // 流正常结束
+                    // 如果没有出现任何完成标记，说明上游可能提前断开（表现为“截断无提示”）。
+                    // 这里补发一个显式 SSE error，让客户端可见。
+                    if !saw_completion_marker && !is_first_chunk {
+                        let tail = buffer.trim();
+                        let extra = if tail.is_empty() {
+                            String::new()
+                        } else {
+                            format!("；尾部残留: {}", &tail[..tail.len().min(120)])
+                        };
+                        log::warn!("[{tag}] 上游流提前结束，未发现完成标记{extra}");
+                        yield Ok(sse_error_frame(&format!("上游流提前结束，未发现完成标记{extra}")));
+                        yield Ok(Bytes::from_static(b"data: [DONE]\n\n"));
+                    }
                     break;
                 }
             }

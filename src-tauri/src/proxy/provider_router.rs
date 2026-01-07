@@ -528,6 +528,15 @@ impl ProviderRouter {
                                     selected_url = Some(purl.clone());
                                     self.set_supplier_current_url(app_type, *priority, supplier, purl)
                                         .await;
+                                    log::info!(
+                                        "[{}:{}] URL优先级命中 supplier={} 选用={} (cached_latency_ms={:?}, connect_ms={:?})",
+                                        app_type,
+                                        priority,
+                                        supplier,
+                                        purl,
+                                        cached_latency,
+                                        connect_ms
+                                    );
                                     break;
                                 }
                             }
