@@ -407,6 +407,18 @@ pub fn create_logged_passthrough_stream(
     timeout_config: StreamingTimeoutConfig,
 ) -> impl Stream<Item = Result<Bytes, std::io::Error>> + Send {
     async_stream::stream! {
+        fn sse_error_frame(message: &str) -> Bytes {
+            // 采用 Anthropic/Claude SSE 常见的错误格式：data: {"type":"error","error":{...}}\n\n
+            let payload = serde_json::json!({
+                "type": "error",
+                "error": {
+                    "type": "proxy_error",
+                    "message": message,
+                }
+            });
+            Bytes::from(format!("data: {}\n\n", payload.to_string()))
+        }
+
         let mut buffer = String::new();
         let mut collector = usage_collector;
         let mut is_first_chunk = true;
@@ -442,7 +454,10 @@ pub fn create_logged_passthrough_stream(
                             // 超时
                             let timeout_type = if is_first_chunk { "首字节" } else { "静默期" };
                             log::error!("[{tag}] 流式响应{}超时 ({}秒)", timeout_type, duration.as_secs());
-                            yield Err(std::io::Error::other(format!("流式响应{timeout_type}超时")));
+                            // 不要直接 yield Err：那会导致下游“无反馈中断”。
+                            // 改为发送一条 SSE error 事件 + [DONE]，让客户端能明确感知错误原因。
+                            yield Ok(sse_error_frame(&format!("流式响应{timeout_type}超时 ({})", duration.as_secs())));
+                            yield Ok(Bytes::from_static(b"data: [DONE]\n\n"));
                             break;
                         }
                     }
@@ -491,7 +506,9 @@ pub fn create_logged_passthrough_stream(
                 }
                 Some(Err(e)) => {
                     log::error!("[{tag}] 流错误: {e}");
-                    yield Err(std::io::Error::other(e.to_string()));
+                    // 同上：将错误显式回传给客户端，避免“截断无报错”
+                    yield Ok(sse_error_frame(&format!("流错误: {e}")));
+                    yield Ok(Bytes::from_static(b"data: [DONE]\n\n"));
                     break;
                 }
                 None => {
