@@ -700,6 +700,17 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
 
         let workdir = "/HUBU-AI008/AroenLan/Projects";
 
+        let timeout_secs: u64 = std::env::var("CC_SWITCH_STARTUP_TEST_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(60)
+            .clamp(15, 300);
+        let override_ttl_secs: u64 = std::env::var("CC_SWITCH_TEST_OVERRIDE_TTL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(timeout_secs.saturating_add(10))
+            .clamp(timeout_secs, 360);
+
         let mut summary: Vec<(usize, String, String, String, u64)> = Vec::new();
 
         for (idx, t) in targets.iter().enumerate() {
@@ -721,7 +732,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                     "priority": t.priority,
                     "supplier": t.supplier,
                     "run_id": run_id,
-                    "ttl_secs": 25
+                    "ttl_secs": override_ttl_secs
                 }))
                 .send()
                 .await;
@@ -757,7 +768,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
             };
 
             // 轮询等待结果
-            let timeout = Duration::from_secs(25);
+            let timeout = Duration::from_secs(timeout_secs);
             let poll = Duration::from_millis(350);
             let start = std::time::Instant::now();
             let mut got: Option<cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult> = None;
