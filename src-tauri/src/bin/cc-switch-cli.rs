@@ -869,15 +869,35 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                     continue;
                 }
 
-                // 触发一次真实请求进入代理（print 模式跳过 trust dialog，输出后退出）
-                let mut cmd = Command::new("claude");
-                cmd.current_dir(workdir);
-                cmd.arg("-p").arg("ping");
-                cmd.arg("--output-format").arg("json");
-                cmd.arg("--model").arg(test_model);
-                cmd.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
+                // 触发真实“启动阶段行为”进入代理：
+                // - 默认：以 pseudo-tty 方式启动交互 `claude`（不输入、不发送消息），让其按真实启动路径自动发出请求。
+                // - 可选：CC_SWITCH_STARTUP_TEST_TRIGGER=print 时才使用 `claude -p`（某些上游会对 print 模式做环境识别拦截）。
+                let trigger = std::env::var("CC_SWITCH_STARTUP_TEST_TRIGGER")
+                    .ok()
+                    .unwrap_or_else(|| "interactive".to_string())
+                    .to_lowercase();
 
-                cmd.stdin(Stdio::null());
+                let mut cmd = if trigger == "print" {
+                    let mut c = Command::new("claude");
+                    c.current_dir(workdir);
+                    c.arg("-p").arg("ping");
+                    c.arg("--output-format").arg("json");
+                    c.arg("--model").arg(test_model);
+                    c.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
+                    c.stdin(Stdio::null());
+                    c
+                } else {
+                    // script(1) 提供 pty，让 claude 走真实交互启动路径，但输出写入 /dev/null 避免污染终端
+                    let mut c = Command::new("script");
+                    c.current_dir(workdir);
+                    c.arg("-q");
+                    c.arg("-c");
+                    c.arg("claude");
+                    c.arg("/dev/null");
+                    c.stdin(Stdio::null());
+                    c
+                };
+
                 if verbose_child {
                     cmd.stdout(Stdio::inherit());
                     cmd.stderr(Stdio::inherit());
@@ -889,8 +909,29 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 let mut child = match cmd.spawn() {
                     Ok(c) => c,
                     Err(e) => {
-                        println!("  全链路: FAIL(无法启动 claude: {e})");
-                        continue;
+                        // script 不存在或启动失败时降级为 claude（无 pty 环境可能不触发启动请求，但至少给出可用的错误信息）
+                        if trigger != "print" {
+                            let mut fallback = Command::new("claude");
+                            fallback.current_dir(workdir);
+                            fallback.stdin(Stdio::null());
+                            if verbose_child {
+                                fallback.stdout(Stdio::inherit());
+                                fallback.stderr(Stdio::inherit());
+                            } else {
+                                fallback.stdout(Stdio::null());
+                                fallback.stderr(Stdio::null());
+                            }
+                            match fallback.spawn() {
+                                Ok(c2) => c2,
+                                Err(e2) => {
+                                    println!("  全链路: FAIL(无法启动 claude/script: {e}; {e2})");
+                                    continue;
+                                }
+                            }
+                        } else {
+                            println!("  全链路: FAIL(无法启动 claude: {e})");
+                            continue;
+                        }
                     }
                 };
 
