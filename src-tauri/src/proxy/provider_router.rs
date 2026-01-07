@@ -140,6 +140,79 @@ impl ProviderRouter {
             || err.contains("请求转发失败: Connection refused")
     }
 
+    fn default_url_priority_for_supplier(supplier: &str) -> Vec<&'static str> {
+        match supplier.to_lowercase().as_str() {
+            // 用户需求：anyrouter 的 https://anyrouter.top 可用时优先使用
+            "anyrouter" => vec!["https://anyrouter.top"],
+            _ => Vec::new(),
+        }
+    }
+
+    fn parse_url_priority_from_provider(provider: &Provider) -> Vec<String> {
+        // 支持两种配置方式：
+        // 1) settingsConfig.root: baseUrlPriority / base_url_priority (array 或 string)
+        // 2) settingsConfig.env: BASE_URL_PRIORITY（逗号分隔）
+        let mut out: Vec<String> = Vec::new();
+
+        let from_root = provider
+            .settings_config
+            .get("baseUrlPriority")
+            .or_else(|| provider.settings_config.get("base_url_priority"));
+
+        if let Some(v) = from_root {
+            if let Some(arr) = v.as_array() {
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        let s = s.trim();
+                        if !s.is_empty() {
+                            out.push(s.to_string());
+                        }
+                    }
+                }
+            } else if let Some(s) = v.as_str() {
+                for part in s.split(',') {
+                    let p = part.trim();
+                    if !p.is_empty() {
+                        out.push(p.to_string());
+                    }
+                }
+            }
+        }
+
+        if let Some(s) = provider
+            .settings_config
+            .get("env")
+            .and_then(|env| env.get("BASE_URL_PRIORITY"))
+            .and_then(|v| v.as_str())
+        {
+            for part in s.split(',') {
+                let p = part.trim();
+                if !p.is_empty() {
+                    out.push(p.to_string());
+                }
+            }
+        }
+
+        // 去重，保留顺序
+        let mut seen = std::collections::HashMap::<String, ()>::new();
+        out.retain(|u| seen.insert(u.to_string(), ()).is_none());
+        out
+    }
+
+    fn apply_url_priority(mut urls: Vec<String>, priority: &[String]) -> Vec<String> {
+        if priority.is_empty() || urls.is_empty() {
+            return urls;
+        }
+        let mut picked = Vec::with_capacity(urls.len());
+        for p in priority {
+            if let Some(pos) = urls.iter().position(|u| u == p) {
+                picked.push(urls.remove(pos));
+            }
+        }
+        picked.extend(urls);
+        picked
+    }
+
     fn shorten_for_log(text: &str, max_chars: usize) -> String {
         if max_chars == 0 {
             return String::new();
@@ -396,6 +469,72 @@ impl ProviderRouter {
                         }
 
                         if selected_url.is_none() {
+                            // URL 优先级：当指定 URL 可用时优先使用（例如 anyrouter.top）
+                            // 优先级来源：默认规则 + provider.settingsConfig/baseUrlPriority + env.BASE_URL_PRIORITY
+                            let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(supplier)
+                                .into_iter()
+                                .map(|s| s.to_string())
+                                .collect();
+                            if let Some(p) = url_map.values().flat_map(|v| v.first()).next() {
+                                preferred.extend(Self::parse_url_priority_from_provider(p));
+                            }
+                            // 去重（保留顺序）
+                            {
+                                let mut seen = std::collections::HashMap::<String, ()>::new();
+                                preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
+                            }
+
+                            for purl in preferred.iter() {
+                                if !url_map.contains_key(purl) {
+                                    continue;
+                                }
+                                if self.is_url_suspect(app_type, supplier, purl).await {
+                                    continue;
+                                }
+
+                                // “有效”判断：优先使用已有缓存；否则做一次快速连通性探测
+                                let cache_key = Self::url_latency_key(app_type, *priority, supplier, purl);
+                                let cached_latency = {
+                                    let latencies = self.url_latencies.read().await;
+                                    latencies.get(&cache_key).map(|l| l.latency_ms)
+                                };
+
+                                let connect_ms = if cached_latency.is_none() {
+                                    self.connectivity_latency(purl).await.ok()
+                                } else {
+                                    None
+                                };
+
+                                let ok = match cached_latency {
+                                    Some(l) if l != u64::MAX => true,
+                                    _ => connect_ms.is_some(),
+                                };
+
+                                if ok {
+                                    // 若无缓存，写入一个带 penalty 的可用延迟（避免之后重复探测）
+                                    if let Some(connect_ms) = connect_ms {
+                                        let latency =
+                                            connect_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
+                                        let mut latencies = self.url_latencies.write().await;
+                                        latencies.insert(
+                                            cache_key,
+                                            UrlLatency {
+                                                latency_ms: latency,
+                                                tested_at: std::time::Instant::now(),
+                                            },
+                                        );
+                                    }
+
+                                    selected_url = Some(purl.clone());
+                                    self.set_supplier_current_url(app_type, *priority, supplier, purl)
+                                        .await;
+                                    break;
+                                }
+                            }
+
+                            if selected_url.is_some() {
+                                // 已按优先级选出 URL，跳过后续测速/排序逻辑
+                            } else {
                             // 生成该供应商的 URL 有序列表（优先使用缓存；缓存缺失/URL失效时才测速）
                             let tested_key = Self::supplier_key(app_type, *priority, supplier);
                             let mut should_benchmark = false;
@@ -472,10 +611,25 @@ impl ProviderRouter {
                                 filtered_urls = ok;
                             }
 
+                            // 若存在 URL 优先级配置，则在“可用 URL 列表”内应用优先级（不改变可用性，只改变选择顺序）
+                            if filtered_urls.len() > 1 {
+                                let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(supplier)
+                                    .into_iter()
+                                    .map(|s| s.to_string())
+                                    .collect();
+                                if let Some(p) = url_map.values().flat_map(|v| v.first()).next() {
+                                    preferred.extend(Self::parse_url_priority_from_provider(p));
+                                }
+                                let mut seen = std::collections::HashMap::<String, ()>::new();
+                                preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
+                                filtered_urls = Self::apply_url_priority(filtered_urls, &preferred);
+                            }
+
                             if let Some(url) = filtered_urls.first() {
                                 selected_url = Some(url.clone());
                                 self.set_supplier_current_url(app_type, *priority, supplier, url)
                                     .await;
+                            }
                             }
                         }
                     }
