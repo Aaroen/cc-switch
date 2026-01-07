@@ -711,6 +711,51 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
             .unwrap_or(timeout_secs.saturating_add(10))
             .clamp(timeout_secs, 360);
 
+        // 简单 URL 延迟探测：参考 anyrouter_proxy 的“能返回JSON就算在线”的判定
+        async fn simple_url_probe_claude(
+            client: &reqwest::Client,
+            base_url: &str,
+            api_key: &str,
+            model: &str,
+        ) -> Result<u64, String> {
+            let url = format!("{}/v1/messages", base_url.trim_end_matches('/'));
+            let body = serde_json::json!({
+                "model": model,
+                "max_tokens": 1,
+                "messages": [{"role":"user","content":"ping"}],
+            });
+
+            let start = std::time::Instant::now();
+            let resp = client
+                .post(url)
+                .header("content-type", "application/json")
+                .header("anthropic-version", "2023-06-01")
+                .header("x-api-key", api_key)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| format!("请求失败: {e}"))?;
+
+            let latency = start.elapsed().as_millis() as u64;
+            let ct = resp
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-")
+                .to_string();
+
+            let text = resp.text().await.unwrap_or_default();
+            if ct.contains("text/html") || text.trim_start().starts_with("<!DOCTYPE html") {
+                return Err("HTML响应（疑似挑战/网关页）".to_string());
+            }
+
+            if serde_json::from_str::<serde_json::Value>(&text).is_ok() {
+                Ok(latency)
+            } else {
+                Err("非JSON响应".to_string())
+            }
+        }
+
         let mut summary: Vec<(usize, String, String, String, u64)> = Vec::new();
 
         for (idx, t) in targets.iter().enumerate() {
@@ -723,6 +768,79 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 t.supplier
             );
             std::io::stdout().flush().ok();
+
+            // 4.1) 先做“简单URL延迟测试”（快速，可实时输出）
+            if app_type_str == "claude" {
+                // 收集该 supplier 在该层级的所有 base_url（去重）
+                if let Ok(providers) = db.get_failover_providers(&app_type_str) {
+                    let mut url_to_key: BTreeMap<String, String> = BTreeMap::new();
+                    for p in providers.iter() {
+                        let priority = p.sort_index.unwrap_or(999999) as usize;
+                        if priority != t.priority {
+                            continue;
+                        }
+                        let supplier = p
+                            .name
+                            .split('-')
+                            .next()
+                            .unwrap_or(&p.name)
+                            .to_string();
+                        if supplier != t.supplier {
+                            continue;
+                        }
+                        let base_url = p
+                            .settings_config
+                            .get("env")
+                            .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let api_key = p
+                            .settings_config
+                            .get("env")
+                            .and_then(|env| {
+                                env.get("ANTHROPIC_API_KEY")
+                                    .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
+                            })
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        if let (Some(u), Some(k)) = (base_url, api_key) {
+                            url_to_key.entry(u).or_insert(k);
+                        }
+                    }
+
+                    if !url_to_key.is_empty() {
+                        println!();
+                        println!(
+                            "  - 简单URL延迟测试（JSON即在线），共{}个URL：",
+                            url_to_key.len()
+                        );
+                        for (u, k) in url_to_key.iter() {
+                            let preview = if k.len() > 14 {
+                                format!("{}...{}", &k[..10], &k[k.len() - 4..])
+                            } else {
+                                k.clone()
+                            };
+                            print!("    * {} ... ", u);
+                            std::io::stdout().flush().ok();
+
+                            // 使用较短超时避免拖慢整体；失败不会中断后续真实链路测试
+                            let probe_client = reqwest::Client::builder()
+                                .timeout(Duration::from_secs(12))
+                                .build()
+                                .map_err(|e| {
+                                    AppError::Message(format!("创建HTTP客户端失败: {e}"))
+                                })?;
+
+                            match simple_url_probe_claude(&probe_client, u, k, test_model).await {
+                                Ok(ms) => println!("OK {}ms (key={})", ms, preview),
+                                Err(reason) => println!("FAIL ({}) (key={})", reason, preview),
+                            }
+                        }
+                        print!("  - 进入真实启动链路测试 ... ");
+                        std::io::stdout().flush().ok();
+                    }
+                }
+            }
 
             // 设置测试覆盖：让下一次请求强制走该 supplier，并触发该 supplier 的 URL 测速/选用
             let start_resp = client
@@ -747,10 +865,17 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 continue;
             }
 
-            // 启动 claude（不提问；依赖其启动阶段自然产生的真实请求触发测速）
+            // 启动 claude 并触发一次真实请求（print 模式：跳过 trust dialog，输出后退出）
+            // 说明：之前仅“启动不输入”在某些环境下不会产生请求，因此改为 claude 自身触发一次请求以稳定测试链路。
             let mut cmd = Command::new("claude");
             cmd.current_dir(workdir);
-            cmd.stdin(Stdio::inherit());
+            cmd.arg("-p").arg("ping");
+            cmd.arg("--output-format").arg("json");
+            cmd.arg("--model").arg(test_model);
+            cmd.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
+
+            // print 模式不需要交互输入；stdout/stderr 继承可确保其认为自己在真实终端环境
+            cmd.stdin(Stdio::null());
             if verbose_child {
                 cmd.stdout(Stdio::inherit());
                 cmd.stderr(Stdio::inherit());
@@ -779,8 +904,8 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 }
 
                 if let Ok(Some(_status)) = child.try_wait() {
-                    // claude 提前退出：可能是启动失败/无TTY/其它原因
-                    break;
+                    // claude 提前退出：print 模式本就会退出；仍然继续等 proxy 侧结果（短暂）
+                    // 这里不 break，允许后续 poll 拿到测速结果
                 }
 
                 if let Ok(resp) = client
@@ -802,7 +927,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 tokio::time::sleep(poll).await;
             }
 
-            // 拿到结果或超时：结束 claude 进程，避免进入交互界面
+            // 拿到结果或超时：结束 claude 进程（print 模式一般已退出，这里兜底）
             let _ = child.kill();
             let _ = child.wait();
 
