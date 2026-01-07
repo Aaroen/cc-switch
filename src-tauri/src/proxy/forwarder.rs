@@ -293,6 +293,8 @@ impl RequestForwarder {
                 }
                 Err(e) => {
                     let latency = start.elapsed().as_millis() as u64;
+                    let is_startup_test = self.router.has_active_test_override(app_type_str).await;
+                    let e_text = e.to_string();
 
                     // 失败：记录失败并更新熔断器
                     if let Err(record_err) = self
@@ -302,7 +304,7 @@ impl RequestForwarder {
                             app_type_str,
                             false,
                             false,
-                            Some(e.to_string()),
+                            Some(e_text.clone()),
                         )
                         .await
                     {
@@ -341,6 +343,18 @@ impl RequestForwarder {
                                         * 100.0;
                                 }
                             }
+                            // startup 测试覆盖：即使被归类为可重试，也需要立刻回传具体错误，避免 CLI 超时
+                            if is_startup_test {
+                                self.router
+                                    .maybe_record_startup_test_from_forwarder(
+                                        app_type_str,
+                                        &provider,
+                                        latency,
+                                        None,
+                                        Some(e_text.clone()),
+                                    )
+                                    .await;
+                            }
                             return Err(ForwardError {
                                 error: last_error.unwrap_or(ProxyError::MaxRetriesExceeded),
                                 provider: last_provider,
@@ -357,6 +371,18 @@ impl RequestForwarder {
                                         / status.total_requests as f32)
                                         * 100.0;
                                 }
+                            }
+                            // startup 测试覆盖：回传具体错误到 CLI（用于终端展示）
+                            if is_startup_test {
+                                self.router
+                                    .maybe_record_startup_test_from_forwarder(
+                                        app_type_str,
+                                        &provider,
+                                        latency,
+                                        None,
+                                        Some(e_text.clone()),
+                                    )
+                                    .await;
                             }
                             log::error!(
                                 "[{}] Provider {} 失败（不可重试）: {}",
@@ -535,6 +561,22 @@ impl RequestForwarder {
 
                                 match category {
                                     ErrorCategory::Retryable => {
+                                        // startup 测试覆盖：首错即停（避免日志刷屏/重复尝试），并把具体错误回传给 CLI
+                                        if self.router.has_active_test_override(app_type_str).await {
+                                            self.router
+                                                .maybe_record_startup_test_from_forwarder(
+                                                    app_type_str,
+                                                    &provider,
+                                                    latency,
+                                                    None,
+                                                    Some(e.to_string()),
+                                                )
+                                                .await;
+                                            return Err(ForwardError {
+                                                error: e,
+                                                provider: Some(provider.clone()),
+                                            });
+                                        }
                                         {
                                             let mut status = self.status.write().await;
                                             status.last_error = Some(format!(

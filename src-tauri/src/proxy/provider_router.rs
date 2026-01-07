@@ -189,6 +189,11 @@ impl ProviderRouter {
         None
     }
 
+    /// forwarder/CLI 可用：判断当前是否处于 startup 测试覆盖期
+    pub async fn has_active_test_override(&self, app_type: &str) -> bool {
+        self.get_active_test_override(app_type).await.is_some()
+    }
+
     pub async fn set_test_override(
         &self,
         app_type: &str,
