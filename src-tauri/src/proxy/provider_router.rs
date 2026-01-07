@@ -68,6 +68,8 @@ pub struct BenchmarkUrlResult {
 pub struct BenchmarkSupplierResult {
     pub priority: usize,
     pub supplier: String,
+    /// 真实请求中观察到的 model（用于 startup 测试与日志对齐）
+    pub request_model: Option<String>,
     pub chosen_url: Option<String>,
     /// OK / OV / FB / FAIL / COOLDOWN
     pub chosen_kind: String,
@@ -233,6 +235,7 @@ impl ProviderRouter {
         &self,
         app_type: &str,
         provider: &Provider,
+        request_model: Option<&str>,
         latency_ms: u64,
         status: Option<u16>,
         error_text: Option<String>,
@@ -328,6 +331,7 @@ impl ProviderRouter {
         let result = BenchmarkSupplierResult {
             priority,
             supplier: supplier.to_string(),
+            request_model: request_model.map(|s| s.to_string()),
             chosen_url: Some(base_url.clone()),
             chosen_kind: kind.clone(),
             metric_ms,
@@ -340,11 +344,12 @@ impl ProviderRouter {
         }
 
         log::info!(
-            "[{}:{}] startup全链路结果 supplier={} url={} kind={} latency_ms={} metric_ms={:?} run_id={} detail={}",
+            "[{}:{}] startup全链路结果 supplier={} url={} model={} kind={} latency_ms={} metric_ms={:?} run_id={} detail={}",
             app_type,
             priority,
             supplier,
             base_url,
+            request_model.unwrap_or("unknown"),
             kind,
             latency_ms,
             metric_ms,
@@ -812,6 +817,7 @@ impl ProviderRouter {
                             let result = BenchmarkSupplierResult {
                                 priority: *priority,
                                 supplier: supplier.to_string(),
+                                request_model: Some(request_model.to_string()),
                                 chosen_url: Some(pin.clone()),
                                 chosen_kind: "FAIL".to_string(),
                                 metric_ms: None,
@@ -1975,6 +1981,7 @@ impl ProviderRouter {
                     out.push(BenchmarkSupplierResult {
                         priority,
                         supplier,
+                        request_model: Some(request_model.to_string()),
                         chosen_url: None,
                         chosen_kind: "COOLDOWN".to_string(),
                         metric_ms: None,
@@ -2104,6 +2111,7 @@ impl ProviderRouter {
                 out.push(BenchmarkSupplierResult {
                     priority,
                     supplier,
+                    request_model: Some(request_model.to_string()),
                     chosen_url,
                     chosen_kind,
                     metric_ms,

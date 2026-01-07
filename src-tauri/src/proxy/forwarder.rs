@@ -46,6 +46,13 @@ pub struct RequestForwarder {
 }
 
 impl RequestForwarder {
+    fn extract_model_from_body(body: &Value) -> Option<String> {
+        body.get("model")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.to_string())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         router: Arc<ProviderRouter>,
@@ -165,6 +172,7 @@ impl RequestForwarder {
         // 获取适配器
         let adapter = get_adapter(app_type);
         let app_type_str = app_type.as_str();
+        let request_model = Self::extract_model_from_body(&body);
 
         if providers.is_empty() {
             return Err(ForwardError {
@@ -280,6 +288,7 @@ impl RequestForwarder {
                         .maybe_record_startup_test_from_forwarder(
                             app_type_str,
                             &provider,
+                            request_model.as_deref(),
                             latency,
                             Some(response.status().as_u16()),
                             None,
@@ -349,6 +358,7 @@ impl RequestForwarder {
                                     .maybe_record_startup_test_from_forwarder(
                                         app_type_str,
                                         &provider,
+                                        request_model.as_deref(),
                                         latency,
                                         None,
                                         Some(e_text.clone()),
@@ -378,6 +388,7 @@ impl RequestForwarder {
                                     .maybe_record_startup_test_from_forwarder(
                                         app_type_str,
                                         &provider,
+                                        request_model.as_deref(),
                                         latency,
                                         None,
                                         Some(e_text.clone()),
@@ -529,6 +540,7 @@ impl RequestForwarder {
                                     .maybe_record_startup_test_from_forwarder(
                                         app_type_str,
                                         &provider,
+                                        request_model.as_deref(),
                                         latency,
                                         Some(response.status().as_u16()),
                                         None,
@@ -567,6 +579,7 @@ impl RequestForwarder {
                                                 .maybe_record_startup_test_from_forwarder(
                                                     app_type_str,
                                                     &provider,
+                                                    request_model.as_deref(),
                                                     latency,
                                                     None,
                                                     Some(e.to_string()),
@@ -613,6 +626,7 @@ impl RequestForwarder {
                                             .maybe_record_startup_test_from_forwarder(
                                                 app_type_str,
                                                 &provider,
+                                                request_model.as_deref(),
                                                 latency,
                                                 None,
                                                 Some(e.to_string()),

@@ -687,9 +687,8 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
         };
 
         println!(
-            "\n开始URL延迟测试（启动/退出真实链路），共{}个供应商（按层级与supplier聚合），model={}\n",
-            targets.len(),
-            test_model
+            "\n开始URL延迟测试（启动/退出真实链路），共{}个供应商（按层级与supplier聚合），model=auto(以真实启动请求为准)\n",
+            targets.len()
         );
 
         let verbose_child = std::env::var("CC_SWITCH_STARTUP_TEST_VERBOSE")
@@ -985,31 +984,38 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                     let _ = child.wait();
 
                     if let Some(r) = got {
+                        let observed_model = r
+                            .request_model
+                            .as_deref()
+                            .unwrap_or("unknown");
                         if let Some(u) = r.urls.first() {
                             per_url_results.insert(u.url.clone(), u.clone());
                             match u.kind.as_str() {
                                 "OK" => println!(
-                                    "    - {} {} 全链路=OK {}ms",
-                                    u.url,
-                                    simple_part,
-                                    u.latency_ms.unwrap_or(0)
-                                ),
-                                "OV" => println!(
-                                    "    - {} {} 全链路=OV {}ms ({})",
+                                    "    - {} {} 全链路=OK {}ms (model={})",
                                     u.url,
                                     simple_part,
                                     u.latency_ms.unwrap_or(0),
-                                    u.message.as_deref().unwrap_or("-")
+                                    observed_model
                                 ),
-                                "FAIL" => println!(
-                                    "    - {} {} 全链路=FAIL ({})",
+                                "OV" => println!(
+                                    "    - {} {} 全链路=OV {}ms ({}) (model={})",
                                     u.url,
                                     simple_part,
-                                    u.reason.as_deref().unwrap_or("-")
+                                    u.latency_ms.unwrap_or(0),
+                                    u.message.as_deref().unwrap_or("-"),
+                                    observed_model
+                                ),
+                                "FAIL" => println!(
+                                    "    - {} {} 全链路=FAIL ({}) (model={})",
+                                    u.url,
+                                    simple_part,
+                                    u.reason.as_deref().unwrap_or("-"),
+                                    observed_model
                                 ),
                                 other => println!(
-                                    "    - {} {} 全链路={}",
-                                    u.url, simple_part, other
+                                    "    - {} {} 全链路={} (model={})",
+                                    u.url, simple_part, other, observed_model
                                 ),
                             }
                         } else {
