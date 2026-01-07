@@ -736,23 +736,9 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 .map_err(|e| format!("请求失败: {e}"))?;
 
             let latency = start.elapsed().as_millis() as u64;
-            let ct = resp
-                .headers()
-                .get("content-type")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("-")
-                .to_string();
-
-            let text = resp.text().await.unwrap_or_default();
-            if ct.contains("text/html") || text.trim_start().starts_with("<!DOCTYPE html") {
-                return Err("HTML响应（疑似挑战/网关页）".to_string());
-            }
-
-            if serde_json::from_str::<serde_json::Value>(&text).is_ok() {
-                Ok(latency)
-            } else {
-                Err("非JSON响应".to_string())
-            }
+            // 简单探测仅关心“是否能拿到响应 + RTT”，不对状态码/内容做判断（避免与真实环境不一致）
+            let _ = resp.status();
+            Ok(latency)
         }
 
         // 5) 预加载 providers，避免循环中重复读 DB
@@ -832,190 +818,250 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                                 println!("    - {} 简单={}ms", u, ms);
                                 simple_ms.insert(u.clone(), Some(ms));
                             }
-                            Err(reason) => {
-                                println!("    - {} 简单=FAIL({})", u, reason);
+                            Err(_reason) => {
+                                // 简单探测仅用于辅助参考：终端不输出原因（避免“挑战页/网关页”等噪音）
+                                println!("    - {} 简单=FAIL", u);
                                 simple_ms.insert(u.clone(), None);
                             }
                         }
                     }
                 }
 
-                // 设置测试覆盖：让下一次请求强制走该 supplier，并触发该 supplier 的 URL 测速/选用
-                let run_id = uuid::Uuid::new_v4().to_string();
-                let start_resp = client
-                    .post(format!("{base}/__cc_switch/test_override/start"))
-                    .json(&serde_json::json!({
-                        "app_type": app_type_str.as_str(),
-                        "priority": priority,
-                        "supplier": supplier,
-                        "run_id": run_id,
-                        "ttl_secs": override_ttl_secs
-                    }))
-                    .send()
-                    .await;
-
-                let ok = match start_resp {
-                    Ok(r) => r
-                        .json::<TestOverrideStartResponse>()
-                        .await
-                        .ok()
-                        .map(|v| v.ok)
-                        == Some(true),
-                    Err(_) => false,
-                };
-
-                if !ok {
-                    println!("  全链路: FAIL(无法设置测试覆盖)");
+                // 逐 URL 做“启动/退出真实链路”全链路测速：
+                // 每个 URL 单独设置覆盖并启动一次 claude，让 rust_proxy/forwarder 记录真实请求结果回传 run_id。
+                let urls: Vec<String> = url_to_key.keys().cloned().collect();
+                if urls.is_empty() {
+                    println!("  全链路: FAIL(该supplier未找到任何URL)");
                     continue;
                 }
 
-                // 触发真实“启动阶段行为”进入代理：
-                // - 默认：以 pseudo-tty 方式启动交互 `claude`（不输入、不发送消息），让其按真实启动路径自动发出请求。
-                // - 可选：CC_SWITCH_STARTUP_TEST_TRIGGER=print 时才使用 `claude -p`（某些上游会对 print 模式做环境识别拦截）。
-                let trigger = std::env::var("CC_SWITCH_STARTUP_TEST_TRIGGER")
-                    .ok()
-                    .unwrap_or_else(|| "interactive".to_string())
-                    .to_lowercase();
+                println!("  全链路:");
+                let mut per_url_results: BTreeMap<
+                    String,
+                    cc_switch_lib::proxy::provider_router::BenchmarkUrlResult,
+                > = BTreeMap::new();
 
-                let mut cmd = if trigger == "print" {
-                    let mut c = Command::new("claude");
-                    c.current_dir(workdir);
-                    c.arg("-p").arg("ping");
-                    c.arg("--output-format").arg("json");
-                    c.arg("--model").arg(test_model);
-                    c.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
-                    c.stdin(Stdio::null());
-                    c
-                } else {
-                    // script(1) 提供 pty，让 claude 走真实交互启动路径，但输出写入 /dev/null 避免污染终端
-                    let mut c = Command::new("script");
-                    c.current_dir(workdir);
-                    c.arg("-q");
-                    c.arg("-c");
-                    c.arg("claude");
-                    c.arg("/dev/null");
-                    c.stdin(Stdio::null());
-                    c
-                };
+                for url in urls.iter() {
+                    let run_id = uuid::Uuid::new_v4().to_string();
+                    let start_resp = client
+                        .post(format!("{base}/__cc_switch/test_override/start"))
+                        .json(&serde_json::json!({
+                            "app_type": app_type_str.as_str(),
+                            "priority": priority,
+                            "supplier": supplier,
+                            "base_url": url,
+                            "run_id": run_id,
+                            "ttl_secs": override_ttl_secs
+                        }))
+                        .send()
+                        .await;
 
-                if verbose_child {
-                    cmd.stdout(Stdio::inherit());
-                    cmd.stderr(Stdio::inherit());
-                } else {
-                    cmd.stdout(Stdio::null());
-                    cmd.stderr(Stdio::null());
-                }
+                    let ok = match start_resp {
+                        Ok(r) => r
+                            .json::<TestOverrideStartResponse>()
+                            .await
+                            .ok()
+                            .map(|v| v.ok)
+                            == Some(true),
+                        Err(_) => false,
+                    };
 
-                let mut child = match cmd.spawn() {
-                    Ok(c) => c,
-                    Err(e) => {
-                        // script 不存在或启动失败时降级为 claude（无 pty 环境可能不触发启动请求，但至少给出可用的错误信息）
-                        if trigger != "print" {
-                            let mut fallback = Command::new("claude");
-                            fallback.current_dir(workdir);
-                            fallback.stdin(Stdio::null());
-                            if verbose_child {
-                                fallback.stdout(Stdio::inherit());
-                                fallback.stderr(Stdio::inherit());
+                    let simple_part = match simple_ms.get(url).copied().flatten() {
+                        Some(ms) => format!("简单={}ms", ms),
+                        None => "简单=FAIL".to_string(),
+                    };
+
+                    if !ok {
+                        println!(
+                            "    - {} {} 全链路=FAIL(无法设置测试覆盖)",
+                            url, simple_part
+                        );
+                        continue;
+                    }
+
+                    // 触发真实“启动阶段行为”进入代理：
+                    // - 默认：以 pseudo-tty 方式启动交互 `claude`（不输入、不发送消息），让其按真实启动路径自动发出请求。
+                    // - 可选：CC_SWITCH_STARTUP_TEST_TRIGGER=print 时才使用 `claude -p`（某些上游会对 print 模式做环境识别拦截）。
+                    let trigger = std::env::var("CC_SWITCH_STARTUP_TEST_TRIGGER")
+                        .ok()
+                        .unwrap_or_else(|| "interactive".to_string())
+                        .to_lowercase();
+
+                    let mut cmd = if trigger == "print" {
+                        let mut c = Command::new("claude");
+                        c.current_dir(workdir);
+                        c.arg("-p").arg("ping");
+                        c.arg("--output-format").arg("json");
+                        c.arg("--model").arg(test_model);
+                        c.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
+                        c.stdin(Stdio::null());
+                        c
+                    } else {
+                        // script(1) 提供 pty，让 claude 走真实交互启动路径，但输出写入 /dev/null 避免污染终端
+                        let mut c = Command::new("script");
+                        c.current_dir(workdir);
+                        c.arg("-q");
+                        c.arg("-c");
+                        c.arg("claude");
+                        c.arg("/dev/null");
+                        c.stdin(Stdio::null());
+                        c
+                    };
+
+                    if verbose_child {
+                        cmd.stdout(Stdio::inherit());
+                        cmd.stderr(Stdio::inherit());
+                    } else {
+                        cmd.stdout(Stdio::null());
+                        cmd.stderr(Stdio::null());
+                    }
+
+                    let mut child = match cmd.spawn() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            // script 不存在或启动失败时降级为 claude（无 pty 环境可能不触发启动请求，但至少给出可用的错误信息）
+                            if trigger != "print" {
+                                let mut fallback = Command::new("claude");
+                                fallback.current_dir(workdir);
+                                fallback.stdin(Stdio::null());
+                                if verbose_child {
+                                    fallback.stdout(Stdio::inherit());
+                                    fallback.stderr(Stdio::inherit());
+                                } else {
+                                    fallback.stdout(Stdio::null());
+                                    fallback.stderr(Stdio::null());
+                                }
+                                match fallback.spawn() {
+                                    Ok(c2) => c2,
+                                    Err(e2) => {
+                                        println!(
+                                            "    - {} {} 全链路=FAIL(无法启动 claude/script: {e}; {e2})",
+                                            url, simple_part
+                                        );
+                                        continue;
+                                    }
+                                }
                             } else {
-                                fallback.stdout(Stdio::null());
-                                fallback.stderr(Stdio::null());
+                                println!(
+                                    "    - {} {} 全链路=FAIL(无法启动 claude: {e})",
+                                    url, simple_part
+                                );
+                                continue;
                             }
-                            match fallback.spawn() {
-                                Ok(c2) => c2,
-                                Err(e2) => {
-                                    println!("  全链路: FAIL(无法启动 claude/script: {e}; {e2})");
-                                    continue;
+                        }
+                    };
+
+                    let timeout = Duration::from_secs(timeout_secs);
+                    let poll = Duration::from_millis(350);
+                    let start = std::time::Instant::now();
+                    let mut got: Option<
+                        cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult,
+                    > = None;
+
+                    loop {
+                        if start.elapsed() > timeout {
+                            break;
+                        }
+
+                        let _ = child.try_wait();
+
+                        if let Ok(resp) = client
+                            .get(format!("{base}/__cc_switch/test_override/result/{}", run_id))
+                            .send()
+                            .await
+                        {
+                            if let Ok(v) = resp.json::<TestOverrideResultResponse>().await {
+                                if v.ready {
+                                    got = v.result;
+                                    break;
                                 }
                             }
-                        } else {
-                            println!("  全链路: FAIL(无法启动 claude: {e})");
-                            continue;
                         }
-                    }
-                };
 
-                let timeout = Duration::from_secs(timeout_secs);
-                let poll = Duration::from_millis(350);
-                let start = std::time::Instant::now();
-                let mut got: Option<cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult> = None;
-
-                loop {
-                    if start.elapsed() > timeout {
-                        break;
+                        tokio::time::sleep(poll).await;
                     }
 
-                    let _ = child.try_wait();
+                    let _ = child.kill();
+                    let _ = child.wait();
 
-                    if let Ok(resp) = client
-                        .get(format!("{base}/__cc_switch/test_override/result/{}", run_id))
-                        .send()
-                        .await
-                    {
-                        if let Ok(v) = resp.json::<TestOverrideResultResponse>().await {
-                            if v.ready {
-                                got = v.result;
-                                break;
+                    if let Some(r) = got {
+                        if let Some(u) = r.urls.first() {
+                            per_url_results.insert(u.url.clone(), u.clone());
+                            match u.kind.as_str() {
+                                "OK" => println!(
+                                    "    - {} {} 全链路=OK {}ms",
+                                    u.url,
+                                    simple_part,
+                                    u.latency_ms.unwrap_or(0)
+                                ),
+                                "OV" => println!(
+                                    "    - {} {} 全链路=OV {}ms ({})",
+                                    u.url,
+                                    simple_part,
+                                    u.latency_ms.unwrap_or(0),
+                                    u.message.as_deref().unwrap_or("-")
+                                ),
+                                "FAIL" => println!(
+                                    "    - {} {} 全链路=FAIL ({})",
+                                    u.url,
+                                    simple_part,
+                                    u.reason.as_deref().unwrap_or("-")
+                                ),
+                                other => println!(
+                                    "    - {} {} 全链路={}",
+                                    u.url, simple_part, other
+                                ),
+                            }
+                        } else {
+                            println!("    - {} {} 全链路=FAIL(结果为空)", url, simple_part);
+                        }
+                    } else {
+                        println!(
+                            "    - {} {} 全链路=FAIL(等待测速结果超时/未触发真实请求)",
+                            url, simple_part
+                        );
+                    }
+                }
+
+                // 选用：优先 OK 最快；无 OK 则 OV；否则 FAIL
+                let mut chosen: Option<(String, String, u64)> = None;
+                for (u, r) in per_url_results.iter() {
+                    let metric = match r.kind.as_str() {
+                        "OK" => r.latency_ms.unwrap_or(u64::MAX),
+                        "OV" => r
+                            .latency_ms
+                            .unwrap_or(u64::MAX)
+                            .saturating_add(r.penalty_ms.unwrap_or(0)),
+                        _ => u64::MAX,
+                    };
+                    let rank = match r.kind.as_str() {
+                        "OK" => 0u8,
+                        "OV" => 1u8,
+                        _ => 2u8,
+                    };
+
+                    match chosen.as_ref() {
+                        None => {
+                            if rank < 2 {
+                                chosen = Some((u.clone(), r.kind.clone(), metric));
+                            }
+                        }
+                        Some((_cu, ckind, cmetric)) => {
+                            let crank = if ckind == "OK" { 0u8 } else { 1u8 };
+                            if rank < crank || (rank == crank && metric < *cmetric) {
+                                if rank < 2 {
+                                    chosen = Some((u.clone(), r.kind.clone(), metric));
+                                }
                             }
                         }
                     }
-
-                    tokio::time::sleep(poll).await;
                 }
 
-                let _ = child.kill();
-                let _ = child.wait();
-
-                if let Some(r) = got {
-                    println!("  全链路:");
-                    for u in r.urls.iter() {
-                        let simple_part = match simple_ms.get(&u.url).copied().flatten() {
-                            Some(ms) => format!("简单={}ms", ms),
-                            None => "简单=FAIL".to_string(),
-                        };
-
-                        match u.kind.as_str() {
-                            "OK" => println!(
-                                "    - {} {} 全链路=OK {}ms",
-                                u.url,
-                                simple_part,
-                                u.latency_ms.unwrap_or(0)
-                            ),
-                            "OV" => println!(
-                                "    - {} {} 全链路=OV {}ms ({})",
-                                u.url,
-                                simple_part,
-                                u.latency_ms.unwrap_or(0),
-                                u.message.as_deref().unwrap_or("-")
-                            ),
-                            "FB" => println!(
-                                "    - {} {} 全链路=FB {}ms (+{}ms)",
-                                u.url,
-                                simple_part,
-                                u.latency_ms.unwrap_or(0),
-                                u.penalty_ms.unwrap_or(0)
-                            ),
-                            "FAIL" => println!(
-                                "    - {} {} 全链路=FAIL ({})",
-                                u.url,
-                                simple_part,
-                                u.reason.as_deref().unwrap_or("-")
-                            ),
-                            _ => println!("    - {} {} 全链路={}", u.url, simple_part, u.kind),
-                        }
-                    }
-
-                    if let (Some(url), Some(metric)) = (r.chosen_url.clone(), r.metric_ms) {
-                        println!(
-                            "  选用: {} {} ({}ms)",
-                            r.chosen_kind, url, metric
-                        );
-                        summary.push((r.priority, r.supplier.clone(), url, r.chosen_kind.clone(), metric));
-                    } else {
-                        println!("  选用: FAIL (未选出可用URL)");
-                    }
+                if let Some((url, kind, metric)) = chosen {
+                    println!("  选用: {} {} ({}ms)", kind, url, metric);
+                    summary.push((*priority, supplier.clone(), url, kind, metric));
                 } else {
-                    println!("  全链路: FAIL(等待测速结果超时/未触发真实请求)");
+                    println!("  选用: FAIL (未选出可用URL)");
                 }
             }
         }

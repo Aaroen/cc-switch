@@ -275,6 +275,17 @@ impl RequestForwarder {
                         latency
                     );
 
+                    // startup 测试覆盖：记录这一次真实请求的结果（用于 csc t startup）
+                    self.router
+                        .maybe_record_startup_test_from_forwarder(
+                            app_type_str,
+                            &provider,
+                            latency,
+                            Some(response.status().as_u16()),
+                            None,
+                        )
+                        .await;
+
                     return Ok(ForwardResult {
                         response,
                         provider: provider.clone(),
@@ -487,11 +498,22 @@ impl RequestForwarder {
                                     latency
                                 );
 
+                                // startup 测试覆盖：记录这一次真实请求的结果（用于 csc t startup）
+                                self.router
+                                    .maybe_record_startup_test_from_forwarder(
+                                        app_type_str,
+                                        &provider,
+                                        latency,
+                                        Some(response.status().as_u16()),
+                                        None,
+                                    )
+                                    .await;
+
                                 return Ok(ForwardResult {
                                     response,
                                     provider: provider.clone(),
                                 });
-                            }
+                            },
                             Err(e) => {
                                 let latency = start.elapsed().as_millis() as u64;
 
@@ -544,6 +566,16 @@ impl RequestForwarder {
                                                     * 100.0;
                                             }
                                         }
+                                        // startup 测试覆盖：仅在“最终失败”时记录（避免 key 内重试导致误判）
+                                        self.router
+                                            .maybe_record_startup_test_from_forwarder(
+                                                app_type_str,
+                                                &provider,
+                                                latency,
+                                                None,
+                                                Some(e.to_string()),
+                                            )
+                                            .await;
                                         log::error!(
                                             "[{}] Provider {} 失败（不可重试）: {}",
                                             app_type_str,
@@ -558,6 +590,7 @@ impl RequestForwarder {
                                 }
                             }
                         }
+
                     }
 
                     // 防止“整个层级都被熔断器拒绝”时空转

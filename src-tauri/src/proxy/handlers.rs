@@ -109,6 +109,8 @@ pub struct TestOverrideStartRequest {
     pub app_type: String,
     pub priority: usize,
     pub supplier: String,
+    /// 可选：固定到某个 base_url（用于逐 URL 做“真实启动链路”全链路测速）
+    pub base_url: Option<String>,
     pub run_id: String,
     pub ttl_secs: Option<u64>,
 }
@@ -140,7 +142,14 @@ pub async fn start_test_override(
     let ttl_secs = req.ttl_secs.unwrap_or(20).clamp(5, 120);
     state
         .provider_router
-        .set_test_override(&app_type, req.priority, supplier, &req.run_id, ttl_secs)
+        .set_test_override(
+            &app_type,
+            req.priority,
+            supplier,
+            req.base_url.as_deref(),
+            &req.run_id,
+            ttl_secs,
+        )
         .await;
 
     Ok(Json(TestOverrideStartResponse {

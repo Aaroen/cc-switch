@@ -110,6 +110,7 @@ struct TestOverride {
     app_type: String,
     priority: usize,
     supplier: String,
+    base_url: Option<String>,
     run_id: String,
     expires_at: std::time::Instant,
 }
@@ -193,6 +194,7 @@ impl ProviderRouter {
         app_type: &str,
         priority: usize,
         supplier: &str,
+        base_url: Option<&str>,
         run_id: &str,
         ttl_secs: u64,
     ) {
@@ -213,10 +215,143 @@ impl ProviderRouter {
             app_type: app_type.to_string(),
             priority,
             supplier: supplier.to_string(),
+            base_url: base_url.map(|s| s.to_string()),
             run_id: run_id.to_string(),
             expires_at: std::time::Instant::now() + std::time::Duration::from_secs(ttl_secs),
         };
         *self.test_override.write().await = Some(override_state);
+    }
+
+    /// 供 forwarder 使用：如果当前存在生效的 startup 测试覆盖，并且 provider 与其匹配，
+    /// 则将这一次“真实请求”的结果写入 test_results，并清理覆盖状态。
+    pub async fn maybe_record_startup_test_from_forwarder(
+        &self,
+        app_type: &str,
+        provider: &Provider,
+        latency_ms: u64,
+        status: Option<u16>,
+        error_text: Option<String>,
+    ) {
+        let Some(o) = self.get_active_test_override(app_type).await else {
+            return;
+        };
+
+        let supplier = Self::supplier_name(provider);
+        if o.supplier != supplier {
+            return;
+        }
+        let priority = provider.sort_index.unwrap_or(999999) as usize;
+        if o.priority != priority {
+            return;
+        }
+
+        let Some(base_url) = Self::extract_base_url(provider, app_type) else {
+            return;
+        };
+        if let Some(pinned) = o.base_url.as_deref() {
+            if pinned.trim_end_matches('/') != base_url.trim_end_matches('/') {
+                return;
+            }
+        }
+
+        // 已经有结果则不重复写入（避免 claude 启动阶段多次请求覆盖）
+        {
+            let map = self.test_results.read().await;
+            if map.contains_key(&o.run_id) {
+                return;
+            }
+        }
+
+        let (kind, metric_ms, message, reason) = match (status, error_text.as_deref()) {
+            (Some(code), _) if (200..300).contains(&code) => (
+                "OK".to_string(),
+                Some(latency_ms),
+                None,
+                None,
+            ),
+            (Some(code), Some(t)) => {
+                let msg = Self::shorten_for_log(t, 240);
+                if Self::is_overloaded_error_text(&msg) {
+                    (
+                        "OV".to_string(),
+                        Some(latency_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS)),
+                        Some(msg),
+                        None,
+                    )
+                } else {
+                    (
+                        "FAIL".to_string(),
+                        None,
+                        None,
+                        Some(format!("HTTP {code}: {msg}")),
+                    )
+                }
+            }
+            (Some(code), None) => (
+                "FAIL".to_string(),
+                None,
+                None,
+                Some(format!("HTTP {code}")),
+            ),
+            (None, Some(t)) => (
+                "FAIL".to_string(),
+                None,
+                None,
+                Some(Self::shorten_for_log(t, 240)),
+            ),
+            (None, None) => (
+                "FAIL".to_string(),
+                None,
+                None,
+                Some("未知错误".to_string()),
+            ),
+        };
+
+        let url_result = BenchmarkUrlResult {
+            url: base_url.clone(),
+            kind: kind.clone(),
+            latency_ms: Some(latency_ms),
+            penalty_ms: if kind == "OV" {
+                Some(Self::CONNECTIVITY_PENALTY_MS)
+            } else {
+                None
+            },
+            message,
+            reason,
+        };
+
+        let result = BenchmarkSupplierResult {
+            priority,
+            supplier: supplier.to_string(),
+            chosen_url: Some(base_url.clone()),
+            chosen_kind: kind.clone(),
+            metric_ms,
+            urls: vec![url_result],
+        };
+
+        {
+            let mut map = self.test_results.write().await;
+            map.insert(o.run_id.clone(), result);
+        }
+
+        log::info!(
+            "[{}:{}] startup全链路结果 supplier={} url={} kind={} latency_ms={} metric_ms={:?} run_id={} detail={}",
+            app_type,
+            priority,
+            supplier,
+            base_url,
+            kind,
+            latency_ms,
+            metric_ms,
+            o.run_id,
+            error_text
+                .as_deref()
+                .map(|s| Self::shorten_for_log(s, 240))
+                .unwrap_or_else(|| "-".to_string())
+        );
+
+        // 防止测试覆盖影响后续正常请求
+        *self.test_override.write().await = None;
     }
 
     pub async fn get_test_result(&self, run_id: &str) -> Option<BenchmarkSupplierResult> {
@@ -647,39 +782,84 @@ impl ProviderRouter {
                         continue;
                     }
 
-                    let force_benchmark = test_override
-                        .as_ref()
-                        .map(|o| o.priority == *priority && o.supplier == *supplier)
-                        .unwrap_or(false);
+                    let matching_override = test_override.as_ref().filter(|o| {
+                        o.priority == *priority && o.supplier == *supplier
+                    });
+
+                    // startup 测试模式：可选固定到某个 base_url（逐 URL 做“真实启动链路”测速）
+                    let pinned_url = matching_override.and_then(|o| o.base_url.clone());
+
+                    // 兼容旧逻辑：当未固定 base_url 时，仍允许强制触发 benchmark（但不再依赖 benchmark 产出测试结果）
+                    let force_benchmark = pinned_url.is_none()
+                        && matching_override.is_some();
 
                     // 正常请求不应反复测速：
                     // - 启动时为每个 supplier 选一次最快 URL；
                     // - 仅当该 URL 被标记 suspect（链路失效）时，才清空并重新测速/切换。
                     let mut selected_url: Option<String> = None;
 
-                    if !force_benchmark && url_map.len() == 1 {
-                        if let Some(url) = url_map.keys().next() {
-                            if !self.is_url_suspect(app_type, supplier, url).await {
-                                selected_url = Some(url.clone());
-                                self.set_supplier_current_url(app_type, *priority, supplier, url)
-                                    .await;
-                            }
-                        }
-                    } else if !force_benchmark {
-                        if let Some(current_url) =
-                            self.get_supplier_current_url(app_type, *priority, supplier).await
-                        {
-                            if url_map.contains_key(&current_url)
-                                && !self.is_url_suspect(app_type, supplier, &current_url).await
+                    if let Some(pin) = pinned_url.as_ref() {
+                        if url_map.contains_key(pin) {
+                            // 测试覆盖期间不写入 current_url（避免影响后续正常路由）
+                            selected_url = Some(pin.clone());
+                        } else if let Some(o) = matching_override {
+                            // 覆盖 URL 不存在：直接写入 FAIL 结果并清理覆盖，避免 CLI 无穷等待
+                            let result = BenchmarkSupplierResult {
+                                priority: *priority,
+                                supplier: supplier.to_string(),
+                                chosen_url: Some(pin.clone()),
+                                chosen_kind: "FAIL".to_string(),
+                                metric_ms: None,
+                                urls: vec![BenchmarkUrlResult {
+                                    url: pin.clone(),
+                                    kind: "FAIL".to_string(),
+                                    latency_ms: None,
+                                    penalty_ms: None,
+                                    message: None,
+                                    reason: Some("覆盖URL不在该supplier的URL列表中".to_string()),
+                                }],
+                            };
                             {
-                                selected_url = Some(current_url);
-                            } else {
-                                self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                                let mut map = self.test_results.write().await;
+                                map.insert(o.run_id.clone(), result);
                             }
+                            log::warn!(
+                                "[{}:{}] startup覆盖URL不存在 supplier={} url={} run_id={}",
+                                app_type,
+                                priority,
+                                supplier,
+                                pin,
+                                o.run_id
+                            );
+                            *self.test_override.write().await = None;
                         }
-                    } else if force_benchmark {
-                        // startup 测试模式：强制触发该 supplier 的 benchmark（即使只有一个 URL）
-                        self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                    }
+
+                    if selected_url.is_none() {
+                        if !force_benchmark && url_map.len() == 1 {
+                            if let Some(url) = url_map.keys().next() {
+                                if !self.is_url_suspect(app_type, supplier, url).await {
+                                    selected_url = Some(url.clone());
+                                    self.set_supplier_current_url(app_type, *priority, supplier, url)
+                                        .await;
+                                }
+                            }
+                        } else if !force_benchmark {
+                            if let Some(current_url) =
+                                self.get_supplier_current_url(app_type, *priority, supplier).await
+                            {
+                                if url_map.contains_key(&current_url)
+                                    && !self.is_url_suspect(app_type, supplier, &current_url).await
+                                {
+                                    selected_url = Some(current_url);
+                                } else {
+                                    self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                                }
+                            }
+                        } else if force_benchmark {
+                            // startup 测试模式：强制触发该 supplier 的 benchmark（即使只有一个 URL）
+                            self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                        }
                     }
 
                     if selected_url.is_none() {
@@ -1732,67 +1912,6 @@ impl ProviderRouter {
                     selected_text,
                     detail_text
                 );
-            }
-        }
-
-        // startup 测速模式：若存在测试覆盖并匹配当前 supplier，则记录结果供 CLI 轮询读取
-        if let Some(o) = self.get_active_test_override(app_type).await {
-            if o.priority == priority && o.supplier == supplier {
-                let urls = Self::details_to_benchmark_url_results(&details);
-
-                let (chosen_url, chosen_kind, metric_ms) = if let Some(p) = selected {
-                    match &p.kind {
-                        UrlProbeKind::FullOk { latency_ms } => {
-                            (Some(p.url.clone()), "OK".to_string(), Some(*latency_ms))
-                        }
-                        UrlProbeKind::Overloaded { latency_ms, .. } => (
-                            Some(p.url.clone()),
-                            "OV".to_string(),
-                            Some(latency_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS)),
-                        ),
-                        UrlProbeKind::FallbackOk {
-                            connect_ms,
-                            penalty_ms,
-                            ..
-                        } => (
-                            Some(p.url.clone()),
-                            "FB".to_string(),
-                            Some(connect_ms.saturating_add(*penalty_ms)),
-                        ),
-                        UrlProbeKind::Failed { .. } => (None, "FAIL".to_string(), None),
-                    }
-                } else {
-                    (None, "FAIL".to_string(), None)
-                };
-
-                let chosen_kind_for_log = chosen_kind.clone();
-                let result = BenchmarkSupplierResult {
-                    priority,
-                    supplier: supplier.to_string(),
-                    chosen_url: chosen_url.clone(),
-                    chosen_kind,
-                    metric_ms,
-                    urls,
-                };
-
-                {
-                    let mut map = self.test_results.write().await;
-                    map.insert(o.run_id.clone(), result);
-                }
-
-                log::info!(
-                    "[{}:{}] startup测速结果 supplier={} 选用={} kind={} metric_ms={:?} run_id={}",
-                    app_type,
-                    priority,
-                    supplier,
-                    chosen_url.as_deref().unwrap_or("N/A"),
-                    chosen_kind_for_log,
-                    metric_ms,
-                    o.run_id
-                );
-
-                // 防止测试覆盖影响后续正常请求
-                *self.test_override.write().await = None;
             }
         }
 
