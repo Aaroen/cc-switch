@@ -135,6 +135,7 @@ impl ProviderRouter {
             || err.contains("timed out")
             || err.contains("error sending request")
             || err.contains("connection closed")
+            || err.contains("Upstream request failed")
             || err.contains("请求转发失败: error")
             || err.contains("请求转发失败: timed out")
             || err.contains("请求转发失败: Connection refused")
@@ -369,7 +370,7 @@ impl ProviderRouter {
         };
 
         if auto_failover_enabled {
-            // 故障转移开启：按层级逐级推进（只在一个层级内工作，层级整体不可用时才进入下一层级）
+            // 故障转移开启：按层级生成候选链（由转发器按“层级内轮询重试 -> 进入下一层级”执行）
             // 轮询单位为“不同的 key 值”（相同 key 不重复计权），且每个供应商同一时刻仅使用其“当前最快 URL”。
             let failover_providers = self.db.get_failover_providers(app_type)?;
 
@@ -390,7 +391,7 @@ impl ProviderRouter {
                     .push(provider);
             }
 
-            let mut selected_priority: Option<usize> = None;
+            let mut first_priority: Option<usize> = None;
             let mut selected_chain: Vec<Provider> = Vec::new();
 
             for (priority, providers_in_level) in priority_groups.iter() {
@@ -492,52 +493,43 @@ impl ProviderRouter {
                                     continue;
                                 }
 
-                                // “有效”判断：优先使用已有缓存；否则做一次快速连通性探测
+                                // “有效”判断（更保守）：
+                                // - 仅当已有“全链路 OK”缓存时才直接命中优先级；
+                                // - 仅连通性 OK（FB/penalty）不应强行锁定优先级 URL，否则会长期卡在网关可连通但业务不可用的 URL 上。
                                 let cache_key = Self::url_latency_key(app_type, *priority, supplier, purl);
                                 let cached_latency = {
                                     let latencies = self.url_latencies.read().await;
                                     latencies.get(&cache_key).map(|l| l.latency_ms)
                                 };
 
-                                let connect_ms = if cached_latency.is_none() {
-                                    self.connectivity_latency(purl).await.ok()
-                                } else {
-                                    None
-                                };
-
-                                let ok = match cached_latency {
-                                    Some(l) if l != u64::MAX => true,
-                                    _ => connect_ms.is_some(),
-                                };
-
-                                if ok {
-                                    // 若无缓存，写入一个带 penalty 的可用延迟（避免之后重复探测）
-                                    if let Some(connect_ms) = connect_ms {
-                                        let latency =
-                                            connect_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
-                                        let mut latencies = self.url_latencies.write().await;
-                                        latencies.insert(
-                                            cache_key,
-                                            UrlLatency {
-                                                latency_ms: latency,
-                                                tested_at: std::time::Instant::now(),
-                                            },
+                                if let Some(l) = cached_latency {
+                                    // 仅当“明显不是回退结果（penalty）”时，才认为可直接命中优先 URL
+                                    if l != u64::MAX && l < Self::CONNECTIVITY_PENALTY_MS {
+                                        selected_url = Some(purl.clone());
+                                        self.set_supplier_current_url(app_type, *priority, supplier, purl)
+                                            .await;
+                                        log::info!(
+                                            "[{}:{}] URL优先级命中 supplier={} 选用={} (cached_latency_ms={:?})",
+                                            app_type,
+                                            priority,
+                                            supplier,
+                                            purl,
+                                            cached_latency
                                         );
+                                        break;
                                     }
-
-                                    selected_url = Some(purl.clone());
-                                    self.set_supplier_current_url(app_type, *priority, supplier, purl)
-                                        .await;
-                                    log::info!(
-                                        "[{}:{}] URL优先级命中 supplier={} 选用={} (cached_latency_ms={:?}, connect_ms={:?})",
-                                        app_type,
-                                        priority,
-                                        supplier,
-                                        purl,
-                                        cached_latency,
-                                        connect_ms
+                                } else if let Ok(connect_ms) = self.connectivity_latency(purl).await {
+                                    // 仅用于缓存（避免重复探测刷屏），不作为“优先级直接命中”的依据
+                                    let latency =
+                                        connect_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
+                                    let mut latencies = self.url_latencies.write().await;
+                                    latencies.insert(
+                                        cache_key,
+                                        UrlLatency {
+                                            latency_ms: latency,
+                                            tested_at: std::time::Instant::now(),
+                                        },
                                     );
-                                    break;
                                 }
                             }
 
@@ -620,7 +612,8 @@ impl ProviderRouter {
                                 filtered_urls = ok;
                             }
 
-                            // 若存在 URL 优先级配置，则在“可用 URL 列表”内应用优先级（不改变可用性，只改变选择顺序）
+                            // 若存在 URL 优先级配置，则优先挑选“全链路 OK”的优先 URL；
+                            // 若不存在“全链路 OK”，仍按原有策略仅做顺序调整（FB 结果不会强制锁定优先 URL）。
                             if filtered_urls.len() > 1 {
                                 let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(supplier)
                                     .into_iter()
@@ -631,13 +624,47 @@ impl ProviderRouter {
                                 }
                                 let mut seen = std::collections::HashMap::<String, ()>::new();
                                 preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
-                                filtered_urls = Self::apply_url_priority(filtered_urls, &preferred);
+
+                                // 先尝试命中“优先 URL 且全链路 OK”
+                                for purl in preferred.iter() {
+                                    if !filtered_urls.iter().any(|u| u == purl) {
+                                        continue;
+                                    }
+                                    if self.is_url_suspect(app_type, supplier, purl).await {
+                                        continue;
+                                    }
+                                    let cache_key =
+                                        Self::url_latency_key(app_type, *priority, supplier, purl);
+                                    let cached_latency = {
+                                        let latencies = self.url_latencies.read().await;
+                                        latencies.get(&cache_key).map(|l| l.latency_ms)
+                                    };
+                                    if let Some(l) = cached_latency {
+                                        if l != u64::MAX && l < Self::CONNECTIVITY_PENALTY_MS {
+                                            selected_url = Some(purl.clone());
+                                            self.set_supplier_current_url(
+                                                app_type,
+                                                *priority,
+                                                supplier,
+                                                purl,
+                                            )
+                                            .await;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 未命中全链路 OK 的优先 URL，则仅按优先级调整顺序
+                                if selected_url.is_none() {
+                                    filtered_urls = Self::apply_url_priority(filtered_urls, &preferred);
+                                }
                             }
 
-                            if let Some(url) = filtered_urls.first() {
-                                selected_url = Some(url.clone());
-                                self.set_supplier_current_url(app_type, *priority, supplier, url)
-                                    .await;
+                            if selected_url.is_none() {
+                                if let Some(url) = filtered_urls.first() {
+                                    selected_url = Some(url.clone());
+                                    self.set_supplier_current_url(app_type, *priority, supplier, url).await;
+                                }
                             }
                             }
                         }
@@ -689,12 +716,14 @@ impl ProviderRouter {
                 };
                 candidates.rotate_left(rotate_count);
 
-                selected_priority = Some(*priority);
-                selected_chain = candidates;
-                break;
+                if first_priority.is_none() {
+                    first_priority = Some(*priority);
+                }
+                // 追加该层级的候选 key；后续层级继续追加，由 forwarder 在失败后推进到下一层级
+                selected_chain.extend(candidates);
             }
 
-            let Some(target_priority) = selected_priority else {
+            let Some(target_priority) = first_priority else {
                 return Err(AppError::Config(format!(
                     "No available providers for {app_type} (all priorities unavailable)"
                 )));
@@ -707,7 +736,7 @@ impl ProviderRouter {
             }
 
             log::debug!(
-                "[{}] Selected priority {} with {} key(s) (model={})",
+                "[{}] Selected priority {} with {} key(s) across priorities (model={})",
                 app_type,
                 target_priority,
                 selected_chain.len(),
@@ -1404,9 +1433,10 @@ mod tests {
         }
         let providers = router.select_providers("claude", None).await.unwrap();
 
-        // 按层级逐级推进：priority=1 可用时，不会进入 priority=2
-        assert_eq!(providers.len(), 1);
+        // 返回“多层级候选链”：先给出 priority=1，再追加 priority=2（由 forwarder 在失败后推进到下一层级）
+        assert_eq!(providers.len(), 2);
         assert_eq!(providers[0].id, "b");
+        assert_eq!(providers[1].id, "a");
     }
 
     #[tokio::test]

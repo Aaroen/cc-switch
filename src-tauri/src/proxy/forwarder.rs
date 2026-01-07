@@ -31,7 +31,9 @@ pub struct RequestForwarder {
     client: Client,
     /// 共享的 ProviderRouter（持有熔断器状态）
     router: Arc<ProviderRouter>,
-    /// 单个 Provider 内的最大重试次数
+    /// 重试次数（语义取决于场景）：
+    /// - 单 Provider：同一 Provider 内重试次数（指数退避）
+    /// - 多 Provider（故障转移/分层）：每个“层级”（sort_index）内最多尝试次数（错误即切换到下一个轮询目标）
     max_retries: u8,
     status: Arc<RwLock<ProxyStatus>>,
     current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
@@ -139,6 +141,11 @@ impl RequestForwarder {
         Err(last_error.unwrap_or(ProxyError::MaxRetriesExceeded))
     }
 
+    fn max_attempts_per_priority(&self) -> usize {
+        // 与用户配置保持一致：0 表示不额外重试，但仍会有 1 次尝试
+        std::cmp::max(1, self.max_retries as usize)
+    }
+
     /// 转发请求（带故障转移）
     ///
     /// # Arguments
@@ -166,10 +173,12 @@ impl RequestForwarder {
             });
         }
 
+        let total_provider_count = providers.len();
+
         log::debug!(
             "[{}] 故障转移链: {} 个可用供应商",
             app_type_str,
-            providers.len()
+            total_provider_count
         );
 
         let mut last_error = None;
@@ -179,39 +188,11 @@ impl RequestForwarder {
         // 单 Provider 场景下跳过熔断器检查（故障转移关闭时）
         let bypass_circuit_breaker = providers.len() == 1;
 
-        // 依次尝试每个供应商
-        for provider in providers.iter() {
-            // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
-            // 单 Provider 场景下跳过此检查，避免熔断器阻塞所有请求
-            let (allowed, used_half_open_permit) = if bypass_circuit_breaker {
-                (true, false)
-            } else {
-                let permit = self
-                    .router
-                    .allow_provider_request(&provider.id, app_type_str)
-                    .await;
-                (permit.allowed, permit.used_half_open_permit)
-            };
-
-            if !allowed {
-                log::debug!(
-                    "[{}] Provider {} 熔断器拒绝本次请求，跳过",
-                    app_type_str,
-                    provider.name
-                );
-                continue;
-            }
-
-            attempted_providers += 1;
-
-            log::debug!(
-                "[{}] 尝试 {}/{} - 使用Provider: {} (sort_index: {})",
-                app_type_str,
-                attempted_providers,
-                providers.len(),
-                provider.name,
-                provider.sort_index.unwrap_or(999999)
-            );
+        if bypass_circuit_breaker {
+            // 故障转移关闭：保留“同一 Provider 内重试”
+            let provider = providers
+                .first()
+                .expect("bypass_circuit_breaker implies non-empty providers");
 
             // 更新状态中的当前Provider信息
             {
@@ -224,7 +205,6 @@ impl RequestForwarder {
 
             let start = Instant::now();
 
-            // 转发请求（带单 Provider 内重试）
             match self
                 .forward_with_provider_retry(provider, endpoint, &body, &headers, adapter.as_ref())
                 .await
@@ -238,7 +218,7 @@ impl RequestForwarder {
                         .record_result(
                             &provider.id,
                             app_type_str,
-                            used_half_open_permit,
+                            false,
                             true,
                             None,
                         )
@@ -309,7 +289,7 @@ impl RequestForwarder {
                         .record_result(
                             &provider.id,
                             app_type_str,
-                            used_half_open_permit,
+                            false,
                             false,
                             Some(e.to_string()),
                         )
@@ -340,8 +320,20 @@ impl RequestForwarder {
 
                             last_error = Some(e);
                             last_provider = Some(provider.clone());
-                            // 继续尝试下一个供应商
-                            continue;
+                            // 单 Provider 场景：此处已经做过同 Provider 重试，直接返回最终错误
+                            {
+                                let mut status = self.status.write().await;
+                                status.failed_requests += 1;
+                                if status.total_requests > 0 {
+                                    status.success_rate = (status.success_requests as f32
+                                        / status.total_requests as f32)
+                                        * 100.0;
+                                }
+                            }
+                            return Err(ForwardError {
+                                error: last_error.unwrap_or(ProxyError::MaxRetriesExceeded),
+                                provider: last_provider,
+                            });
                         }
                         ErrorCategory::NonRetryable | ErrorCategory::ClientAbort => {
                             // 不可重试：直接返回错误
@@ -367,6 +359,226 @@ impl RequestForwarder {
                             });
                         }
                     }
+                }
+            }
+        } else {
+            // 故障转移开启：按 sort_index（层级）分组；
+            // 在一个层级内最多“全量轮询”N 轮（N=self.max_retries，至少 1 轮），每次报错立刻切换到下一个轮询目标；
+            // 当本层级 N 轮全部失败后，才进入下一层级。
+            let mut by_priority: std::collections::BTreeMap<usize, Vec<Provider>> =
+                std::collections::BTreeMap::new();
+            for p in providers.into_iter() {
+                let priority = p.sort_index.unwrap_or(999999);
+                by_priority.entry(priority).or_default().push(p);
+            }
+
+            let rounds_per_priority = self.max_attempts_per_priority();
+
+            for (priority, providers_in_level) in by_priority.into_iter() {
+                if providers_in_level.is_empty() {
+                    continue;
+                }
+
+                let mut attempts_executed = 0usize;
+
+                for round in 0..rounds_per_priority {
+                    let mut skipped_by_circuit = 0usize;
+
+                    for provider in providers_in_level.iter() {
+                        // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
+                        let permit = self
+                            .router
+                            .allow_provider_request(&provider.id, app_type_str)
+                            .await;
+
+                        if !permit.allowed {
+                            skipped_by_circuit += 1;
+                            continue;
+                        }
+
+                        attempted_providers += 1;
+                        attempts_executed += 1;
+
+                        log::debug!(
+                            "[{}] 层级 {} 第 {}/{} 轮 - 使用Provider: {}",
+                            app_type_str,
+                            priority,
+                            round + 1,
+                            rounds_per_priority,
+                            provider.name
+                        );
+
+                        // 更新状态中的当前Provider信息
+                        {
+                            let mut status = self.status.write().await;
+                            status.current_provider = Some(provider.name.clone());
+                            status.current_provider_id = Some(provider.id.clone());
+                            status.total_requests += 1;
+                            status.last_request_at = Some(chrono::Utc::now().to_rfc3339());
+                        }
+
+                        let start = Instant::now();
+
+                        // 多 Provider：错误即切换，不做“同 Provider 内重试”
+                        match self
+                            .forward(provider, endpoint, &body, &headers, adapter.as_ref())
+                            .await
+                        {
+                            Ok(response) => {
+                                let latency = start.elapsed().as_millis() as u64;
+
+                                if let Err(e) = self
+                                    .router
+                                    .record_result(
+                                        &provider.id,
+                                        app_type_str,
+                                        permit.used_half_open_permit,
+                                        true,
+                                        None,
+                                    )
+                                    .await
+                                {
+                                    log::warn!("Failed to record success: {e}");
+                                }
+
+                                // 更新当前应用类型使用的 provider
+                                {
+                                    let mut current_providers = self.current_providers.write().await;
+                                    current_providers.insert(
+                                        app_type_str.to_string(),
+                                        (provider.id.clone(), provider.name.clone()),
+                                    );
+                                }
+
+                                // 更新成功统计
+                                {
+                                    let mut status = self.status.write().await;
+                                    status.success_requests += 1;
+                                    status.last_error = None;
+                                    let should_switch = self.current_provider_id_at_start.as_str()
+                                        != provider.id.as_str();
+                                    if should_switch {
+                                        status.failover_count += 1;
+
+                                        let fm = self.failover_manager.clone();
+                                        let ah = self.app_handle.clone();
+                                        let pid = provider.id.clone();
+                                        let pname = provider.name.clone();
+                                        let at = app_type_str.to_string();
+
+                                        tokio::spawn(async move {
+                                            if let Err(e) =
+                                                fm.try_switch(ah.as_ref(), &at, &pid, &pname).await
+                                            {
+                                                log::error!("[Failover] 切换供应商失败: {e}");
+                                            }
+                                        });
+                                    }
+                                    if status.total_requests > 0 {
+                                        status.success_rate = (status.success_requests as f32
+                                            / status.total_requests as f32)
+                                            * 100.0;
+                                    }
+                                }
+
+                                log::info!(
+                                    "正常 200 - {} (耗时: {}ms)",
+                                    provider.name,
+                                    latency
+                                );
+
+                                return Ok(ForwardResult {
+                                    response,
+                                    provider: provider.clone(),
+                                });
+                            }
+                            Err(e) => {
+                                let latency = start.elapsed().as_millis() as u64;
+
+                                if let Err(record_err) = self
+                                    .router
+                                    .record_result(
+                                        &provider.id,
+                                        app_type_str,
+                                        permit.used_half_open_permit,
+                                        false,
+                                        Some(e.to_string()),
+                                    )
+                                    .await
+                                {
+                                    log::warn!("Failed to record failure: {record_err}");
+                                }
+
+                                let category = self.categorize_proxy_error(&e);
+
+                                match category {
+                                    ErrorCategory::Retryable => {
+                                        {
+                                            let mut status = self.status.write().await;
+                                            status.last_error = Some(format!(
+                                                "Provider {} 失败: {}",
+                                                provider.name, e
+                                            ));
+                                        }
+
+                                        log::debug!(
+                                            "[{}] Provider {} 失败（可重试，切换下一个轮询目标）: {} - {}ms",
+                                            app_type_str,
+                                            provider.name,
+                                            e,
+                                            latency
+                                        );
+
+                                        last_error = Some(e);
+                                        last_provider = Some(provider.clone());
+                                        continue;
+                                    }
+                                    ErrorCategory::NonRetryable | ErrorCategory::ClientAbort => {
+                                        {
+                                            let mut status = self.status.write().await;
+                                            status.failed_requests += 1;
+                                            status.last_error = Some(e.to_string());
+                                            if status.total_requests > 0 {
+                                                status.success_rate = (status.success_requests as f32
+                                                    / status.total_requests as f32)
+                                                    * 100.0;
+                                            }
+                                        }
+                                        log::error!(
+                                            "[{}] Provider {} 失败（不可重试）: {}",
+                                            app_type_str,
+                                            provider.name,
+                                            e
+                                        );
+                                        return Err(ForwardError {
+                                            error: e,
+                                            provider: Some(provider.clone()),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 防止“整个层级都被熔断器拒绝”时空转
+                    if skipped_by_circuit >= providers_in_level.len() {
+                        break;
+                    }
+                }
+
+                if attempts_executed == 0 {
+                    log::debug!(
+                        "[{}] 层级 {} 无可用供应商（可能被熔断器限制），尝试下一层级",
+                        app_type_str,
+                        priority
+                    );
+                } else {
+                    log::warn!(
+                        "[{}] 层级 {} 已用尽尝试轮次（{} 轮），切换到下一层级",
+                        app_type_str,
+                        priority,
+                        rounds_per_priority
+                    );
                 }
             }
         }
@@ -402,7 +614,7 @@ impl RequestForwarder {
         log::error!(
             "[{}] 所有 {} 个供应商都失败了",
             app_type_str,
-            providers.len()
+            total_provider_count
         );
 
         Err(ForwardError {

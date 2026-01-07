@@ -546,7 +546,7 @@ fn handle_remove_from_queue(app_type: &str, id: &str) -> Result<(), AppError> {
 
 async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), AppError> {
     use cc_switch_lib::proxy::provider_router::ProviderRouter;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     let db = Arc::new(Database::init()?);
     let app_type_str = parse_app_type(app_type)?;
@@ -569,72 +569,158 @@ async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), A
         return Ok(());
     }
 
-    // 按URL分组
-    let mut url_groups: HashMap<String, Vec<Provider>> = HashMap::new();
-    for provider in providers.into_iter() {
-        if let Some(base_url) = provider
-            .settings_config
-            .get("env")
-            .and_then(|env: &serde_json::Value| env.get("ANTHROPIC_BASE_URL"))
-            .and_then(|v: &serde_json::Value| v.as_str())
-        {
-            let url_string: String = base_url.to_string();
-            url_groups
-                .entry(url_string)
-                .or_insert_with(Vec::new)
-                .push(provider);
+    fn supplier_name(provider: &Provider) -> String {
+        provider
+            .name
+            .split('-')
+            .next()
+            .unwrap_or(&provider.name)
+            .to_string()
+    }
+
+    fn extract_base_url(provider: &Provider, app_type: &str) -> Option<String> {
+        match app_type {
+            "claude" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            "gemini" => provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("GOOGLE_GEMINI_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            "codex" => provider
+                .settings_config
+                .get("base_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            _ => None,
         }
     }
 
-    println!("\n开始URL延迟测试，共{}个URL\n", url_groups.len());
+    let test_model = match app_type_str.as_str() {
+        "claude" => "claude-sonnet-4-5-20250929",
+        "codex" => "gpt-5.2",
+        "gemini" => "gemini-2.0-flash",
+        _ => "unknown",
+    };
 
-    // 创建ProviderRouter用于测试
+    let total_provider_count = providers.len();
+
+    // 按层级(sort_index)分组，再按 supplier -> url 分组，以复用当前运行中的“支持回退”的测速/缓存策略
+    let mut priority_groups: BTreeMap<usize, Vec<Provider>> = BTreeMap::new();
+    for provider in providers.into_iter() {
+        let priority = provider.sort_index.unwrap_or(999999);
+        priority_groups.entry(priority).or_default().push(provider);
+    }
+
     let router = ProviderRouter::new(db);
 
-    // 测试每个URL
-    let mut results = Vec::new();
-    for (url, providers) in &url_groups {
-        if let Some(provider) = providers.first() {
-            println!("测试URL: {} (使用provider: {})", url, provider.name);
+    println!(
+        "\n开始URL延迟测试（带回退），共{}个供应商，按层级与supplier聚合\n",
+        total_provider_count
+    );
 
-            let test_model = match app_type_str.as_str() {
-                "claude" => "claude-sonnet-4-5-20250929",
-                "codex" => "gpt-5.2",
-                "gemini" => "gemini-2.0-flash",
-                _ => "unknown",
+    const CONNECTIVITY_PENALTY_MS: u64 = 30_000;
+
+    // 汇总：每个 supplier 选中的最优 URL（用于整体排序输出）
+    let mut supplier_best: Vec<(usize, String, String, u64)> = Vec::new(); // (priority, supplier, url, latency)
+
+    for (priority, providers_in_level) in priority_groups.into_iter() {
+        let mut supplier_urls: HashMap<String, HashMap<String, Vec<Provider>>> = HashMap::new();
+
+        for provider in providers_in_level {
+            let supplier = supplier_name(&provider);
+            let Some(base_url) = extract_base_url(&provider, app_type_str.as_str()) else {
+                continue;
             };
+            supplier_urls
+                .entry(supplier)
+                .or_default()
+                .entry(base_url)
+                .or_default()
+                .push(provider);
+        }
 
-            match router
-                .test_url_latency(provider, &app_type_str, test_model)
-                .await
+        if supplier_urls.is_empty() {
+            continue;
+        }
+
+        println!("=== 层级 {} ===", priority);
+
+        for (supplier, url_groups) in supplier_urls.into_iter() {
+            println!("\n供应商: {}", supplier);
+
+            let results = router
+                .benchmark_urls(app_type_str.as_str(), priority, test_model, &supplier, &url_groups)
+                .await;
+
+            // 展示该 supplier 下各 URL 的结果
+            for (i, (url, latency)) in results.iter().enumerate() {
+                if *latency == u64::MAX {
+                    println!("  {}. {} - 失败", i + 1, url);
+                } else if *latency >= CONNECTIVITY_PENALTY_MS {
+                    // benchmark_urls 的回退结果 = connect_ms + penalty
+                    let connect_ms = latency.saturating_sub(CONNECTIVITY_PENALTY_MS);
+                    println!(
+                        "  {}. {} - FB {}ms (+{}ms)",
+                        i + 1,
+                        url,
+                        connect_ms,
+                        CONNECTIVITY_PENALTY_MS
+                    );
+                } else {
+                    println!("  {}. {} - OK {}ms", i + 1, url, latency);
+                }
+            }
+
+            // 记录该 supplier 的最优（第一个非 MAX）
+            if let Some((best_url, best_latency)) =
+                results.iter().find(|(_, latency)| *latency != u64::MAX)
             {
-                Ok(latency) => {
-                    println!("  ✓ 延迟: {}ms", latency);
-                    results.push((url.clone(), latency));
-                }
-                Err(e) => {
-                    println!("  ✗ 测试失败: {}", e);
-                    results.push((url.clone(), u64::MAX));
-                }
+                supplier_best.push((
+                    priority,
+                    supplier.clone(),
+                    best_url.clone(),
+                    *best_latency,
+                ));
             }
         }
     }
 
-    // 排序并显示结果
-    results.sort_by_key(|(_, latency)| *latency);
-
-    println!("\n=== 测试结果（按延迟排序）===");
-    for (i, (url, latency)) in results.iter().enumerate() {
-        if *latency == u64::MAX {
-            println!("{}. {} - 失败", i + 1, url);
-        } else {
-            println!("{}. {} - {}ms", i + 1, url, latency);
-        }
+    if supplier_best.is_empty() {
+        println!("\n=== 汇总 ===");
+        println!("全部测试失败（没有任何可用URL）");
+        return Ok(());
     }
 
-    if let Some((fastest_url, fastest_latency)) = results.first() {
-        if *fastest_latency != u64::MAX {
-            println!("\n最快: {} ({}ms)", fastest_url, fastest_latency);
+    supplier_best.sort_by_key(|(_, _, _, latency)| *latency);
+
+    println!("\n=== 汇总（按最优URL延迟排序）===");
+    for (i, (priority, supplier, url, latency)) in supplier_best.iter().enumerate() {
+        if *latency >= CONNECTIVITY_PENALTY_MS {
+            let connect_ms = latency.saturating_sub(CONNECTIVITY_PENALTY_MS);
+            println!(
+                "{}. [层级 {}] {} -> {} - FB {}ms (+{}ms)",
+                i + 1,
+                priority,
+                supplier,
+                url,
+                connect_ms,
+                CONNECTIVITY_PENALTY_MS
+            );
+        } else {
+            println!(
+                "{}. [层级 {}] {} -> {} - OK {}ms",
+                i + 1,
+                priority,
+                supplier,
+                url,
+                latency
+            );
         }
     }
 
