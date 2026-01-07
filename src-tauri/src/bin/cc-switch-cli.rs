@@ -625,9 +625,65 @@ async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), A
     );
 
     const CONNECTIVITY_PENALTY_MS: u64 = 30_000;
+    const OVERLOADED_PENALTY_MS: u64 = 30_000;
+
+    fn parse_url_priority_from_provider(provider: &Provider) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+
+        let from_root = provider
+            .settings_config
+            .get("baseUrlPriority")
+            .or_else(|| provider.settings_config.get("base_url_priority"));
+
+        if let Some(v) = from_root {
+            if let Some(arr) = v.as_array() {
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        let s = s.trim();
+                        if !s.is_empty() {
+                            out.push(s.to_string());
+                        }
+                    }
+                }
+            } else if let Some(s) = v.as_str() {
+                for part in s.split(',') {
+                    let p = part.trim();
+                    if !p.is_empty() {
+                        out.push(p.to_string());
+                    }
+                }
+            }
+        }
+
+        if let Some(s) = provider
+            .settings_config
+            .get("env")
+            .and_then(|env| env.get("BASE_URL_PRIORITY"))
+            .and_then(|v| v.as_str())
+        {
+            for part in s.split(',') {
+                let p = part.trim();
+                if !p.is_empty() {
+                    out.push(p.to_string());
+                }
+            }
+        }
+
+        // 去重保序
+        let mut seen = std::collections::HashMap::<String, ()>::new();
+        out.retain(|u| seen.insert(u.to_string(), ()).is_none());
+        out
+    }
+
+    fn default_url_priority_for_supplier(supplier: &str) -> Vec<&'static str> {
+        match supplier.to_lowercase().as_str() {
+            "anyrouter" => vec!["https://anyrouter.top"],
+            _ => Vec::new(),
+        }
+    }
 
     // 汇总：每个 supplier 选中的最优 URL（用于整体排序输出）
-    let mut supplier_best: Vec<(usize, String, String, u64)> = Vec::new(); // (priority, supplier, url, latency)
+    let mut supplier_best: Vec<(usize, String, String, &'static str, u64)> = Vec::new(); // (priority, supplier, url, kind, metric_ms)
 
     for (priority, providers_in_level) in priority_groups.into_iter() {
         let mut supplier_urls: HashMap<String, HashMap<String, Vec<Provider>>> = HashMap::new();
@@ -655,38 +711,93 @@ async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), A
             println!("\n供应商: {}", supplier);
 
             let results = router
-                .benchmark_urls(app_type_str.as_str(), priority, test_model, &supplier, &url_groups)
+                .benchmark_urls_detailed(
+                    app_type_str.as_str(),
+                    priority,
+                    test_model,
+                    &supplier,
+                    &url_groups,
+                )
                 .await;
 
             // 展示该 supplier 下各 URL 的结果
-            for (i, (url, latency)) in results.iter().enumerate() {
-                if *latency == u64::MAX {
-                    println!("  {}. {} - 失败", i + 1, url);
-                } else if *latency >= CONNECTIVITY_PENALTY_MS {
-                    // benchmark_urls 的回退结果 = connect_ms + penalty
-                    let connect_ms = latency.saturating_sub(CONNECTIVITY_PENALTY_MS);
-                    println!(
-                        "  {}. {} - FB {}ms (+{}ms)",
-                        i + 1,
-                        url,
+            for (i, r) in results.iter().enumerate() {
+                use cc_switch_lib::proxy::provider_router::UrlProbeKind;
+                match &r.kind {
+                    UrlProbeKind::FullOk { latency_ms } => {
+                        println!("  {}. {} - OK {}ms", i + 1, r.url, latency_ms);
+                    }
+                    UrlProbeKind::Overloaded { latency_ms, message } => {
+                        println!(
+                            "  {}. {} - OV {}ms ({})",
+                            i + 1,
+                            r.url,
+                            latency_ms,
+                            message
+                        );
+                    }
+                    UrlProbeKind::FallbackOk {
                         connect_ms,
-                        CONNECTIVITY_PENALTY_MS
-                    );
-                } else {
-                    println!("  {}. {} - OK {}ms", i + 1, url, latency);
+                        penalty_ms,
+                        ..
+                    } => {
+                        println!(
+                            "  {}. {} - FB {}ms (+{}ms)",
+                            i + 1,
+                            r.url,
+                            connect_ms,
+                            penalty_ms
+                        );
+                    }
+                    UrlProbeKind::Failed { reason } => {
+                        println!("  {}. {} - FAIL ({})", i + 1, r.url, reason);
+                    }
                 }
             }
 
-            // 记录该 supplier 的最优（第一个非 MAX）
-            if let Some((best_url, best_latency)) =
-                results.iter().find(|(_, latency)| *latency != u64::MAX)
+            // 选择“该 supplier 最终会选用的 URL”（匹配路由思路：优先 URL（若 OK）> OK 最快 > OV > FB）
+            use cc_switch_lib::proxy::provider_router::UrlProbeKind;
+            let mut preferred: Vec<String> = default_url_priority_for_supplier(&supplier)
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
+            if let Some(p) = url_groups.values().flat_map(|v| v.first()).next() {
+                preferred.extend(parse_url_priority_from_provider(p));
+            }
             {
-                supplier_best.push((
-                    priority,
-                    supplier.clone(),
-                    best_url.clone(),
-                    *best_latency,
-                ));
+                let mut seen = std::collections::HashMap::<String, ()>::new();
+                preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
+            }
+
+            let preferred_ok = preferred.iter().find_map(|u| {
+                results.iter().find(|r| {
+                    r.url == *u && matches!(r.kind, UrlProbeKind::FullOk { .. })
+                })
+            });
+
+            let pick = if let Some(r) = preferred_ok {
+                Some(r)
+            } else {
+                results.iter().find(|r| matches!(r.kind, UrlProbeKind::FullOk { .. }))
+                    .or_else(|| results.iter().find(|r| matches!(r.kind, UrlProbeKind::Overloaded { .. })))
+                    .or_else(|| results.iter().find(|r| matches!(r.kind, UrlProbeKind::FallbackOk { .. })))
+            };
+
+            if let Some(r) = pick {
+                let (kind, metric_ms) = match &r.kind {
+                    UrlProbeKind::FullOk { latency_ms } => ("OK", *latency_ms),
+                    UrlProbeKind::Overloaded { latency_ms, .. } => {
+                        ("OV", latency_ms.saturating_add(OVERLOADED_PENALTY_MS))
+                    }
+                    UrlProbeKind::FallbackOk {
+                        connect_ms,
+                        penalty_ms,
+                        ..
+                    } => ("FB", connect_ms.saturating_add(*penalty_ms)),
+                    UrlProbeKind::Failed { .. } => ("FAIL", u64::MAX),
+                };
+
+                supplier_best.push((priority, supplier.clone(), r.url.clone(), kind, metric_ms));
             }
         }
     }
@@ -697,30 +808,47 @@ async fn handle_test_latency(app_type: &str, id: Option<String>) -> Result<(), A
         return Ok(());
     }
 
-    supplier_best.sort_by_key(|(_, _, _, latency)| *latency);
+    supplier_best.sort_by_key(|(_, _, _, _, latency)| *latency);
 
     println!("\n=== 汇总（按最优URL延迟排序）===");
-    for (i, (priority, supplier, url, latency)) in supplier_best.iter().enumerate() {
-        if *latency >= CONNECTIVITY_PENALTY_MS {
-            let connect_ms = latency.saturating_sub(CONNECTIVITY_PENALTY_MS);
-            println!(
-                "{}. [层级 {}] {} -> {} - FB {}ms (+{}ms)",
-                i + 1,
-                priority,
-                supplier,
-                url,
-                connect_ms,
-                CONNECTIVITY_PENALTY_MS
-            );
-        } else {
-            println!(
+    for (i, (priority, supplier, url, kind, metric_ms)) in supplier_best.iter().enumerate() {
+        match *kind {
+            "OK" => println!(
                 "{}. [层级 {}] {} -> {} - OK {}ms",
                 i + 1,
                 priority,
                 supplier,
                 url,
-                latency
-            );
+                metric_ms
+            ),
+            "OV" => println!(
+                "{}. [层级 {}] {} -> {} - OV ~{}ms",
+                i + 1,
+                priority,
+                supplier,
+                url,
+                metric_ms
+            ),
+            "FB" => {
+                let connect_ms = metric_ms.saturating_sub(CONNECTIVITY_PENALTY_MS);
+                println!(
+                    "{}. [层级 {}] {} -> {} - FB {}ms (+{}ms)",
+                    i + 1,
+                    priority,
+                    supplier,
+                    url,
+                    connect_ms,
+                    CONNECTIVITY_PENALTY_MS
+                );
+            }
+            _ => println!(
+                "{}. [层级 {}] {} -> {} - {}",
+                i + 1,
+                priority,
+                supplier,
+                url,
+                kind
+            ),
         }
     }
 

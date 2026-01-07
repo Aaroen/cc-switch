@@ -61,12 +61,37 @@ pub async fn handle_messages(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
-    let mut ctx = RequestContext::new(&state, &body, AppType::Claude, "Claude", "claude").await?;
+    let request_id = headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+
+    let model = body
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("unknown");
 
     let is_stream = body
         .get("stream")
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
+
+    log::info!(
+        "[Claude] IN request_id={} model={} stream={} ua={}",
+        request_id,
+        model,
+        is_stream,
+        user_agent
+    );
+
+    let mut ctx = RequestContext::new(&state, &body, AppType::Claude, "Claude", "claude").await?;
 
     // 转发请求
     let forwarder = ctx.create_forwarder(&state);
@@ -92,6 +117,13 @@ pub async fn handle_messages(
 
     ctx.provider = result.provider;
     let response = result.response;
+
+    log::info!(
+        "[Claude] OUT request_id={} provider={} status={}",
+        request_id,
+        ctx.provider.name,
+        response.status().as_u16()
+    );
 
     // 检查是否需要格式转换（OpenRouter 等中转服务）
     let adapter = get_adapter(&AppType::Claude);
@@ -333,14 +365,37 @@ pub async fn handle_chat_completions(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
-    log::debug!("[Codex] ====== /v1/chat/completions 请求开始 ======");
+    let request_id = headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+
+    let model = body
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("unknown");
 
     let is_stream = body
         .get("stream")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+
+    log::info!(
+        "[Codex] IN request_id={} model={} stream={} ua={}",
+        request_id,
+        model,
+        is_stream,
+        user_agent
+    );
+
+    let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
     log::debug!(
         "[Codex] 请求模型: {}, 流式: {}",
@@ -373,6 +428,12 @@ pub async fn handle_chat_completions(
     let response = result.response;
 
     log::debug!("[Codex] 上游响应状态: {}", response.status());
+    log::info!(
+        "[Codex] OUT request_id={} provider={} status={}",
+        request_id,
+        ctx.provider.name,
+        response.status().as_u16()
+    );
 
     process_response(response, &ctx, &state, &OPENAI_PARSER_CONFIG).await
 }
@@ -383,12 +444,37 @@ pub async fn handle_responses(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
-    let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
+    let request_id = headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+
+    let model = body
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("unknown");
 
     let is_stream = body
         .get("stream")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+
+    log::info!(
+        "[Codex] IN request_id={} model={} stream={} ua={}",
+        request_id,
+        model,
+        is_stream,
+        user_agent
+    );
+
+    let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
     let forwarder = ctx.create_forwarder(&state);
     let result = match forwarder
@@ -415,6 +501,12 @@ pub async fn handle_responses(
     let response = result.response;
 
     log::debug!("[Codex] 上游响应状态: {}", response.status());
+    log::info!(
+        "[Codex] OUT request_id={} provider={} status={}",
+        request_id,
+        ctx.provider.name,
+        response.status().as_u16()
+    );
 
     process_response(response, &ctx, &state, &CODEX_PARSER_CONFIG).await
 }
@@ -430,6 +522,31 @@ pub async fn handle_gemini(
     headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
+    let request_id = headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+
+    let is_stream = body
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    log::info!(
+        "[Gemini] IN request_id={} stream={} ua={} uri={}",
+        request_id,
+        is_stream,
+        user_agent,
+        uri
+    );
+
     // Gemini 的模型名称在 URI 中
     let mut ctx = RequestContext::new(&state, &body, AppType::Gemini, "Gemini", "gemini")
         .await?
@@ -442,11 +559,6 @@ pub async fn handle_gemini(
         .unwrap_or(uri.path());
 
     log::debug!("[Gemini] 请求端点: {endpoint}");
-
-    let is_stream = body
-        .get("stream")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
 
     let forwarder = ctx.create_forwarder(&state);
     let result = match forwarder
@@ -473,6 +585,12 @@ pub async fn handle_gemini(
     let response = result.response;
 
     log::debug!("[Gemini] 上游响应状态: {}", response.status());
+    log::info!(
+        "[Gemini] OUT request_id={} provider={} status={}",
+        request_id,
+        ctx.provider.name,
+        response.status().as_u16()
+    );
 
     process_response(response, &ctx, &state, &GEMINI_PARSER_CONFIG).await
 }

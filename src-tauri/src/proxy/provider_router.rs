@@ -21,6 +21,37 @@ struct UrlLatency {
     tested_at: std::time::Instant,
 }
 
+#[derive(Debug, Clone)]
+pub struct UrlProbeDetail {
+    pub url: String,
+    pub kind: UrlProbeKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum UrlProbeKind {
+    FullOk { latency_ms: u64 },
+    Overloaded { latency_ms: u64, message: String },
+    FallbackOk {
+        connect_ms: u64,
+        penalty_ms: u64,
+        reason: String,
+    },
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone)]
+struct UrlProbeError {
+    latency_ms: u64,
+    kind: UrlProbeErrorKind,
+}
+
+#[derive(Debug, Clone)]
+enum UrlProbeErrorKind {
+    Overloaded { message: String },
+    Http { status: u16, body: Option<String> },
+    Network { message: String },
+}
+
 /// 供应商路由器
 pub struct ProviderRouter {
     /// 数据库连接
@@ -228,6 +259,38 @@ impl ProviderRouter {
         }
         out
     }
+
+    fn is_overloaded_error_text(text: &str) -> bool {
+        // 常见“可达但不可用”的提示（满载/限流/暂不可用）
+        text.contains("负载已经达到上限")
+            || text.contains("满载")
+            || text.contains("rate limit")
+            || text.contains("Rate limit")
+            || text.contains("Too Many Requests")
+            || text.contains("temporarily unavailable")
+    }
+
+    fn extract_error_message_from_body(body: &str) -> Option<String> {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
+            return None;
+        };
+
+        // 兼容多种错误结构
+        if let Some(msg) = v
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+        {
+            return Some(msg.to_string());
+        }
+
+        if let Some(msg) = v.get("message").and_then(|m| m.as_str()) {
+            return Some(msg.to_string());
+        }
+
+        None
+    }
+
 
     fn supplier_name(provider: &Provider) -> String {
         provider
@@ -967,12 +1030,17 @@ impl ProviderRouter {
     /// 发送简单问答请求，测量完整延迟
     /// - Claude: Rust -> Python -> 目标URL -> Python -> Rust
     /// - Codex: Rust -> 目标URL -> Rust
-    pub async fn test_url_latency(
+    async fn test_url_latency(
         &self,
         provider: &Provider,
         app_type: &str,
         request_model: &str,
-    ) -> Result<u64, String> {
+    ) -> Result<u64, UrlProbeError> {
+        let config_err = |message: String| UrlProbeError {
+            latency_ms: 0,
+            kind: UrlProbeErrorKind::Network { message },
+        };
+
         // 根据app_type提取base_url
         let base_url = match app_type {
             "claude" => provider
@@ -980,22 +1048,24 @@ impl ProviderRouter {
                 .get("env")
                 .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| "Provider缺少ANTHROPIC_BASE_URL配置".to_string())?,
+                .ok_or_else(|| config_err("Provider缺少ANTHROPIC_BASE_URL配置".to_string()))?,
             "gemini" => provider
                 .settings_config
                 .get("env")
                 .and_then(|env| env.get("GOOGLE_GEMINI_BASE_URL"))
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| "Provider缺少GOOGLE_GEMINI_BASE_URL配置".to_string())?,
+                .ok_or_else(|| config_err("Provider缺少GOOGLE_GEMINI_BASE_URL配置".to_string()))?,
             "codex" => {
                 // Codex的base_url直接在settingsConfig根级别
                 provider
                     .settings_config
                     .get("base_url")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| "Provider缺少base_url配置".to_string())?
+                    .ok_or_else(|| config_err("Provider缺少base_url配置".to_string()))?
             }
-            _ => return Err(format!("不支持的app_type: {}", app_type)),
+            _ => {
+                return Err(config_err(format!("不支持的app_type: {}", app_type)));
+            }
         };
 
         // 根据app_type提取API key
@@ -1008,26 +1078,33 @@ impl ProviderRouter {
                         .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
                 })
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| "Provider缺少API key配置".to_string())?,
+                .ok_or_else(|| config_err("Provider缺少API key配置".to_string()))?,
             "gemini" => provider
                 .settings_config
                 .get("env")
                 .and_then(|env| env.get("GOOGLE_API_KEY"))
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| "Provider缺少GOOGLE_API_KEY配置".to_string())?,
+                .ok_or_else(|| config_err("Provider缺少GOOGLE_API_KEY配置".to_string()))?,
             "codex" => provider
                 .settings_config
                 .get("env")
                 .and_then(|env| env.get("OPENAI_API_KEY"))
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| "Provider缺少OPENAI_API_KEY配置".to_string())?,
-            _ => return Err(format!("不支持的app_type: {}", app_type)),
+                .ok_or_else(|| config_err("Provider缺少OPENAI_API_KEY配置".to_string()))?,
+            _ => {
+                return Err(config_err(format!("不支持的app_type: {}", app_type)));
+            }
         };
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
-            .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+            .map_err(|e| UrlProbeError {
+                latency_ms: 0,
+                kind: UrlProbeErrorKind::Network {
+                    message: format!("创建HTTP客户端失败: {e}"),
+                },
+            })?;
 
         let start = std::time::Instant::now();
 
@@ -1053,7 +1130,12 @@ impl ProviderRouter {
                 .json(&test_payload)
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?
+                .map_err(|e| UrlProbeError {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    kind: UrlProbeErrorKind::Network {
+                        message: format!("请求失败: {e}"),
+                    },
+                })?
         } else if app_type == "claude" {
             // Claude: 通过Python代理测试，使用Claude格式
             // 关键：测试请求必须尽量贴近真实 CLI 环境，否则会出现“测速不可用但真实可用”的误判。
@@ -1078,20 +1160,31 @@ impl ProviderRouter {
                 .header("x-stainless-arch", std::env::consts::ARCH)
                 .header("x-stainless-lang", "rust")
                 .header("x-stainless-runtime", "cc-switch")
+                .header("x-stainless-runtime-version", env!("CARGO_PKG_VERSION"))
                 .header("x-stainless-package-version", env!("CARGO_PKG_VERSION"))
                 .header("X-API-Key", api_key)
                 .header("x-target-base-url", base_url)
                 .json(&test_payload)
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?
+                .map_err(|e| UrlProbeError {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    kind: UrlProbeErrorKind::Network {
+                        message: format!("请求失败: {e}"),
+                    },
+                })?
         } else {
             // Gemini（或其他）：暂无稳定的“全链路问答”探测格式，这里仅进行基础连通性探测。
             client
                 .get(base_url)
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?
+                .map_err(|e| UrlProbeError {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    kind: UrlProbeErrorKind::Network {
+                        message: format!("请求失败: {e}"),
+                    },
+                })?
         };
 
         let status = response.status();
@@ -1105,7 +1198,27 @@ impl ProviderRouter {
         } else {
             // 非200状态码，记录详细错误
             log::debug!("探测失败 {} - {} - 详情: {}", status.as_u16(), provider.name, status);
-            Err(format!("HTTP错误: {}", status))
+            let status_code = status.as_u16();
+            let body_text = response.text().await.ok();
+            let msg = body_text
+                .as_deref()
+                .and_then(Self::extract_error_message_from_body)
+                .unwrap_or_default();
+
+            if !msg.is_empty() && Self::is_overloaded_error_text(&msg) {
+                Err(UrlProbeError {
+                    latency_ms: latency,
+                    kind: UrlProbeErrorKind::Overloaded { message: msg },
+                })
+            } else {
+                Err(UrlProbeError {
+                    latency_ms: latency,
+                    kind: UrlProbeErrorKind::Http {
+                        status: status_code,
+                        body: body_text.map(|t| Self::shorten_for_log(&t, 200)),
+                    },
+                })
+            }
         }
     }
 
@@ -1140,26 +1253,58 @@ impl ProviderRouter {
         supplier: &str,
         url_groups: &HashMap<String, Vec<Provider>>,
     ) -> Vec<(String, u64)> {
-        #[derive(Debug)]
-        enum ProbeSummary {
-            FullChainOk { latency_ms: u64 },
-            FallbackOk {
-                connect_ms: u64,
-                total_ms: u64,
-                reason: String,
-            },
-            Failed { reason: String },
+        let details = self
+            .benchmark_urls_detailed(app_type, priority, request_model, supplier, url_groups)
+            .await;
+
+        let mut results: Vec<(String, u64)> = Vec::with_capacity(details.len());
+        for d in details.iter() {
+            let latency = match &d.kind {
+                UrlProbeKind::FullOk { latency_ms } => *latency_ms,
+                UrlProbeKind::Overloaded { latency_ms, .. } => {
+                    latency_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS)
+                }
+                UrlProbeKind::FallbackOk {
+                    connect_ms,
+                    penalty_ms,
+                    ..
+                } => connect_ms.saturating_add(*penalty_ms),
+                UrlProbeKind::Failed { .. } => u64::MAX,
+            };
+            results.push((d.url.clone(), latency));
         }
 
-        let mut results = Vec::new();
-        let mut summaries: Vec<(String, ProbeSummary)> = Vec::new();
+        results
+    }
+
+    /// 详细测速：与真实启动探测同构，但保留“满载/限流”等可达状态，
+    /// 用于 CLI `csc t` 输出与诊断。
+    pub async fn benchmark_urls_detailed(
+        &self,
+        app_type: &str,
+        priority: usize,
+        request_model: &str,
+        supplier: &str,
+        url_groups: &HashMap<String, Vec<Provider>>,
+    ) -> Vec<UrlProbeDetail> {
+        log::debug!(
+            "[{}:{}] 开始URL延迟测试，共{}个URL (supplier={}, model={})",
+            app_type,
+            priority,
+            url_groups.len(),
+            supplier,
+            request_model
+        );
+
+        let mut details: Vec<UrlProbeDetail> = Vec::new();
+
         let mut full_ok_count: usize = 0;
+        let mut overloaded_count: usize = 0;
         let mut fallback_ok_count: usize = 0;
         let mut fail_count: usize = 0;
 
         for (url, providers) in url_groups {
-            // 尽量模拟真实环境：同一 URL 下可能有多个 key，真实使用会在同一 URL 上轮询 key。
-            // 因此测速不能“只测第一个 key 就判死”；这里按 key 去重并尝试少量 key，避免测速过重。
+            // 同一 URL 下按 key 去重并尝试少量 key，避免“只测第一个 key 就判死”
             const MAX_KEYS_PER_URL: usize = 2;
 
             let mut unique_by_key: HashMap<String, Provider> = HashMap::new();
@@ -1173,8 +1318,9 @@ impl ProviderRouter {
             let mut tested_providers: Vec<Provider> = unique_by_key.into_values().collect();
             tested_providers.truncate(MAX_KEYS_PER_URL);
 
-            let mut full_chain_ok: Option<u64> = None;
-            let mut full_chain_errs: Vec<String> = Vec::new();
+            let mut full_ok: Option<u64> = None;
+            let mut overloaded: Option<(u64, String)> = None;
+            let mut err_summaries: Vec<String> = Vec::new();
 
             for provider in tested_providers.iter() {
                 log::debug!(
@@ -1187,23 +1333,35 @@ impl ProviderRouter {
 
                 match self.test_url_latency(provider, app_type, request_model).await {
                     Ok(latency) => {
-                        full_chain_ok = Some(latency);
+                        full_ok = Some(latency);
                         break;
                     }
-                    Err(e) => full_chain_errs.push(e),
+                    Err(e) => match e.kind {
+                        UrlProbeErrorKind::Overloaded { message } => {
+                            overloaded = Some((e.latency_ms, message));
+                            // Overloaded 可能与 key 相关，继续尝试下一个 key
+                            continue;
+                        }
+                        UrlProbeErrorKind::Http { status, body } => {
+                            let b = body.unwrap_or_default();
+                            let reason = if b.is_empty() {
+                                format!("HTTP {status}")
+                            } else {
+                                format!("HTTP {status}: {b}")
+                            };
+                            err_summaries.push(Self::shorten_for_log(&reason, 120));
+                        }
+                        UrlProbeErrorKind::Network { message } => {
+                            err_summaries.push(Self::shorten_for_log(&message, 120));
+                        }
+                    },
                 }
             }
 
-            if let Some(latency) = full_chain_ok {
-                results.push((url.clone(), latency));
+            if let Some(latency) = full_ok {
                 full_ok_count += 1;
-                summaries.push(
-                    (
-                        url.clone(),
-                        ProbeSummary::FullChainOk { latency_ms: latency },
-                    )
-                );
 
+                // 缓存全链路延迟（用于后续选择最快 URL）
                 let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
                 let mut latencies = self.url_latencies.write().await;
                 latencies.insert(
@@ -1213,130 +1371,147 @@ impl ProviderRouter {
                         tested_at: std::time::Instant::now(),
                     },
                 );
+
+                details.push(UrlProbeDetail {
+                    url: url.clone(),
+                    kind: UrlProbeKind::FullOk { latency_ms: latency },
+                });
+                continue;
+            }
+
+            if let Some((latency_ms, message)) = overloaded.clone() {
+                overloaded_count += 1;
+                details.push(UrlProbeDetail {
+                    url: url.clone(),
+                    kind: UrlProbeKind::Overloaded {
+                        latency_ms,
+                        message: Self::shorten_for_log(&message, 120),
+                    },
+                });
+                continue;
+            }
+
+            let err_short = if err_summaries.is_empty() {
+                "未知错误".to_string()
             } else {
-                let err_summary = if full_chain_errs.is_empty() {
-                    "未知错误".to_string()
-                } else {
-                    full_chain_errs.join("; ")
-                };
-                let err_short = Self::shorten_for_log(&err_summary, 80);
+                err_summaries.join("; ")
+            };
 
-                // 回退到简单连通性测试，避免“全链路测试形态不一致”导致把可用URL判死
-                match self.connectivity_latency(url).await {
-                    Ok(connect_latency) => {
-                        let latency =
-                            connect_latency.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
-                        fallback_ok_count += 1;
-                        summaries.push(
-                            (
-                                url.clone(),
-                                ProbeSummary::FallbackOk {
-                                    connect_ms: connect_latency,
-                                    total_ms: latency,
-                                    reason: err_short,
-                                },
-                            )
-                        );
-                        results.push((url.clone(), latency));
+            // 回退到简单连通性测试（仅作为“可达性”保底）
+            match self.connectivity_latency(url).await {
+                Ok(connect_ms) => {
+                    fallback_ok_count += 1;
 
-                        // 缓存回退结果（带 penalty 的延迟），避免每次请求都因“无有效测速结果”而重复测速刷屏
-                        let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
-                        let mut latencies = self.url_latencies.write().await;
-                        latencies.insert(
-                            cache_key,
-                            UrlLatency {
-                                latency_ms: latency,
-                                tested_at: std::time::Instant::now(),
-                            },
-                        );
-                    }
-                    Err(connect_err) => {
-                        fail_count += 1;
-                        summaries.push(
-                            (
-                                url.clone(),
-                                ProbeSummary::Failed {
-                                    reason: format!(
-                                        "全链路失败={}; 连通性失败={}",
-                                        err_short,
-                                        Self::shorten_for_log(&connect_err, 80)
-                                    ),
-                                },
-                            )
-                        );
-                        results.push((url.clone(), u64::MAX));
-                    }
+                    let penalty_ms = Self::CONNECTIVITY_PENALTY_MS;
+                    let total_ms = connect_ms.saturating_add(penalty_ms);
+
+                    // 缓存回退结果（避免重复测速刷屏）
+                    let cache_key = Self::url_latency_key(app_type, priority, supplier, url);
+                    let mut latencies = self.url_latencies.write().await;
+                    latencies.insert(
+                        cache_key,
+                        UrlLatency {
+                            latency_ms: total_ms,
+                            tested_at: std::time::Instant::now(),
+                        },
+                    );
+
+                    details.push(UrlProbeDetail {
+                        url: url.clone(),
+                        kind: UrlProbeKind::FallbackOk {
+                            connect_ms,
+                            penalty_ms,
+                            reason: err_short,
+                        },
+                    });
+                }
+                Err(connect_err) => {
+                    fail_count += 1;
+                    details.push(UrlProbeDetail {
+                        url: url.clone(),
+                        kind: UrlProbeKind::Failed {
+                            reason: format!(
+                                "全链路失败={}; 连通性失败={}",
+                                err_short,
+                                Self::shorten_for_log(&connect_err, 120)
+                            ),
+                        },
+                    });
                 }
             }
         }
 
-        // 按延迟排序
-        results.sort_by_key(|(_, latency)| *latency);
+        // 排序：OK 最优，其次 OVERLOADED，再次 FB，最后 FAIL
+        details.sort_by_key(|d| match &d.kind {
+            UrlProbeKind::FullOk { latency_ms } => (0u8, *latency_ms),
+            UrlProbeKind::Overloaded { latency_ms, .. } => (1u8, latency_ms.saturating_add(30_000)),
+            UrlProbeKind::FallbackOk { connect_ms, penalty_ms, .. } => (2u8, connect_ms.saturating_add(*penalty_ms)),
+            UrlProbeKind::Failed { .. } => (3u8, u64::MAX),
+        });
 
-        // 计算“最终选择”：排除 MAX 与 suspect 后的最低延迟 URL（与 select_providers 的过滤规则保持一致）
-        let mut selected_url: Option<String> = None;
-        let mut selected_latency: Option<u64> = None;
-        for (u, l) in results.iter() {
-            if *l == u64::MAX {
-                continue;
-            }
-            if self.is_url_suspect(app_type, supplier, u).await {
-                continue;
-            }
-            selected_url = Some(u.clone());
-            selected_latency = Some(*l);
-            break;
-        }
-
-        // 组装简洁摘要（INFO）：只在测速结束时输出，不输出过程性冗余内容
-        summaries.sort_by(|a, b| a.0.cmp(&b.0));
-        let detail = summaries
-            .iter()
-            .map(|(u, s)| match s {
-                ProbeSummary::FullChainOk { latency_ms } => format!("{u}=OK({latency_ms}ms)"),
-                ProbeSummary::FallbackOk {
+        // INFO 摘要：仅输出结论，避免刷屏
+        let selected = details.iter().find(|d| !matches!(d.kind, UrlProbeKind::Failed { .. }));
+        let selected_text = selected
+            .map(|d| match &d.kind {
+                UrlProbeKind::FullOk { latency_ms } => format!("{} (OK {}ms)", d.url, latency_ms),
+                UrlProbeKind::Overloaded { latency_ms, .. } => {
+                    format!("{} (OV {}ms)", d.url, latency_ms)
+                }
+                UrlProbeKind::FallbackOk {
                     connect_ms,
-                    total_ms,
-                    reason,
-                } => format!("{u}=FB({connect_ms}ms→{total_ms}ms, {reason})"),
-                ProbeSummary::Failed { reason } => format!("{u}=FAIL({reason})"),
+                    penalty_ms,
+                    ..
+                } => format!(
+                    "{} (FB {}ms +{}ms)",
+                    d.url, connect_ms, penalty_ms
+                ),
+                UrlProbeKind::Failed { .. } => "N/A".to_string(),
             })
-            .collect::<Vec<String>>()
+            .unwrap_or_else(|| "N/A".to_string());
+
+        let detail_text = details
+            .iter()
+            .map(|d| match &d.kind {
+                UrlProbeKind::FullOk { latency_ms } => format!("{}=OK({}ms)", d.url, latency_ms),
+                UrlProbeKind::Overloaded { latency_ms, message } => {
+                    format!("{}=OV({}ms, {})", d.url, latency_ms, message)
+                }
+                UrlProbeKind::FallbackOk { connect_ms, penalty_ms, .. } => {
+                    format!("{}=FB({}ms+{}ms)", d.url, connect_ms, penalty_ms)
+                }
+                UrlProbeKind::Failed { .. } => format!("{}=FAIL", d.url),
+            })
+            .collect::<Vec<_>>()
             .join("; ");
 
-        let selected_text = match (&selected_url, selected_latency) {
-            (Some(u), Some(l)) => format!("{u} ({l}ms)"),
-            _ => "N/A".to_string(),
-        };
-
-        // 若全失败，用 WARN 提醒；否则用 INFO 给出清晰结论。
-        if full_ok_count == 0 && fallback_ok_count == 0 {
+        if full_ok_count == 0 && overloaded_count == 0 && fallback_ok_count == 0 {
             log::warn!(
-                "[{}:{}] 测速结束 supplier={} model={} 结果: 全失败(full_ok=0 fallback_ok=0 fail={}) 选用={} 详情: {}",
+                "[{}:{}] 测速结束 supplier={} model={} 结果: 全失败(ok=0 ov=0 fb=0 fail={}) 选用={} 详情: {}",
                 app_type,
                 priority,
                 supplier,
                 request_model,
                 fail_count,
                 selected_text,
-                detail
+                detail_text
             );
         } else {
             log::info!(
-                "[{}:{}] 测速结束 supplier={} model={} 结果: full_ok={} fallback_ok={} fail={} 选用={} 详情: {}",
+                "[{}:{}] 测速结束 supplier={} model={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
                 app_type,
                 priority,
                 supplier,
                 request_model,
                 full_ok_count,
+                overloaded_count,
                 fallback_ok_count,
                 fail_count,
                 selected_text,
-                detail
+                detail_text
             );
         }
 
-        results
+        details
     }
 }
 
