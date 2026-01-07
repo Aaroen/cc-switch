@@ -6,9 +6,12 @@
 
 import asyncio
 import time
+import logging
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Optional, Tuple
+
+logger = logging.getLogger('claude_proxy')
 
 # ===== 统计数据收集器 =====
 # 全局统计数据（线程安全）
@@ -217,7 +220,7 @@ async def periodic_stats_update():
         try:
             await update_time_window_stats()
         except Exception as e:
-            print(f"[Stats] Failed to update time window stats: {e}")
+            logger.warning("[Stats] Failed to update time window stats: %s", e)
 
         # 每分钟更新一次
         await asyncio.sleep(60)
@@ -319,7 +322,11 @@ async def cleanup_stale_requests():
                     response_time=req["response_time"],
                     status_code=504
                 )
-                print(f"[Stats] Request {req['request_id']} timed out after {req['response_time']:.0f}s")
+                logger.warning(
+                    "[Stats] Request %s timed out after %.0fs",
+                    req["request_id"],
+                    req["response_time"],
+                )
 
         except Exception as e:
-            print(f"[Stats] Failed to cleanup stale requests: {e}")
+            logger.warning("[Stats] Failed to cleanup stale requests: %s", e)

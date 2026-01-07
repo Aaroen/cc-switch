@@ -9,6 +9,7 @@ import json
 import os
 import time
 import mimetypes
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -36,6 +37,8 @@ from ..services.stats import (
     calculate_percentiles,
     get_time_filtered_data
 )
+
+logger = logging.getLogger('claude_proxy')
 
 def _normalize_status_code(entry: dict) -> dict:
     """确保 status_code 为数字，避免前端出现 "--" 与错误颜色不一致"""
@@ -172,9 +175,9 @@ async def update_config(config_data: ConfigUpdateRequest, authenticated: bool = 
                     os.makedirs("env", exist_ok=True)
                     with open(headers_file, 'w', encoding='utf-8') as f:
                         json.dump(config_data.custom_headers, f, ensure_ascii=False, indent=2)
-                    print(f"[Config] Saved custom headers to {headers_file}")
+                    logger.info("[Config] Saved custom headers to %s", headers_file)
                 except Exception as e:
-                    print(f"[Config] Failed to save custom headers: {e}")
+                    logger.warning("[Config] Failed to save custom headers: %s", e)
                     raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")
             else:
                 raise HTTPException(status_code=400, detail="custom_headers 必须是字典类型")

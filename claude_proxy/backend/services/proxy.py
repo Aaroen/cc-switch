@@ -5,6 +5,8 @@
 """
 
 import json
+import logging
+import os
 from typing import Iterable
 from urllib.parse import urlparse
 
@@ -15,8 +17,17 @@ from ..config import (
     SYSTEM_PROMPT_BLOCK_INSERT_IF_NOT_EXIST,
     CLAUDE_CODE_KEYWORD,
     CUSTOM_HEADERS,
-    TARGET_BASE_URL
+    TARGET_BASE_URL,
+    DEBUG_MODE,
 )
+
+logger = logging.getLogger('claude_proxy')
+
+def _env_flag(name: str, default: str = 'false') -> bool:
+    return os.getenv(name, default).lower() in ('true', '1', 'yes', 'y', 'on')
+
+# 仅在需要时输出 System Replacement 细节，避免污染 claude_proxy.log
+LOG_SYSTEM_REPLACEMENT = _env_flag('CLAUDE_PROXY_LOG_SYSTEM_REPLACEMENT', 'false') or DEBUG_MODE
 
 
 def filter_request_headers(headers: Iterable[tuple]) -> dict:
@@ -85,7 +96,8 @@ def process_request_body(body: bytes) -> bytes:
     """
     # 如果未配置替换文本，直接返回原始 body
     if SYSTEM_PROMPT_REPLACEMENT is None:
-        print("[System Replacement] Not configured, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] Not configured, keeping original body")
         # try:
         #     print(f"[System Replacement None] Original system[0].text: {json.loads(body.decode('utf-8'))['system'][0]['text']}")
         # except (json.JSONDecodeError, UnicodeDecodeError, KeyError, IndexError, TypeError) as e:
@@ -95,22 +107,30 @@ def process_request_body(body: bytes) -> bytes:
     # 尝试解析 JSON
     try:
         data = json.loads(body.decode('utf-8'))
-        print("[System Replacement] Successfully parsed JSON body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] Successfully parsed JSON body")
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        print(f"[System Replacement] Failed to parse JSON: {e}, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] Failed to parse JSON: %s, keeping original body", e)
         return body
 
     # 检查 system 字段是否存在且为列表
     if "system" not in data:
-        print("[System Replacement] No 'system' field found, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] No 'system' field found, keeping original body")
         return body
 
     if not isinstance(data["system"], list):
-        print(f"[System Replacement] 'system' field is not a list (type: {type(data['system'])}), keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug(
+                "[System Replacement] 'system' field is not a list (type: %s), keeping original body",
+                type(data["system"]),
+            )
         return body
 
     if len(data["system"]) == 0:
-        print("[System Replacement] 'system' array is empty, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] 'system' array is empty, keeping original body")
         return body
 
     # 获取第一个元素
@@ -118,12 +138,15 @@ def process_request_body(body: bytes) -> bytes:
 
     # 检查第一个元素是否有 'text' 字段
     if not isinstance(first_element, dict) or "text" not in first_element:
-        print(f"[System Replacement] First element doesn't have 'text' field, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] First element doesn't have 'text' field, keeping original body")
         return body
 
     # 记录原始内容
     original_text = first_element["text"]
-    print(f"[System Replacement] Original system[0].text: {original_text[:100]}..." if len(original_text) > 100 else f"[System Replacement] Original system[0].text: {original_text}")
+    if LOG_SYSTEM_REPLACEMENT:
+        preview = original_text[:100] + ("..." if len(original_text) > 100 else "")
+        logger.debug("[System Replacement] Original system[0].text: %s", preview)
 
     # 判断是否启用插入模式
     if SYSTEM_PROMPT_BLOCK_INSERT_IF_NOT_EXIST:
@@ -131,7 +154,9 @@ def process_request_body(body: bytes) -> bytes:
         if CLAUDE_CODE_KEYWORD.lower() in original_text.lower():
             # 包含关键字：执行替换
             first_element["text"] = SYSTEM_PROMPT_REPLACEMENT
-            print(f"[System Replacement] Found '{CLAUDE_CODE_KEYWORD}', replacing with: {SYSTEM_PROMPT_REPLACEMENT[:100]}..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else f"[System Replacement] Found '{CLAUDE_CODE_KEYWORD}', replacing with: {SYSTEM_PROMPT_REPLACEMENT}")
+            if LOG_SYSTEM_REPLACEMENT:
+                preview = SYSTEM_PROMPT_REPLACEMENT[:100] + ("..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else "")
+                logger.debug("[System Replacement] Found '%s', replacing with: %s", CLAUDE_CODE_KEYWORD, preview)
         else:
             # 不包含关键字：执行插入
             new_element = {
@@ -142,23 +167,37 @@ def process_request_body(body: bytes) -> bytes:
                 }
             }
             data["system"].insert(0, new_element)
-            print(f"[System Replacement] '{CLAUDE_CODE_KEYWORD}' not found, inserting at position 0: {SYSTEM_PROMPT_REPLACEMENT[:100]}..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else f"[System Replacement] '{CLAUDE_CODE_KEYWORD}' not found, inserting at position 0: {SYSTEM_PROMPT_REPLACEMENT}")
-            print(f"[System Replacement] Array length changed: {len(data['system'])-1} -> {len(data['system'])}")
+            if LOG_SYSTEM_REPLACEMENT:
+                preview = SYSTEM_PROMPT_REPLACEMENT[:100] + ("..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else "")
+                logger.debug("[System Replacement] '%s' not found, inserting at position 0: %s", CLAUDE_CODE_KEYWORD, preview)
+                logger.debug("[System Replacement] Array length changed: %s -> %s", len(data["system"]) - 1, len(data["system"]))
     else:
         # 原始模式：直接替换
         first_element["text"] = SYSTEM_PROMPT_REPLACEMENT
-        print(f"[System Replacement] Replaced with: {SYSTEM_PROMPT_REPLACEMENT[:100]}..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else f"[System Replacement] Replaced with: {SYSTEM_PROMPT_REPLACEMENT}")
+        if LOG_SYSTEM_REPLACEMENT:
+            preview = SYSTEM_PROMPT_REPLACEMENT[:100] + ("..." if len(SYSTEM_PROMPT_REPLACEMENT) > 100 else "")
+            logger.debug("[System Replacement] Replaced with: %s", preview)
 
-    print(f"[System Replacement] original_text == SYSTEM_PROMPT_REPLACEMENT:{SYSTEM_PROMPT_REPLACEMENT == original_text}")
+    if LOG_SYSTEM_REPLACEMENT:
+        logger.debug(
+            "[System Replacement] original_text == SYSTEM_PROMPT_REPLACEMENT: %s",
+            SYSTEM_PROMPT_REPLACEMENT == original_text,
+        )
 
     # 转换回 JSON bytes
     try:
         # 这里必须加 separators 压缩空格，我也不知道为什么有空格不行。。。
         modified_body = json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        print(f"[System Replacement] Successfully modified body (original size: {len(body)} bytes, new size: {len(modified_body)} bytes)")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug(
+                "[System Replacement] Successfully modified body (original size: %s bytes, new size: %s bytes)",
+                len(body),
+                len(modified_body),
+            )
         return modified_body
     except Exception as e:
-        print(f"[System Replacement] Failed to serialize modified JSON: {e}, keeping original body")
+        if LOG_SYSTEM_REPLACEMENT:
+            logger.debug("[System Replacement] Failed to serialize modified JSON: %s, keeping original body", e)
         return body
 
 

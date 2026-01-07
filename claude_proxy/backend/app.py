@@ -13,6 +13,7 @@ import json
 import os
 import time
 import asyncio
+import logging
 
 # 导入配置
 from .config import (
@@ -49,11 +50,34 @@ from .routers.admin import router as admin_router
 # Shared HTTP client for connection pooling and proper lifecycle management
 http_client: httpx.AsyncClient = None  # type: ignore
 
+logger = logging.getLogger('claude_proxy')
+
+def _env_flag(name: str, default: str = 'false') -> bool:
+    return os.getenv(name, default).lower() in ('true', '1', 'yes', 'y', 'on')
+
+# 默认尽量安静：只在 WARNING/ERROR 时输出；需要时可通过环境变量打开
+LOG_REQUESTS = _env_flag('CLAUDE_PROXY_LOG_REQUESTS', 'false')
+LOG_BODIES = _env_flag('CLAUDE_PROXY_LOG_BODIES', 'false')
+LOG_DYNAMIC_TARGET = _env_flag('CLAUDE_PROXY_LOG_DYNAMIC_TARGET', 'false')
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Manage application lifespan events"""
     global http_client
+
+    # 初始化日志系统：默认 WARNING，DEBUG_MODE 时切到 DEBUG，也允许 LOG_LEVEL 覆盖
+    env_level = os.getenv('LOG_LEVEL')
+    if env_level:
+        level = getattr(logging, env_level.upper(), logging.INFO)
+    else:
+        level = logging.DEBUG if DEBUG_MODE else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format='[%(asctime)s %(levelname)s claude_proxy] %(message)s',
+        datefmt='%Y-%m-%dT%H:%M:%S',
+        force=True,
+    )
 
     # 启动定时统计更新任务
     stats_task = asyncio.create_task(periodic_stats_update())
@@ -62,21 +86,21 @@ async def lifespan(_: FastAPI):
     cleanup_task = asyncio.create_task(cleanup_stale_requests())
 
     # 输出应用配置信息（只在 worker 进程启动时输出一次）
-    print("=" * 60)
-    print("Application Configuration:")
-    print(f"  Base URL: {TARGET_BASE_URL}")
-    print(f"  Server Port: {PORT}")
-    print(f"  Custom Headers: {len(CUSTOM_HEADERS)} headers loaded")
+    logger.info('=' * 60)
+    logger.info('Application Configuration:')
+    logger.info('  Base URL: %s', TARGET_BASE_URL)
+    logger.info('  Server Port: %s', PORT)
+    logger.info('  Custom Headers: %s headers loaded', len(CUSTOM_HEADERS))
     if CUSTOM_HEADERS:
-        print(f"  Custom Headers Keys: {list(CUSTOM_HEADERS.keys())}")
-    print(f"  Debug Mode: {DEBUG_MODE}")
-    print(f"  Hot Reload: {DEBUG_MODE}")
-    print(f"  Dashboard Enabled: {ENABLE_DASHBOARD}")
+        logger.info('  Custom Headers Keys: %s', list(CUSTOM_HEADERS.keys()))
+    logger.info('  Debug Mode: %s', DEBUG_MODE)
+    logger.info('  Hot Reload: %s', DEBUG_MODE)
+    logger.info('  Dashboard Enabled: %s', ENABLE_DASHBOARD)
     if ENABLE_DASHBOARD:
-        print(f"  Dashboard API Key Configured: {'Yes' if DASHBOARD_API_KEY else 'No'}")
+        logger.info('  Dashboard API Key Configured: %s', 'Yes' if DASHBOARD_API_KEY else 'No')
         if DASHBOARD_API_KEY:
-            print(f"  Dashboard Access: http://localhost:{PORT}/admin")
-    print("=" * 60)
+            logger.info('  Dashboard Access: http://localhost:%s/admin', PORT)
+    logger.info('=' * 60)
 
     # 读取代理配置
     http_proxy = os.getenv("HTTP_PROXY")
@@ -90,14 +114,14 @@ async def lifespan(_: FastAPI):
         if "://" not in http_proxy:
             http_proxy = f"http://{http_proxy}"
         mounts["http://"] = httpx.AsyncHTTPTransport(proxy=http_proxy)
-        print(f"HTTP Proxy configured: {http_proxy}")
+        logger.info("HTTP Proxy configured: %s", http_proxy)
 
     if https_proxy:
         # 注意：HTTPS 代理通常也使用 http:// 协议（这不是错误！）
         if "://" not in https_proxy:
             https_proxy = f"http://{https_proxy}"
         mounts["https://"] = httpx.AsyncHTTPTransport(proxy=https_proxy)
-        print(f"HTTPS Proxy configured: {https_proxy}")
+        logger.info("HTTPS Proxy configured: %s", https_proxy)
 
     try:
         # 使用新的 mounts 参数初始化客户端
@@ -107,18 +131,18 @@ async def lifespan(_: FastAPI):
                 timeout=60.0,
                 mounts=mounts
             )
-            print(f"HTTP client initialized with proxy mounts: {list(mounts.keys())}")
+            logger.info("HTTP client initialized with proxy mounts: %s", list(mounts.keys()))
         else:
             http_client = httpx.AsyncClient(
                 follow_redirects=False,
                 timeout=60.0
             )
-            print("HTTP client initialized without proxy")
+            logger.info("HTTP client initialized without proxy")
     except Exception as e:
-        print(f"Failed to initialize HTTP client: {e}")
+        logger.exception("Failed to initialize HTTP client: %s", e)
         raise
 
-    print("=" * 60)
+    logger.info("=" * 60)
 
     yield
 
@@ -196,7 +220,8 @@ async def proxy(path: str, request: Request):
     if dynamic_target:
         # cc-switch 模式：使用动态目标
         base_url = dynamic_target.rstrip('/')
-        print(f"[Proxy] 使用动态目标: {base_url}")
+        if LOG_DYNAMIC_TARGET:
+            logger.info("[Proxy] 使用动态目标: %s", base_url)
     else:
         # 独立模式：使用配置的目标
         base_url = TARGET_BASE_URL
@@ -207,20 +232,19 @@ async def proxy(path: str, request: Request):
     if query:
         target_url += f"?{query}"
 
-    # 仅测试环境打印详细日志
-    if DEBUG_MODE:
+    if LOG_REQUESTS:
+        logger.info("[Proxy] Request: %s %s -> %s (body=%s bytes)", request.method, path, base_url, len(body))
+    if LOG_BODIES and (DEBUG_MODE or LOG_REQUESTS):
         try:
             data = json.loads(body.decode('utf-8'))
-            print(f"[Proxy] Original body ({len(body)} bytes): {json.dumps(data, indent=4)}")
+            logger.debug("[Proxy] Original body (%s bytes): %s", len(body), json.dumps(data, ensure_ascii=False)[:4000])
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            print(f"[Proxy] Failed to parse JSON: {e}")
-    else:
-        print(f"[Proxy] Request: {request.method} {path}")
-        print(f"[Proxy] Original body ({len(body)} bytes): {body[:200]}..." if len(body) > 200 else f"[Proxy] Original body: {body}")
+            logger.debug("[Proxy] Failed to parse JSON: %s", e)
 
     # 处理请求体（替换 system prompt）
     # 仅在路由为 /v1/messages 时执行处理
-    print(f"[Proxy] Processing request for path: {path}")
+    if LOG_REQUESTS:
+        logger.debug("[Proxy] Processing request for path: %s", path)
     if path == "v1/messages" or path == "v1/messages/":
         body = process_request_body(body)
 
@@ -268,8 +292,7 @@ async def proxy(path: str, request: Request):
                     yield chunk
             except Exception as e:
                 # 优雅处理客户端断开连接
-                if DEBUG_MODE:
-                    print(f"[Stream Error] {e}")
+                logger.debug("[Stream Error] %s", e)
                 # 静默处理,避免日志污染
             finally:
                 # 确保资源被释放 (作为备份,主要由 BackgroundTask 处理)
@@ -291,11 +314,19 @@ async def proxy(path: str, request: Request):
                 else:
                     # 使用缓存的响应内容
                     response_content = ensure_unicode(error_response_content) if error_response_content else None
-                    if DEBUG_MODE:
-                        print(f"[Proxy] Response: {response_content}")
-                    else:
-                        err_content_len = len(error_response_content)
-                        print(f"[Proxy] Response ({err_content_len} bytes): {response_content[:200]}..." if err_content_len > 200 else f"[Proxy] Response: {response_content}")
+                    err_content_len = len(error_response_content)
+                    short = None
+                    if response_content:
+                        short = response_content[:200] + ("..." if len(response_content) > 200 else "")
+                    logger.warning(
+                        "[Proxy] Upstream error: %s %s -> %s status=%s resp_bytes=%s resp=%s",
+                        request.method,
+                        path,
+                        base_url,
+                        resp.status_code,
+                        err_content_len,
+                        short,
+                    )
 
                     # 记录错误到统计服务
                     await record_request_error(
@@ -328,6 +359,7 @@ async def proxy(path: str, request: Request):
                 None,
                 502
             )
+        logger.error("[Proxy] Upstream request failed: %s %s -> %s: %s", request.method, path, base_url, e)
         return Response(content=f"Upstream request failed: {e}", status_code=502)
 
 

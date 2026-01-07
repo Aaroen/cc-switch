@@ -7,7 +7,10 @@
 from dotenv import load_dotenv
 import json
 import os
+import logging
 from pathlib import Path
+
+logger = logging.getLogger('claude_proxy')
 
 # 加载环境变量
 load_dotenv()
@@ -77,7 +80,7 @@ def load_custom_headers() -> dict:
 
     headers_path = next((p for p in candidates if p.exists()), None)
     if headers_path is None:
-        print(
+        logger.debug(
             "[Custom Headers] Config file not found in candidates, using default empty dict {}"
         )
         return {}
@@ -89,23 +92,38 @@ def load_custom_headers() -> dict:
 
         # 验证是否为字典类型
         if not isinstance(headers, dict):
-            print(f"[Custom Headers] Config file content is not a dict (type: {type(headers)}), using default empty dict {{}}")
+            logger.warning(
+                "[Custom Headers] Config file content is not a dict (type: %s), using default empty dict {}",
+                type(headers),
+            )
             return {}
 
         # 过滤掉以 __ 开头的注释字段
         filtered_headers = {k: v for k, v in headers.items() if not k.startswith("__")}
 
-        print(f"[Custom Headers] Successfully loaded {len(filtered_headers)} custom headers from '{headers_path}'")
+        logger.info(
+            "[Custom Headers] Successfully loaded %s custom headers from '%s'",
+            len(filtered_headers),
+            headers_path,
+        )
         if filtered_headers:
-            print(f"[Custom Headers] Loaded headers: {list(filtered_headers.keys())}")
+            logger.debug("[Custom Headers] Loaded headers: %s", list(filtered_headers.keys()))
 
         return filtered_headers
 
     except json.JSONDecodeError as e:
-        print(f"[Custom Headers] Failed to parse JSON from '{headers_path}': {e}, using default empty dict {{}}")
+        logger.warning(
+            "[Custom Headers] Failed to parse JSON from '%s': %s, using default empty dict {}",
+            headers_path,
+            e,
+        )
         return {}
     except Exception as e:
-        print(f"[Custom Headers] Failed to load '{headers_path}': {e}, using default empty dict {{}}")
+        logger.warning(
+            "[Custom Headers] Failed to load '%s': %s, using default empty dict {}",
+            headers_path,
+            e,
+        )
         return {}
 
 

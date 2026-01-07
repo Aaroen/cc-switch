@@ -80,10 +80,8 @@ TOTAL_STEPS=10
 LOG_DIR="$HOME/.cc-switch/logs"
 mkdir -p "$LOG_DIR"
 
-# 清理旧日志文件
-rm -f /tmp/cc-switch*.log 2>/dev/null || true
-rm -f "$LOG_DIR/rust_proxy.log" 2>/dev/null || true
-rm -f "$LOG_DIR/claude_proxy.log" 2>/dev/null || true
+# 保留旧日志文件（避免排障线索丢失）。
+# 如需清理，请手动处理对应文件。
 
 # 检测操作系统类型
 detect_os() {

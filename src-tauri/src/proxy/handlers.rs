@@ -83,13 +83,27 @@ pub async fn handle_messages(
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
 
-    log::info!(
-        "[Claude] IN request_id={} model={} stream={} ua={}",
-        request_id,
-        model,
-        is_stream,
-        user_agent
-    );
+    let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
+        .ok()
+        .as_deref()
+        == Some("1");
+    if trace_requests {
+        log::info!(
+            "[Claude] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    } else {
+        log::debug!(
+            "[Claude] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    }
 
     let mut ctx = RequestContext::new(&state, &body, AppType::Claude, "Claude", "claude").await?;
 
@@ -118,12 +132,21 @@ pub async fn handle_messages(
     ctx.provider = result.provider;
     let response = result.response;
 
-    log::info!(
-        "[Claude] OUT request_id={} provider={} status={}",
-        request_id,
-        ctx.provider.name,
-        response.status().as_u16()
-    );
+    if trace_requests {
+        log::info!(
+            "[Claude] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    } else {
+        log::debug!(
+            "[Claude] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    }
 
     // 检查是否需要格式转换（OpenRouter 等中转服务）
     let adapter = get_adapter(&AppType::Claude);
@@ -387,13 +410,27 @@ pub async fn handle_chat_completions(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    log::info!(
-        "[Codex] IN request_id={} model={} stream={} ua={}",
-        request_id,
-        model,
-        is_stream,
-        user_agent
-    );
+    let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
+        .ok()
+        .as_deref()
+        == Some("1");
+    if trace_requests {
+        log::info!(
+            "[Codex] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    } else {
+        log::debug!(
+            "[Codex] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    }
 
     let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
@@ -428,12 +465,21 @@ pub async fn handle_chat_completions(
     let response = result.response;
 
     log::debug!("[Codex] 上游响应状态: {}", response.status());
-    log::info!(
-        "[Codex] OUT request_id={} provider={} status={}",
-        request_id,
-        ctx.provider.name,
-        response.status().as_u16()
-    );
+    if trace_requests {
+        log::info!(
+            "[Codex] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    } else {
+        log::debug!(
+            "[Codex] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    }
 
     process_response(response, &ctx, &state, &OPENAI_PARSER_CONFIG).await
 }
@@ -466,13 +512,27 @@ pub async fn handle_responses(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    log::info!(
-        "[Codex] IN request_id={} model={} stream={} ua={}",
-        request_id,
-        model,
-        is_stream,
-        user_agent
-    );
+    let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
+        .ok()
+        .as_deref()
+        == Some("1");
+    if trace_requests {
+        log::info!(
+            "[Codex] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    } else {
+        log::debug!(
+            "[Codex] IN request_id={} model={} stream={} ua={}",
+            request_id,
+            model,
+            is_stream,
+            user_agent
+        );
+    }
 
     let mut ctx = RequestContext::new(&state, &body, AppType::Codex, "Codex", "codex").await?;
 
@@ -501,12 +561,21 @@ pub async fn handle_responses(
     let response = result.response;
 
     log::debug!("[Codex] 上游响应状态: {}", response.status());
-    log::info!(
-        "[Codex] OUT request_id={} provider={} status={}",
-        request_id,
-        ctx.provider.name,
-        response.status().as_u16()
-    );
+    if trace_requests {
+        log::info!(
+            "[Codex] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    } else {
+        log::debug!(
+            "[Codex] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    }
 
     process_response(response, &ctx, &state, &CODEX_PARSER_CONFIG).await
 }
@@ -539,13 +608,27 @@ pub async fn handle_gemini(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    log::info!(
-        "[Gemini] IN request_id={} stream={} ua={} uri={}",
-        request_id,
-        is_stream,
-        user_agent,
-        uri
-    );
+    let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
+        .ok()
+        .as_deref()
+        == Some("1");
+    if trace_requests {
+        log::info!(
+            "[Gemini] IN request_id={} stream={} ua={} uri={}",
+            request_id,
+            is_stream,
+            user_agent,
+            uri
+        );
+    } else {
+        log::debug!(
+            "[Gemini] IN request_id={} stream={} ua={} uri={}",
+            request_id,
+            is_stream,
+            user_agent,
+            uri
+        );
+    }
 
     // Gemini 的模型名称在 URI 中
     let mut ctx = RequestContext::new(&state, &body, AppType::Gemini, "Gemini", "gemini")
@@ -585,12 +668,21 @@ pub async fn handle_gemini(
     let response = result.response;
 
     log::debug!("[Gemini] 上游响应状态: {}", response.status());
-    log::info!(
-        "[Gemini] OUT request_id={} provider={} status={}",
-        request_id,
-        ctx.provider.name,
-        response.status().as_u16()
-    );
+    if trace_requests {
+        log::info!(
+            "[Gemini] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    } else {
+        log::debug!(
+            "[Gemini] OUT request_id={} provider={} status={}",
+            request_id,
+            ctx.provider.name,
+            response.status().as_u16()
+        );
+    }
 
     process_response(response, &ctx, &state, &GEMINI_PARSER_CONFIG).await
 }

@@ -81,6 +81,7 @@ pub struct ProviderRouter {
 impl ProviderRouter {
     const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
     const CONNECTIVITY_PENALTY_MS: u64 = 30_000;
+    const DEFAULT_BENCHMARK_SUMMARY_INFO_ENV: &'static str = "CC_SWITCH_BENCHMARK_SUMMARY";
 
     /// 创建新的供应商路由器
     pub fn new(db: Arc<Database>) -> Self {
@@ -258,6 +259,13 @@ impl ProviderRouter {
             out.push(ch);
         }
         out
+    }
+
+    fn should_log_benchmark_summary_info() -> bool {
+        std::env::var(Self::DEFAULT_BENCHMARK_SUMMARY_INFO_ENV)
+            .ok()
+            .as_deref()
+            == Some("1")
     }
 
     fn is_overloaded_error_text(text: &str) -> bool {
@@ -1449,8 +1457,41 @@ impl ProviderRouter {
             UrlProbeKind::Failed { .. } => (3u8, u64::MAX),
         });
 
-        // INFO 摘要：仅输出结论，避免刷屏
-        let selected = details.iter().find(|d| !matches!(d.kind, UrlProbeKind::Failed { .. }));
+        // 选用策略：对齐真实路由（优先 URL 且全链路 OK > OK 最快 > OV > FB）
+        let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(supplier)
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        if let Some(p) = url_groups.values().flat_map(|v| v.first()).next() {
+            preferred.extend(Self::parse_url_priority_from_provider(p));
+        }
+        {
+            let mut seen = std::collections::HashMap::<String, ()>::new();
+            preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
+        }
+
+        let preferred_ok = preferred.iter().find_map(|u| {
+            details
+                .iter()
+                .find(|d| d.url == *u && matches!(d.kind, UrlProbeKind::FullOk { .. }))
+        });
+
+        let selected = preferred_ok
+            .or_else(|| {
+                details
+                    .iter()
+                    .find(|d| matches!(d.kind, UrlProbeKind::FullOk { .. }))
+            })
+            .or_else(|| {
+                details
+                    .iter()
+                    .find(|d| matches!(d.kind, UrlProbeKind::Overloaded { .. }))
+            })
+            .or_else(|| {
+                details
+                    .iter()
+                    .find(|d| matches!(d.kind, UrlProbeKind::FallbackOk { .. }))
+            });
         let selected_text = selected
             .map(|d| match &d.kind {
                 UrlProbeKind::FullOk { latency_ms } => format!("{} (OK {}ms)", d.url, latency_ms),
@@ -1484,7 +1525,10 @@ impl ProviderRouter {
             .collect::<Vec<_>>()
             .join("; ");
 
+        let summary_info = Self::should_log_benchmark_summary_info();
+
         if full_ok_count == 0 && overloaded_count == 0 && fallback_ok_count == 0 {
+            // 全失败时始终 WARN（便于排障）
             log::warn!(
                 "[{}:{}] 测速结束 supplier={} model={} 结果: 全失败(ok=0 ov=0 fb=0 fail={}) 选用={} 详情: {}",
                 app_type,
@@ -1496,19 +1540,36 @@ impl ProviderRouter {
                 detail_text
             );
         } else {
-            log::info!(
-                "[{}:{}] 测速结束 supplier={} model={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
-                app_type,
-                priority,
-                supplier,
-                request_model,
-                full_ok_count,
-                overloaded_count,
-                fallback_ok_count,
-                fail_count,
-                selected_text,
-                detail_text
-            );
+            // 默认不刷屏：摘要降为 DEBUG；需要时可通过 CC_SWITCH_BENCHMARK_SUMMARY=1 提升到 INFO
+            if summary_info {
+                log::info!(
+                    "[{}:{}] 测速结束 supplier={} model={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
+                    app_type,
+                    priority,
+                    supplier,
+                    request_model,
+                    full_ok_count,
+                    overloaded_count,
+                    fallback_ok_count,
+                    fail_count,
+                    selected_text,
+                    detail_text
+                );
+            } else {
+                log::debug!(
+                    "[{}:{}] 测速结束 supplier={} model={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
+                    app_type,
+                    priority,
+                    supplier,
+                    request_model,
+                    full_ok_count,
+                    overloaded_count,
+                    fallback_ok_count,
+                    fail_count,
+                    selected_text,
+                    detail_text
+                );
+            }
         }
 
         details
