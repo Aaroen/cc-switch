@@ -564,7 +564,6 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
     if mode == "startup" {
         use serde::Deserialize;
         use std::collections::BTreeMap;
-        use std::io::Write;
         use std::process::{Command, Stdio};
         use std::time::Duration;
 
@@ -756,190 +755,227 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
             }
         }
 
+        // 5) 预加载 providers，避免循环中重复读 DB
+        let providers = db.get_failover_providers(&app_type_str)?;
+
+        // 6) 按层级输出，并逐供应商、逐 URL 展示“简单延迟 + 全链路延迟”
+        let mut targets_by_priority: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+        for t in targets.iter() {
+            targets_by_priority
+                .entry(t.priority)
+                .or_default()
+                .push(t.supplier.clone());
+        }
+        for list in targets_by_priority.values_mut() {
+            list.sort();
+            list.dedup();
+        }
+
         let mut summary: Vec<(usize, String, String, String, u64)> = Vec::new();
+        let mut done: usize = 0;
+        let total = targets.len();
 
-        for (idx, t) in targets.iter().enumerate() {
-            let run_id = uuid::Uuid::new_v4().to_string();
-            print!(
-                "[{}/{}] 测试 层级={} supplier={} ... ",
-                idx + 1,
-                targets.len(),
-                t.priority,
-                t.supplier
-            );
-            std::io::stdout().flush().ok();
+        for (priority, suppliers) in targets_by_priority.iter() {
+            println!("=== 层级 {} ===", priority);
 
-            // 4.1) 先做“简单URL延迟测试”（快速，可实时输出）
-            if app_type_str == "claude" {
-                // 收集该 supplier 在该层级的所有 base_url（去重）
-                if let Ok(providers) = db.get_failover_providers(&app_type_str) {
-                    let mut url_to_key: BTreeMap<String, String> = BTreeMap::new();
-                    for p in providers.iter() {
-                        let priority = p.sort_index.unwrap_or(999999) as usize;
-                        if priority != t.priority {
-                            continue;
-                        }
-                        let supplier = p
-                            .name
-                            .split('-')
-                            .next()
-                            .unwrap_or(&p.name)
-                            .to_string();
-                        if supplier != t.supplier {
-                            continue;
-                        }
-                        let base_url = p
-                            .settings_config
-                            .get("env")
-                            .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string());
-                        let api_key = p
-                            .settings_config
-                            .get("env")
-                            .and_then(|env| {
-                                env.get("ANTHROPIC_API_KEY")
-                                    .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
-                            })
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string());
-                        if let (Some(u), Some(k)) = (base_url, api_key) {
-                            url_to_key.entry(u).or_insert(k);
-                        }
+            for supplier in suppliers.iter() {
+                done += 1;
+                println!("\n[{}/{}] 供应商: {}", done, total, supplier);
+
+                // 收集该 supplier 在该层级的 URL（去重），并为简单探测选一个 key（同 URL 任意 key 即可）
+                let mut url_to_key: BTreeMap<String, String> = BTreeMap::new();
+                for p in providers.iter() {
+                    let p_priority = p.sort_index.unwrap_or(999999) as usize;
+                    if p_priority != *priority {
+                        continue;
                     }
+                    let p_supplier = p
+                        .name
+                        .split('-')
+                        .next()
+                        .unwrap_or(&p.name)
+                        .to_string();
+                    if &p_supplier != supplier {
+                        continue;
+                    }
+                    let base_url = p
+                        .settings_config
+                        .get("env")
+                        .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let api_key = p
+                        .settings_config
+                        .get("env")
+                        .and_then(|env| {
+                            env.get("ANTHROPIC_API_KEY")
+                                .or_else(|| env.get("ANTHROPIC_AUTH_TOKEN"))
+                        })
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    if let (Some(u), Some(k)) = (base_url, api_key) {
+                        url_to_key.entry(u).or_insert(k);
+                    }
+                }
 
-                    if !url_to_key.is_empty() {
-                        println!();
-                        println!(
-                            "  - 简单URL延迟测试（JSON即在线），共{}个URL：",
-                            url_to_key.len()
-                        );
-                        for (u, k) in url_to_key.iter() {
-                            let preview = if k.len() > 14 {
-                                format!("{}...{}", &k[..10], &k[k.len() - 4..])
-                            } else {
-                                k.clone()
-                            };
-                            print!("    * {} ... ", u);
-                            std::io::stdout().flush().ok();
+                let mut simple_ms: BTreeMap<String, Option<u64>> = BTreeMap::new();
+                if app_type_str == "claude" && !url_to_key.is_empty() {
+                    println!("  URL:");
+                    for (u, k) in url_to_key.iter() {
+                        let probe_client = reqwest::Client::builder()
+                            .timeout(Duration::from_secs(12))
+                            .build()
+                            .map_err(|e| AppError::Message(format!("创建HTTP客户端失败: {e}")))?;
 
-                            // 使用较短超时避免拖慢整体；失败不会中断后续真实链路测试
-                            let probe_client = reqwest::Client::builder()
-                                .timeout(Duration::from_secs(12))
-                                .build()
-                                .map_err(|e| {
-                                    AppError::Message(format!("创建HTTP客户端失败: {e}"))
-                                })?;
-
-                            match simple_url_probe_claude(&probe_client, u, k, test_model).await {
-                                Ok(ms) => println!("OK {}ms (key={})", ms, preview),
-                                Err(reason) => println!("FAIL ({}) (key={})", reason, preview),
+                        match simple_url_probe_claude(&probe_client, u, k, test_model).await {
+                            Ok(ms) => {
+                                println!("    - {} 简单={}ms", u, ms);
+                                simple_ms.insert(u.clone(), Some(ms));
+                            }
+                            Err(reason) => {
+                                println!("    - {} 简单=FAIL({})", u, reason);
+                                simple_ms.insert(u.clone(), None);
                             }
                         }
-                        print!("  - 进入真实启动链路测试 ... ");
-                        std::io::stdout().flush().ok();
                     }
                 }
-            }
 
-            // 设置测试覆盖：让下一次请求强制走该 supplier，并触发该 supplier 的 URL 测速/选用
-            let start_resp = client
-                .post(format!("{base}/__cc_switch/test_override/start"))
-                .json(&serde_json::json!({
-                    "app_type": app_type_str.as_str(),
-                    "priority": t.priority,
-                    "supplier": t.supplier,
-                    "run_id": run_id,
-                    "ttl_secs": override_ttl_secs
-                }))
-                .send()
-                .await;
+                // 设置测试覆盖：让下一次请求强制走该 supplier，并触发该 supplier 的 URL 测速/选用
+                let run_id = uuid::Uuid::new_v4().to_string();
+                let start_resp = client
+                    .post(format!("{base}/__cc_switch/test_override/start"))
+                    .json(&serde_json::json!({
+                        "app_type": app_type_str.as_str(),
+                        "priority": priority,
+                        "supplier": supplier,
+                        "run_id": run_id,
+                        "ttl_secs": override_ttl_secs
+                    }))
+                    .send()
+                    .await;
 
-            let ok = match start_resp {
-                Ok(r) => r.json::<TestOverrideStartResponse>().await.ok().map(|v| v.ok) == Some(true),
-                Err(_) => false,
-            };
+                let ok = match start_resp {
+                    Ok(r) => r
+                        .json::<TestOverrideStartResponse>()
+                        .await
+                        .ok()
+                        .map(|v| v.ok)
+                        == Some(true),
+                    Err(_) => false,
+                };
 
-            if !ok {
-                println!("FAIL (无法设置测试覆盖)");
-                continue;
-            }
-
-            // 启动 claude 并触发一次真实请求（print 模式：跳过 trust dialog，输出后退出）
-            // 说明：之前仅“启动不输入”在某些环境下不会产生请求，因此改为 claude 自身触发一次请求以稳定测试链路。
-            let mut cmd = Command::new("claude");
-            cmd.current_dir(workdir);
-            cmd.arg("-p").arg("ping");
-            cmd.arg("--output-format").arg("json");
-            cmd.arg("--model").arg(test_model);
-            cmd.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
-
-            // print 模式不需要交互输入；stdout/stderr 继承可确保其认为自己在真实终端环境
-            cmd.stdin(Stdio::null());
-            if verbose_child {
-                cmd.stdout(Stdio::inherit());
-                cmd.stderr(Stdio::inherit());
-            } else {
-                cmd.stdout(Stdio::null());
-                cmd.stderr(Stdio::null());
-            }
-
-            let mut child = match cmd.spawn() {
-                Ok(c) => c,
-                Err(e) => {
-                    println!("FAIL (无法启动 claude: {e})");
+                if !ok {
+                    println!("  全链路: FAIL(无法设置测试覆盖)");
                     continue;
                 }
-            };
 
-            // 轮询等待结果
-            let timeout = Duration::from_secs(timeout_secs);
-            let poll = Duration::from_millis(350);
-            let start = std::time::Instant::now();
-            let mut got: Option<cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult> = None;
+                // 触发一次真实请求进入代理（print 模式跳过 trust dialog，输出后退出）
+                let mut cmd = Command::new("claude");
+                cmd.current_dir(workdir);
+                cmd.arg("-p").arg("ping");
+                cmd.arg("--output-format").arg("json");
+                cmd.arg("--model").arg(test_model);
+                cmd.env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
 
-            loop {
-                if start.elapsed() > timeout {
-                    break;
+                cmd.stdin(Stdio::null());
+                if verbose_child {
+                    cmd.stdout(Stdio::inherit());
+                    cmd.stderr(Stdio::inherit());
+                } else {
+                    cmd.stdout(Stdio::null());
+                    cmd.stderr(Stdio::null());
                 }
 
-                if let Ok(Some(_status)) = child.try_wait() {
-                    // claude 提前退出：print 模式本就会退出；仍然继续等 proxy 侧结果（短暂）
-                    // 这里不 break，允许后续 poll 拿到测速结果
-                }
+                let mut child = match cmd.spawn() {
+                    Ok(c) => c,
+                    Err(e) => {
+                        println!("  全链路: FAIL(无法启动 claude: {e})");
+                        continue;
+                    }
+                };
 
-                if let Ok(resp) = client
-                    .get(format!(
-                        "{base}/__cc_switch/test_override/result/{}",
-                        run_id
-                    ))
-                    .send()
-                    .await
-                {
-                    if let Ok(v) = resp.json::<TestOverrideResultResponse>().await {
-                        if v.ready {
-                            got = v.result;
-                            break;
+                let timeout = Duration::from_secs(timeout_secs);
+                let poll = Duration::from_millis(350);
+                let start = std::time::Instant::now();
+                let mut got: Option<cc_switch_lib::proxy::provider_router::BenchmarkSupplierResult> = None;
+
+                loop {
+                    if start.elapsed() > timeout {
+                        break;
+                    }
+
+                    let _ = child.try_wait();
+
+                    if let Ok(resp) = client
+                        .get(format!("{base}/__cc_switch/test_override/result/{}", run_id))
+                        .send()
+                        .await
+                    {
+                        if let Ok(v) = resp.json::<TestOverrideResultResponse>().await {
+                            if v.ready {
+                                got = v.result;
+                                break;
+                            }
                         }
                     }
+
+                    tokio::time::sleep(poll).await;
                 }
 
-                tokio::time::sleep(poll).await;
-            }
+                let _ = child.kill();
+                let _ = child.wait();
 
-            // 拿到结果或超时：结束 claude 进程（print 模式一般已退出，这里兜底）
-            let _ = child.kill();
-            let _ = child.wait();
+                if let Some(r) = got {
+                    println!("  全链路:");
+                    for u in r.urls.iter() {
+                        let simple_part = match simple_ms.get(&u.url).copied().flatten() {
+                            Some(ms) => format!("简单={}ms", ms),
+                            None => "简单=FAIL".to_string(),
+                        };
 
-            if let Some(r) = got {
-                let chosen_url = r.chosen_url.clone().unwrap_or_else(|| "-".to_string());
-                let metric = r.metric_ms.unwrap_or(u64::MAX);
-                println!("{} {} {}", r.chosen_kind, chosen_url, if metric == u64::MAX { "-".to_string() } else { format!("{}ms", metric) });
-                if metric != u64::MAX && chosen_url != "-" {
-                    summary.push((r.priority, r.supplier.clone(), chosen_url, r.chosen_kind.clone(), metric));
+                        match u.kind.as_str() {
+                            "OK" => println!(
+                                "    - {} {} 全链路=OK {}ms",
+                                u.url,
+                                simple_part,
+                                u.latency_ms.unwrap_or(0)
+                            ),
+                            "OV" => println!(
+                                "    - {} {} 全链路=OV {}ms ({})",
+                                u.url,
+                                simple_part,
+                                u.latency_ms.unwrap_or(0),
+                                u.message.as_deref().unwrap_or("-")
+                            ),
+                            "FB" => println!(
+                                "    - {} {} 全链路=FB {}ms (+{}ms)",
+                                u.url,
+                                simple_part,
+                                u.latency_ms.unwrap_or(0),
+                                u.penalty_ms.unwrap_or(0)
+                            ),
+                            "FAIL" => println!(
+                                "    - {} {} 全链路=FAIL ({})",
+                                u.url,
+                                simple_part,
+                                u.reason.as_deref().unwrap_or("-")
+                            ),
+                            _ => println!("    - {} {} 全链路={}", u.url, simple_part, u.kind),
+                        }
+                    }
+
+                    if let (Some(url), Some(metric)) = (r.chosen_url.clone(), r.metric_ms) {
+                        println!(
+                            "  选用: {} {} ({}ms)",
+                            r.chosen_kind, url, metric
+                        );
+                        summary.push((r.priority, r.supplier.clone(), url, r.chosen_kind.clone(), metric));
+                    } else {
+                        println!("  选用: FAIL (未选出可用URL)");
+                    }
+                } else {
+                    println!("  全链路: FAIL(等待测速结果超时/未触发真实请求)");
                 }
-            } else {
-                println!("FAIL (等待测速结果超时/未触发真实请求)");
             }
         }
 

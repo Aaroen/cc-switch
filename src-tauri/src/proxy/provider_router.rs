@@ -647,12 +647,17 @@ impl ProviderRouter {
                         continue;
                     }
 
+                    let force_benchmark = test_override
+                        .as_ref()
+                        .map(|o| o.priority == *priority && o.supplier == *supplier)
+                        .unwrap_or(false);
+
                     // 正常请求不应反复测速：
                     // - 启动时为每个 supplier 选一次最快 URL；
                     // - 仅当该 URL 被标记 suspect（链路失效）时，才清空并重新测速/切换。
                     let mut selected_url: Option<String> = None;
 
-                    if url_map.len() == 1 {
+                    if !force_benchmark && url_map.len() == 1 {
                         if let Some(url) = url_map.keys().next() {
                             if !self.is_url_suspect(app_type, supplier, url).await {
                                 selected_url = Some(url.clone());
@@ -660,16 +665,21 @@ impl ProviderRouter {
                                     .await;
                             }
                         }
-                    } else if let Some(current_url) =
-                        self.get_supplier_current_url(app_type, *priority, supplier).await
-                    {
-                        if url_map.contains_key(&current_url)
-                            && !self.is_url_suspect(app_type, supplier, &current_url).await
+                    } else if !force_benchmark {
+                        if let Some(current_url) =
+                            self.get_supplier_current_url(app_type, *priority, supplier).await
                         {
-                            selected_url = Some(current_url);
-                        } else {
-                            self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                            if url_map.contains_key(&current_url)
+                                && !self.is_url_suspect(app_type, supplier, &current_url).await
+                            {
+                                selected_url = Some(current_url);
+                            } else {
+                                self.clear_supplier_current_url(app_type, *priority, supplier).await;
+                            }
                         }
+                    } else if force_benchmark {
+                        // startup 测试模式：强制触发该 supplier 的 benchmark（即使只有一个 URL）
+                        self.clear_supplier_current_url(app_type, *priority, supplier).await;
                     }
 
                     if selected_url.is_none() {
@@ -1755,6 +1765,7 @@ impl ProviderRouter {
                     (None, "FAIL".to_string(), None)
                 };
 
+                let chosen_kind_for_log = chosen_kind.clone();
                 let result = BenchmarkSupplierResult {
                     priority,
                     supplier: supplier.to_string(),
@@ -1768,6 +1779,17 @@ impl ProviderRouter {
                     let mut map = self.test_results.write().await;
                     map.insert(o.run_id.clone(), result);
                 }
+
+                log::info!(
+                    "[{}:{}] startup测速结果 supplier={} 选用={} kind={} metric_ms={:?} run_id={}",
+                    app_type,
+                    priority,
+                    supplier,
+                    chosen_url.as_deref().unwrap_or("N/A"),
+                    chosen_kind_for_log,
+                    metric_ms,
+                    o.run_id
+                );
 
                 // 防止测试覆盖影响后续正常请求
                 *self.test_override.write().await = None;
