@@ -98,6 +98,9 @@ pub struct ProviderRouter {
     /// 每个供应商当前选中的 URL（同一时刻只使用一个“最快 URL”）
     /// key 格式: "app_type:priority:supplier", value: base_url
     supplier_current_url: Arc<RwLock<HashMap<String, String>>>,
+    /// 供应商需触发“URL失效后的重新测速”（只触发一次，避免刷屏）
+    /// key 格式: "app_type:priority:supplier", value: 触发有效期
+    supplier_retest_once: Arc<RwLock<HashMap<String, std::time::Instant>>>,
     /// 供应商测速锁（避免并发请求触发重复测速）
     /// key 格式: "app_type:priority:supplier"
     supplier_benchmark_locks: Arc<RwLock<HashMap<String, Arc<Mutex<()>>>>>,
@@ -134,6 +137,7 @@ impl ProviderRouter {
             supplier_cooldowns: Arc::new(RwLock::new(HashMap::new())),
             suspect_urls: Arc::new(RwLock::new(HashMap::new())),
             supplier_current_url: Arc::new(RwLock::new(HashMap::new())),
+            supplier_retest_once: Arc::new(RwLock::new(HashMap::new())),
             supplier_benchmark_locks: Arc::new(RwLock::new(HashMap::new())),
             test_override: Arc::new(RwLock::new(None)),
             test_results: Arc::new(RwLock::new(HashMap::new())),
@@ -194,6 +198,36 @@ impl ProviderRouter {
     /// forwarder/CLI 可用：判断当前是否处于 startup 测试覆盖期
     pub async fn has_active_test_override(&self, app_type: &str) -> bool {
         self.get_active_test_override(app_type).await.is_some()
+    }
+
+    async fn mark_supplier_retest_once(
+        &self,
+        app_type: &str,
+        priority: usize,
+        supplier: &str,
+        seconds: u64,
+    ) {
+        let key = Self::supplier_key(app_type, priority, supplier);
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(seconds);
+        let mut map = self.supplier_retest_once.write().await;
+        map.insert(key, until);
+    }
+
+    async fn take_supplier_retest_once(&self, app_type: &str, priority: usize, supplier: &str) -> bool {
+        let key = Self::supplier_key(app_type, priority, supplier);
+        let now = std::time::Instant::now();
+        let mut map = self.supplier_retest_once.write().await;
+        match map.get(&key).copied() {
+            Some(until) if until > now => {
+                map.remove(&key);
+                true
+            }
+            Some(_) => {
+                map.remove(&key);
+                false
+            }
+            None => false,
+        }
     }
 
     pub async fn set_test_override(
@@ -895,66 +929,81 @@ impl ProviderRouter {
                         }
 
                         if selected_url.is_none() {
+                            // URL 失效后的重新测速：只在当前层级、当前 supplier 内触发一次，
+                            // 强制对该 supplier 的所有 URL 重新测速，并在日志输出 INFO 摘要结果。
+                            let force_retest =
+                                self.take_supplier_retest_once(app_type, *priority, supplier).await;
+
                             // URL 优先级：当指定 URL 可用时优先使用（例如 anyrouter.top）
                             // 优先级来源：默认规则 + provider.settingsConfig/baseUrlPriority + env.BASE_URL_PRIORITY
-                            let mut preferred: Vec<String> = Self::default_url_priority_for_supplier(supplier)
-                                .into_iter()
-                                .map(|s| s.to_string())
-                                .collect();
-                            if let Some(p) = url_map.values().flat_map(|v| v.first()).next() {
-                                preferred.extend(Self::parse_url_priority_from_provider(p));
-                            }
-                            // 去重（保留顺序）
-                            {
-                                let mut seen = std::collections::HashMap::<String, ()>::new();
-                                preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
-                            }
-
-                            for purl in preferred.iter() {
-                                if !url_map.contains_key(purl) {
-                                    continue;
+                            if !force_retest {
+                                let mut preferred: Vec<String> =
+                                    Self::default_url_priority_for_supplier(supplier)
+                                        .into_iter()
+                                        .map(|s| s.to_string())
+                                        .collect();
+                                if let Some(p) = url_map.values().flat_map(|v| v.first()).next() {
+                                    preferred.extend(Self::parse_url_priority_from_provider(p));
                                 }
-                                if self.is_url_suspect(app_type, supplier, purl).await {
-                                    continue;
+                                // 去重（保留顺序）
+                                {
+                                    let mut seen = std::collections::HashMap::<String, ()>::new();
+                                    preferred.retain(|u| seen.insert(u.to_string(), ()).is_none());
                                 }
 
-                                // “有效”判断（更保守）：
-                                // - 仅当已有“全链路 OK”缓存时才直接命中优先级；
-                                // - 仅连通性 OK（FB/penalty）不应强行锁定优先级 URL，否则会长期卡在网关可连通但业务不可用的 URL 上。
-                                let cache_key = Self::url_latency_key(app_type, *priority, supplier, purl);
-                                let cached_latency = {
-                                    let latencies = self.url_latencies.read().await;
-                                    latencies.get(&cache_key).map(|l| l.latency_ms)
-                                };
-
-                                if let Some(l) = cached_latency {
-                                    // 仅当“明显不是回退结果（penalty）”时，才认为可直接命中优先 URL
-                                    if l != u64::MAX && l < Self::CONNECTIVITY_PENALTY_MS {
-                                        selected_url = Some(purl.clone());
-                                        self.set_supplier_current_url(app_type, *priority, supplier, purl)
-                                            .await;
-                                        log::info!(
-                                            "[{}:{}] URL优先级命中 supplier={} 选用={} (cached_latency_ms={:?})",
-                                            app_type,
-                                            priority,
-                                            supplier,
-                                            purl,
-                                            cached_latency
-                                        );
-                                        break;
+                                for purl in preferred.iter() {
+                                    if !url_map.contains_key(purl) {
+                                        continue;
                                     }
-                                } else if let Ok(connect_ms) = self.connectivity_latency(purl).await {
-                                    // 仅用于缓存（避免重复探测刷屏），不作为“优先级直接命中”的依据
-                                    let latency =
-                                        connect_ms.saturating_add(Self::CONNECTIVITY_PENALTY_MS);
-                                    let mut latencies = self.url_latencies.write().await;
-                                    latencies.insert(
-                                        cache_key,
-                                        UrlLatency {
-                                            latency_ms: latency,
-                                            tested_at: std::time::Instant::now(),
-                                        },
-                                    );
+                                    if self.is_url_suspect(app_type, supplier, purl).await {
+                                        continue;
+                                    }
+
+                                    // “有效”判断（更保守）：
+                                    // - 仅当已有“全链路 OK”缓存时才直接命中优先级；
+                                    // - 仅连通性 OK（FB/penalty）不应强行锁定优先级 URL，否则会长期卡在网关可连通但业务不可用的 URL 上。
+                                    let cache_key =
+                                        Self::url_latency_key(app_type, *priority, supplier, purl);
+                                    let cached_latency = {
+                                        let latencies = self.url_latencies.read().await;
+                                        latencies.get(&cache_key).map(|l| l.latency_ms)
+                                    };
+
+                                    if let Some(l) = cached_latency {
+                                        // 仅当“明显不是回退结果（penalty）”时，才认为可直接命中优先 URL
+                                        if l != u64::MAX && l < Self::CONNECTIVITY_PENALTY_MS {
+                                            selected_url = Some(purl.clone());
+                                            self.set_supplier_current_url(
+                                                app_type,
+                                                *priority,
+                                                supplier,
+                                                purl,
+                                            )
+                                            .await;
+                                            log::info!(
+                                                "[{}:{}] URL优先级命中 supplier={} 选用={} (cached_latency_ms={:?})",
+                                                app_type,
+                                                priority,
+                                                supplier,
+                                                purl,
+                                                cached_latency
+                                            );
+                                            break;
+                                        }
+                                    } else if let Ok(connect_ms) = self.connectivity_latency(purl).await
+                                    {
+                                        // 仅用于缓存（避免重复探测刷屏），不作为“优先级直接命中”的依据
+                                        let latency = connect_ms
+                                            .saturating_add(Self::CONNECTIVITY_PENALTY_MS);
+                                        let mut latencies = self.url_latencies.write().await;
+                                        latencies.insert(
+                                            cache_key,
+                                            UrlLatency {
+                                                latency_ms: latency,
+                                                tested_at: std::time::Instant::now(),
+                                            },
+                                        );
+                                    }
                                 }
                             }
 
@@ -963,11 +1012,13 @@ impl ProviderRouter {
                             } else {
                             // 生成该供应商的 URL 有序列表（优先使用缓存；缓存缺失/URL失效时才测速）
                             let tested_key = Self::supplier_key(app_type, *priority, supplier);
-                            let mut should_benchmark = false;
+                            let mut should_benchmark = force_retest;
                             {
-                                let tested_map = self.priority_level_tested.read().await;
-                                if tested_map.get(&tested_key).copied().unwrap_or(false) == false {
-                                    should_benchmark = true;
+                                if !should_benchmark {
+                                    let tested_map = self.priority_level_tested.read().await;
+                                    if tested_map.get(&tested_key).copied().unwrap_or(false) == false {
+                                        should_benchmark = true;
+                                    }
                                 }
                             }
 
@@ -1010,12 +1061,13 @@ impl ProviderRouter {
 
                             if should_benchmark || filtered_urls.is_empty() {
                                 let benchmark_results = self
-                                    .benchmark_urls(
+                                    .benchmark_urls_with_log_mode(
                                         app_type,
                                         *priority,
                                         request_model,
                                         supplier,
                                         url_map,
+                                        force_retest,
                                     )
                                     .await;
 
@@ -1255,6 +1307,23 @@ impl ProviderRouter {
                             let priority = provider.sort_index.unwrap_or(999999);
                             self.clear_supplier_current_url(app_type, priority, &supplier)
                                 .await;
+                            // 强制下次在该层级、该供应商内重新测速所有 URL，并在日志输出结果（对齐 csc t 的决策逻辑）
+                            self.mark_supplier_retest_once(app_type, priority as usize, &supplier, seconds)
+                                .await;
+                            {
+                                let tested_key =
+                                    Self::supplier_key(app_type, priority as usize, &supplier);
+                                let mut tested_map = self.priority_level_tested.write().await;
+                                tested_map.remove(&tested_key);
+                            }
+                            log::info!(
+                                "[{}:{}] URL疑似失效 supplier={} url={} 将触发本层级重新测速并在同supplier内切换URL (err={})",
+                                app_type,
+                                priority,
+                                supplier,
+                                url,
+                                Self::shorten_for_log(err, 160)
+                            );
                         }
                     }
                 }
@@ -1615,8 +1684,35 @@ impl ProviderRouter {
         supplier: &str,
         url_groups: &HashMap<String, Vec<Provider>>,
     ) -> Vec<(String, u64)> {
+        self.benchmark_urls_with_log_mode(
+            app_type,
+            priority,
+            request_model,
+            supplier,
+            url_groups,
+            false,
+        )
+        .await
+    }
+
+    async fn benchmark_urls_with_log_mode(
+        &self,
+        app_type: &str,
+        priority: usize,
+        request_model: &str,
+        supplier: &str,
+        url_groups: &HashMap<String, Vec<Provider>>,
+        force_summary_info: bool,
+    ) -> Vec<(String, u64)> {
         let details = self
-            .benchmark_urls_detailed(app_type, priority, request_model, supplier, url_groups)
+            .benchmark_urls_detailed_impl(
+                app_type,
+                priority,
+                request_model,
+                supplier,
+                url_groups,
+                force_summary_info,
+            )
             .await;
 
         let mut results: Vec<(String, u64)> = Vec::with_capacity(details.len());
@@ -1648,6 +1744,26 @@ impl ProviderRouter {
         request_model: &str,
         supplier: &str,
         url_groups: &HashMap<String, Vec<Provider>>,
+    ) -> Vec<UrlProbeDetail> {
+        self.benchmark_urls_detailed_impl(
+            app_type,
+            priority,
+            request_model,
+            supplier,
+            url_groups,
+            false,
+        )
+        .await
+    }
+
+    async fn benchmark_urls_detailed_impl(
+        &self,
+        app_type: &str,
+        priority: usize,
+        request_model: &str,
+        supplier: &str,
+        url_groups: &HashMap<String, Vec<Provider>>,
+        force_summary_info: bool,
     ) -> Vec<UrlProbeDetail> {
         log::debug!(
             "[{}:{}] 开始URL延迟测试，共{}个URL (supplier={}, model={})",
@@ -1879,7 +1995,7 @@ impl ProviderRouter {
             .collect::<Vec<_>>()
             .join("; ");
 
-        let summary_info = Self::should_log_benchmark_summary_info();
+        let summary_info = force_summary_info || Self::should_log_benchmark_summary_info();
 
         if full_ok_count == 0 && overloaded_count == 0 && fallback_ok_count == 0 {
             // 全失败时始终 WARN（便于排障）
@@ -1897,11 +2013,12 @@ impl ProviderRouter {
             // 默认不刷屏：摘要降为 DEBUG；需要时可通过 CC_SWITCH_BENCHMARK_SUMMARY=1 提升到 INFO
             if summary_info {
                 log::info!(
-                    "[{}:{}] 测速结束 supplier={} model={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
+                    "[{}:{}] 测速结束 supplier={} model={} reason={} 结果: ok={} ov={} fb={} fail={} 选用={} 详情: {}",
                     app_type,
                     priority,
                     supplier,
                     request_model,
+                    if force_summary_info { "retest" } else { "normal" },
                     full_ok_count,
                     overloaded_count,
                     fallback_ok_count,
