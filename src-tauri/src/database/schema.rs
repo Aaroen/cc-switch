@@ -107,7 +107,7 @@ impl Database {
             max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 30,
             streaming_idle_timeout INTEGER NOT NULL DEFAULT 60, non_streaming_timeout INTEGER NOT NULL DEFAULT 300,
             circuit_failure_threshold INTEGER NOT NULL DEFAULT 5, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
-            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.5,
+            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 600, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.5,
             circuit_min_requests INTEGER NOT NULL DEFAULT 10,
             created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
@@ -602,7 +602,7 @@ impl Database {
             max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 30,
             streaming_idle_timeout INTEGER NOT NULL DEFAULT 60, non_streaming_timeout INTEGER NOT NULL DEFAULT 300,
             circuit_failure_threshold INTEGER NOT NULL DEFAULT 5, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
-            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.5,
+            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 600, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.5,
             circuit_min_requests INTEGER NOT NULL DEFAULT 10,
             created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )", [])?;

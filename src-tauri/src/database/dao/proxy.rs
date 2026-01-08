@@ -126,7 +126,7 @@ impl Database {
                     non_streaming_timeout: 300,
                     circuit_failure_threshold: 5,
                     circuit_success_threshold: 2,
-                    circuit_timeout_seconds: 60,
+                    circuit_timeout_seconds: 600,
                     circuit_error_rate_threshold: 0.5,
                     circuit_min_requests: 10,
                 })

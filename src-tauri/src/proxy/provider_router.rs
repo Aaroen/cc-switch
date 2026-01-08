@@ -124,6 +124,8 @@ impl ProviderRouter {
     const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
     const CONNECTIVITY_PENALTY_MS: u64 = 30_000;
     const DEFAULT_BENCHMARK_SUMMARY_INFO_ENV: &'static str = "CC_SWITCH_BENCHMARK_SUMMARY";
+    /// 熔断器 Open -> HalfOpen 的最小冷静期（秒）：避免频繁 HalfOpen 探测拖慢正常服务
+    const MIN_CIRCUIT_OPEN_TIMEOUT_SECS: u64 = 600;
 
     /// 创建新的供应商路由器
     pub fn new(db: Arc<Database>) -> Self {
@@ -1425,17 +1427,26 @@ impl ProviderRouter {
         // 按应用独立读取熔断器配置
         let config = match self.db.get_proxy_config_for_app(app_type).await {
             Ok(app_config) => {
+                let configured_timeout = app_config.circuit_timeout_seconds as u64;
+                let timeout_seconds = configured_timeout.max(Self::MIN_CIRCUIT_OPEN_TIMEOUT_SECS);
+                if timeout_seconds != configured_timeout {
+                    log::info!(
+                        "Circuit breaker timeout clamped for {key} (app={app_type}): {}s -> {}s",
+                        configured_timeout,
+                        timeout_seconds
+                    );
+                }
                 log::debug!(
                     "Loading circuit breaker config for {key} (app={app_type}): \
                     failure_threshold={}, success_threshold={}, timeout={}s",
                     app_config.circuit_failure_threshold,
                     app_config.circuit_success_threshold,
-                    app_config.circuit_timeout_seconds
+                    timeout_seconds
                 );
                 crate::proxy::circuit_breaker::CircuitBreakerConfig {
                     failure_threshold: app_config.circuit_failure_threshold,
                     success_threshold: app_config.circuit_success_threshold,
-                    timeout_seconds: app_config.circuit_timeout_seconds as u64,
+                    timeout_seconds,
                     error_rate_threshold: app_config.circuit_error_rate_threshold,
                     min_requests: app_config.circuit_min_requests,
                 }
