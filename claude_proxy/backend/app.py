@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from starlette.background import BackgroundTask
 import httpx
+import traceback
 import json
 import os
 import time
@@ -49,6 +50,20 @@ from .routers.admin import router as admin_router
 
 # Shared HTTP client for connection pooling and proper lifecycle management
 http_client: httpx.AsyncClient = None  # type: ignore
+
+
+def _format_httpx_request_error(e: Exception) -> str:
+    parts = [f"{type(e).__name__}: {repr(e)}"]
+    cause = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+    if cause is not None:
+        parts.append(f"cause={type(cause).__name__}: {repr(cause)}")
+    return "; ".join(parts)
+
+
+def _safe_error_detail_for_response(e: Exception) -> str:
+    # 返回体用于上游/代理排障：保持简短且稳定，避免出现空字符串导致无法定位。
+    detail = _format_httpx_request_error(e)
+    return detail[:800]
 
 logger = logging.getLogger('claude_proxy')
 
@@ -106,6 +121,30 @@ async def lifespan(_: FastAPI):
     http_proxy = os.getenv("HTTP_PROXY")
     https_proxy = os.getenv("HTTPS_PROXY")
 
+    # 连接/复用策略（默认更保守，降低“复用连接后被对端断开导致无响应/空错误”的概率）
+    try:
+        max_connections = int(os.getenv("CC_SWITCH_HTTPX_MAX_CONNECTIONS", "50"))
+    except Exception:
+        max_connections = 50
+    try:
+        max_keepalive_connections = int(os.getenv("CC_SWITCH_HTTPX_MAX_KEEPALIVE", "0"))
+    except Exception:
+        max_keepalive_connections = 0
+    try:
+        keepalive_expiry = float(os.getenv("CC_SWITCH_HTTPX_KEEPALIVE_EXPIRY", "5.0"))
+    except Exception:
+        keepalive_expiry = 5.0
+    try:
+        transport_retries = int(os.getenv("CC_SWITCH_HTTPX_TRANSPORT_RETRIES", "1"))
+    except Exception:
+        transport_retries = 1
+
+    limits = httpx.Limits(
+        max_connections=max_connections,
+        max_keepalive_connections=max_keepalive_connections,
+        keepalive_expiry=keepalive_expiry,
+    )
+
     # 构建 mounts 配置（httpx 0.28.0+ 的新语法）
     mounts = {}
 
@@ -113,14 +152,18 @@ async def lifespan(_: FastAPI):
         # 确保代理 URL 包含协议
         if "://" not in http_proxy:
             http_proxy = f"http://{http_proxy}"
-        mounts["http://"] = httpx.AsyncHTTPTransport(proxy=http_proxy)
+        mounts["http://"] = httpx.AsyncHTTPTransport(
+            proxy=http_proxy, retries=transport_retries, limits=limits, http2=False
+        )
         logger.info("HTTP Proxy configured: %s", http_proxy)
 
     if https_proxy:
         # 注意：HTTPS 代理通常也使用 http:// 协议（这不是错误！）
         if "://" not in https_proxy:
             https_proxy = f"http://{https_proxy}"
-        mounts["https://"] = httpx.AsyncHTTPTransport(proxy=https_proxy)
+        mounts["https://"] = httpx.AsyncHTTPTransport(
+            proxy=https_proxy, retries=transport_retries, limits=limits, http2=False
+        )
         logger.info("HTTPS Proxy configured: %s", https_proxy)
 
     try:
@@ -135,7 +178,10 @@ async def lifespan(_: FastAPI):
         else:
             http_client = httpx.AsyncClient(
                 follow_redirects=False,
-                timeout=60.0
+                timeout=60.0,
+                transport=httpx.AsyncHTTPTransport(
+                    retries=transport_retries, limits=limits, http2=False
+                ),
             )
             logger.info("HTTP client initialized without proxy")
     except Exception as e:
@@ -349,18 +395,26 @@ async def proxy(path: str, request: Request):
 
     except httpx.RequestError as e:
         # 记录请求错误
+        detail = _safe_error_detail_for_response(e)
         if request_id:
             await record_request_error(
                 request_id,
                 path,
                 request.method,
-                str(e),
+                detail,
                 time.time() - start_time,
                 None,
                 502
             )
-        logger.error("[Proxy] Upstream request failed: %s %s -> %s: %s", request.method, path, base_url, e)
-        return Response(content=f"Upstream request failed: {e}", status_code=502)
+        # 输出堆栈 + 稳定的错误摘要（避免 str(e)=="" 导致无法定位）
+        logger.exception(
+            "[Proxy] Upstream request failed: %s %s -> %s: %s",
+            request.method,
+            path,
+            base_url,
+            detail,
+        )
+        return Response(content=f"Upstream request failed: {detail}", status_code=502)
 
 
 if __name__ == "__main__":

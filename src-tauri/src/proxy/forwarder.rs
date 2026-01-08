@@ -726,16 +726,22 @@ impl RequestForwarder {
             ProxyError::AuthError(format!("Provider {} 缺少认证信息", provider.id))
         })?;
 
-        // 根据adapter类型选择转发目标
-        let (url, target_description) = if adapter.name() == "Codex" {
+        // 根据adapter类型选择转发目标（并保留 base_url 便于错误日志定位）
+        let (url, target_description, upstream_base_url) = if adapter.name() == "Codex" {
             // Codex直接转发到目标URL
             let base_url = adapter.extract_base_url(provider)?;
             let full_url = adapter.build_url(&base_url, endpoint);
-            (full_url, format!("{}", base_url))
+            (full_url, format!("{}", base_url), Some(base_url))
         } else {
             // Claude通过Python代理
             let url = format!("http://127.0.0.1:15722{}", endpoint);
-            (url, "Python代理(15722)".to_string())
+            let base_url = provider
+                .settings_config
+                .get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (url, "Python代理(15722)".to_string(), base_url)
         };
 
         // 构建请求
@@ -788,7 +794,13 @@ impl RequestForwarder {
 
         // 发送请求
         let response = request.json(body).send().await.map_err(|e| {
-            log::error!("错误 - {} - 详情: 请求失败 {}", provider.name, e);
+            log::error!(
+                "错误 - {} - target={} base_url={} - 详情: 请求失败 {}",
+                provider.name,
+                target_description,
+                upstream_base_url.as_deref().unwrap_or("-"),
+                e
+            );
             if e.is_timeout() {
                 ProxyError::Timeout(format!("请求超时: {e}"))
             } else if e.is_connect() {
@@ -807,9 +819,10 @@ impl RequestForwarder {
             let status_code = status.as_u16();
             let body_text = response.text().await.ok();
             log::error!(
-                "错误 {} - {} - 详情: {:?}",
+                "错误 {} - {} - base_url={} - 详情: {:?}",
                 status_code,
                 provider.name,
+                upstream_base_url.as_deref().unwrap_or("-"),
                 body_text
             );
 
