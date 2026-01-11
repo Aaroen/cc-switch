@@ -59,12 +59,48 @@ fn sanitize_openai_model_name(model: &str) -> String {
 }
 
 fn extract_openai_base_url(provider: &Provider) -> Option<String> {
-    // codex provider: settings_config.base_url
-    provider
+    // 与 CodexAdapter.extract_base_url 保持一致：尽可能从多种字段提取 base_url
+    // 1) base_url
+    if let Some(url) = provider
         .settings_config
         .get("base_url")
         .and_then(|v| v.as_str())
-        .map(|s| s.trim().trim_end_matches('/').to_string())
+    {
+        return Some(url.trim().trim_end_matches('/').to_string());
+    }
+
+    // 2) baseURL
+    if let Some(url) = provider
+        .settings_config
+        .get("baseURL")
+        .and_then(|v| v.as_str())
+    {
+        return Some(url.trim().trim_end_matches('/').to_string());
+    }
+
+    // 3) config.base_url 或 TOML 字符串
+    if let Some(config) = provider.settings_config.get("config") {
+        if let Some(url) = config.get("base_url").and_then(|v| v.as_str()) {
+            return Some(url.trim().trim_end_matches('/').to_string());
+        }
+
+        if let Some(config_str) = config.as_str() {
+            if let Some(start) = config_str.find("base_url = \"") {
+                let rest = &config_str[start + 12..];
+                if let Some(end) = rest.find('"') {
+                    return Some(rest[..end].trim().trim_end_matches('/').to_string());
+                }
+            }
+            if let Some(start) = config_str.find("base_url = '") {
+                let rest = &config_str[start + 12..];
+                if let Some(end) = rest.find('\'') {
+                    return Some(rest[..end].trim().trim_end_matches('/').to_string());
+                }
+            }
+        }
+    }
+
+    None
 }
 
 async fn fetch_models(base_url: &str, api_key: &str) -> Result<Vec<String>, String> {
@@ -368,6 +404,96 @@ pub async fn resolve_openai_model_in_body(
     }
 }
 
+pub async fn resolve_openai_model_in_body_with_avoid(
+    _client: &Client,
+    provider: &Provider,
+    api_key: &str,
+    original_request_model: &str,
+    mut body: Value,
+    avoid_models: &[&str],
+) -> (Value, Option<ModelWriteback>) {
+    let request_model = sanitize_openai_model_name(original_request_model);
+    if request_model.trim().is_empty() || request_model == "unknown" {
+        return (body, None);
+    }
+
+    if detect_model_family(&request_model) != ModelFamily::OpenAi {
+        return (body, None);
+    }
+
+    let aliases = read_alias_map(provider);
+
+    let avoid_norm: Vec<String> = avoid_models
+        .iter()
+        .map(|m| normalize_token(&sanitize_openai_model_name(m)))
+        .filter(|m| !m.trim().is_empty())
+        .collect();
+
+    let Some(base_url) = extract_openai_base_url(provider) else {
+        return (body, None);
+    };
+    let key = ModelListKey {
+        provider_id: provider.id.clone(),
+        base_url: base_url.clone(),
+    };
+
+    // 1) 缓存命中
+    if let Ok(cache) = MODEL_LIST_CACHE.lock() {
+        if let Some(v) = cache.get(&key) {
+            if v.fetched_at.elapsed() <= MODEL_LIST_TTL {
+                let models = &v.models;
+                return resolve_from_model_list_with_avoid(
+                    &request_model,
+                    models,
+                    aliases,
+                    body,
+                    &avoid_norm,
+                );
+            }
+        }
+    }
+
+    // 2) 失败冷却
+    if let Ok(failures) = MODEL_LIST_FAILURES.lock() {
+        if let Some(t) = failures.get(&key) {
+            if t.elapsed() <= MODEL_LIST_FAILURE_COOLDOWN {
+                return (body, None);
+            }
+        }
+    }
+
+    // 3) 拉取
+    match fetch_models(&base_url, api_key).await {
+        Ok(list) => {
+            if let Ok(mut cache) = MODEL_LIST_CACHE.lock() {
+                cache.insert(
+                    key.clone(),
+                    CachedModelList {
+                        fetched_at: Instant::now(),
+                        models: list.clone(),
+                    },
+                );
+            }
+            if let Ok(mut failures) = MODEL_LIST_FAILURES.lock() {
+                failures.remove(&key);
+            }
+            resolve_from_model_list_with_avoid(&request_model, &list, aliases, body, &avoid_norm)
+        }
+        Err(e) => {
+            if let Ok(mut failures) = MODEL_LIST_FAILURES.lock() {
+                failures.insert(key.clone(), Instant::now());
+            }
+            log::debug!(
+                "[OpenAIModelResolver] /v1/models 拉取失败 provider={} base_url={} err={}",
+                provider.id,
+                base_url,
+                e
+            );
+            (body, None)
+        }
+    }
+}
+
 fn resolve_from_model_list(
     request_model: &str,
     models: &[String],
@@ -392,6 +518,56 @@ fn resolve_from_model_list(
 
     body["model"] = serde_json::json!(chosen.clone());
 
+    let new_aliases_json = merge_alias_map(aliases, request_model, &chosen);
+    let wb = ModelWriteback {
+        env_key: CODEX_ALIASES_ENV_KEY,
+        value: new_aliases_json,
+        from_model: request_model.to_string(),
+        to_model: chosen,
+    };
+    (body, Some(wb))
+}
+
+fn resolve_from_model_list_with_avoid(
+    request_model: &str,
+    models: &[String],
+    aliases: HashMap<String, String>,
+    mut body: Value,
+    avoid_norm: &[String],
+) -> (Value, Option<ModelWriteback>) {
+    let request_norm = normalize_token(request_model);
+    let mut candidates: Vec<String> = Vec::new();
+
+    for m in models.iter() {
+        let n = normalize_token(m);
+        if avoid_norm.iter().any(|x| x == &n) {
+            continue;
+        }
+        candidates.push(m.clone());
+    }
+
+    // 若没有任何可选项，直接放弃
+    if candidates.is_empty() {
+        return (body, None);
+    }
+
+    // 允许在“上游提示模型不可用”场景下，即便 models[] 含 request_model 也尝试选择次优模型；
+    // 因此这里不做“request_model 存在则不改”的短路。
+    let chosen = choose_best_model(request_model, &candidates);
+    let Some(chosen) = chosen else {
+        return (body, None);
+    };
+    let chosen_norm = normalize_token(&chosen);
+
+    // 防御：避免死循环（选回 request_model 或命中 avoid）
+    if chosen_norm == request_norm || avoid_norm.iter().any(|x| x == &chosen_norm) {
+        return (body, None);
+    }
+
+    body["model"] = serde_json::json!(chosen.clone());
+
+    // 这里仍然写回别名，避免后续继续撞 request_model：
+    // request_model -> chosen
     let new_aliases_json = merge_alias_map(aliases, request_model, &chosen);
     let wb = ModelWriteback {
         env_key: CODEX_ALIASES_ENV_KEY,
@@ -455,5 +631,36 @@ mod tests {
     #[test]
     fn sanitize_openai_model_strips_legacy_mmdd() {
         assert_eq!(sanitize_openai_model_name("gpt-4-0613"), "gpt-4");
+    }
+
+    #[test]
+    fn extract_openai_base_url_supports_codex_adapter_shapes() {
+        let p1 = Provider {
+            id: "p1".to_string(),
+            name: "P1".to_string(),
+            settings_config: json!({"baseURL":"https://example.com/v1"}),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+        };
+        assert_eq!(
+            extract_openai_base_url(&p1).as_deref(),
+            Some("https://example.com/v1")
+        );
+
+        let p2 = Provider {
+            settings_config: json!({"config":{"base_url":"https://example.com/v1"}}),
+            ..p1
+        };
+        assert_eq!(
+            extract_openai_base_url(&p2).as_deref(),
+            Some("https://example.com/v1")
+        );
     }
 }

@@ -1376,6 +1376,121 @@ impl RequestForwarder {
                 }
             }
 
+            // Codex/OpenAI：若上游明确提示“模型不存在/无可用渠道”，则在同一 provider 上做一次“次优模型”重试，
+            // 用于处理“供应商暴露了 gpt-5.2 但实际分组无 distributor / 需要使用 codex 子型号”等情况。
+            if app_type_str == "codex"
+                && (endpoint == "/v1/responses" || endpoint == "/v1/chat/completions")
+                && !original_request_model.is_empty()
+                && body_text
+                    .as_deref()
+                    .map(|t| Self::is_model_unavailable_error(status_code, t))
+                    == Some(true)
+            {
+                if let Some(current_model) = effective_model.clone() {
+                    let avoid = [current_model.as_str()];
+                    let (retry_body, retry_writeback) =
+                        super::openai_model_resolver::resolve_openai_model_in_body_with_avoid(
+                            &self.client,
+                            provider,
+                            &auth.api_key,
+                            &original_request_model,
+                            final_body.clone(),
+                            &avoid,
+                        )
+                        .await;
+
+                    let retry_model = Self::extract_model_from_body(&retry_body);
+                    let should_retry = retry_model
+                        .as_deref()
+                        .map(|m| m != current_model)
+                        .unwrap_or(false);
+
+                    if should_retry {
+                        log::debug!(
+                            "[ModelResolver] provider={} 上游提示模型不可用，尝试重试 {} → {}",
+                            provider.id,
+                            current_model,
+                            retry_model.as_deref().unwrap_or("unknown")
+                        );
+
+                        let retry_response =
+                            build_request(&retry_body).send().await.map_err(|e| {
+                                log::error!(
+                                    "错误 - {} - target={} base_url={} - 详情: 重试请求失败 {}",
+                                    provider.name,
+                                    target_description,
+                                    upstream_base_url.as_deref().unwrap_or("-"),
+                                    e
+                                );
+                                if e.is_timeout() {
+                                    ProxyError::Timeout(format!("请求超时: {e}"))
+                                } else if e.is_connect() {
+                                    ProxyError::ForwardFailed(format!("连接失败: {e}"))
+                                } else {
+                                    ProxyError::ForwardFailed(e.to_string())
+                                }
+                            })?;
+
+                        let retry_status = retry_response.status();
+                        if retry_status.is_success() {
+                            pending_writeback = retry_writeback;
+                            effective_model = retry_model;
+
+                            if let Some(wb) = pending_writeback {
+                                let router = self.router.clone();
+                                let provider_id = provider.id.clone();
+                                let env_key = wb.env_key;
+                                let env_value = wb.value.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = router
+                                        .writeback_provider_env(
+                                            "codex",
+                                            &provider_id,
+                                            env_key,
+                                            &env_value,
+                                        )
+                                        .await
+                                    {
+                                        log::warn!(
+                                            "[ModelResolver] 写回失败 provider={} key={} err={}",
+                                            provider_id,
+                                            env_key,
+                                            e
+                                        );
+                                    } else {
+                                        log::debug!(
+                                            "[ModelResolver] 已写回 provider={} {}={}",
+                                            provider_id,
+                                            env_key,
+                                            env_value
+                                        );
+                                    }
+                                });
+                            }
+
+                            return Ok(ForwardedResponse {
+                                response: retry_response,
+                                effective_model,
+                            });
+                        } else {
+                            let status_code2 = retry_status.as_u16();
+                            let body_text2 = retry_response.text().await.ok();
+                            log::error!(
+                                "错误 {} - {} - base_url={} - 详情: {:?}",
+                                status_code2,
+                                provider.name,
+                                upstream_base_url.as_deref().unwrap_or("-"),
+                                body_text2
+                            );
+                            return Err(ProxyError::UpstreamError {
+                                status: status_code2,
+                                body: body_text2,
+                            });
+                        }
+                    }
+                }
+            }
+
             Err(ProxyError::UpstreamError {
                 status: status_code,
                 body: body_text,
