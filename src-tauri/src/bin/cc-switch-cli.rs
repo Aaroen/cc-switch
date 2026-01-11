@@ -201,10 +201,25 @@ async fn handle_proxy(action: ProxyAction) -> Result<(), AppError> {
 
 async fn proxy_start() -> Result<(), AppError> {
     use cc_switch_lib::proxy::{ProxyConfig, ProxyServer};
+    use std::io::Write;
 
     // 初始化日志系统
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_millis()
+        // 统一格式：
+        // [2026-01-11 18:02:37.257 INFO] [codex ] 正常 200 - hyb ... ( 2.770s) [上游: gpt-5.2]
+        // - 北京时间 (UTC+8)
+        // - 隐藏模块名/路径
+        .format(|buf, record| {
+            let tz = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+            let now = chrono::Utc::now().with_timezone(&tz);
+            writeln!(
+                buf,
+                "[{} {}] {}",
+                now.format("%Y-%m-%d %H:%M:%S%.3f"),
+                record.level(),
+                record.args()
+            )
+        })
         .init();
 
     println!("正在启动代理服务器（前台模式）...");

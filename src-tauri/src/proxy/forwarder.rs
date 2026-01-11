@@ -93,24 +93,15 @@ impl RequestForwarder {
         status_code: u16,
         channel_key: &str,
         latency_ms: u64,
-        upstream_model: &str,
-        endpoint: &str,
-        trace: bool,
+        upstream: &str,
     ) -> String {
         // 对齐目标：
-        // [codex ] 正常 200 - anyrouter-key1     (耗时: 128ms )  [上游: gpt-4o]
-        let channel_width: usize = 20;
-        let latency_width: usize = 5;
-
-        if trace {
-            format!(
-                "{tool} 正常 {status_code} - {channel_key:<channel_width$} (耗时: {latency_ms:>latency_width$}ms)  [上游: {upstream_model}] endpoint={endpoint}",
-            )
-        } else {
-            format!(
-                "{tool} 正常 {status_code} - {channel_key:<channel_width$} (耗时: {latency_ms:>latency_width$}ms)  [上游: {upstream_model}]",
-            )
-        }
+        // [codex ] 正常 200 - anyrouter-key1                      ( 2.770s) [上游: gpt-5.2]
+        let channel_width: usize = 35;
+        let secs = (latency_ms as f64) / 1000.0;
+        format!(
+            "{tool:<8} 正常 {status_code} - {channel_key:<channel_width$} ({secs:>6.3}s) [上游: {upstream}]",
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -519,24 +510,31 @@ impl RequestForwarder {
                         }
                     }
 
-                    // 统一日志：一次请求仅记录一条
-                    let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
-                        .ok()
-                        .as_deref()
-                        == Some("1");
-                    let log_model = effective_model
+                    // 统一日志：一次请求仅记录一条（包含映射关系）
+                    let tool = Self::tool_tag(&headers, app_type_str);
+                    let req_model = request_model
                         .as_deref()
                         .map(super::model_sanitizer::sanitize_gpt_model_name)
-                        .unwrap_or_else(|| "-".to_string());
-                    let tool = Self::tool_tag(&headers, app_type_str);
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let eff_model = effective_model
+                        .as_deref()
+                        .map(super::model_sanitizer::sanitize_gpt_model_name)
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let upstream = if req_model.trim().is_empty()
+                        || req_model == "unknown"
+                        || req_model.eq_ignore_ascii_case(&eff_model)
+                    {
+                        eff_model
+                    } else {
+                        format!("{req_model} → {eff_model}")
+                    };
+
                     let line = Self::format_success_log_line(
                         tool,
                         response.status().as_u16(),
                         provider.name.as_str(),
                         latency,
-                        log_model.as_str(),
-                        endpoint,
-                        trace_requests,
+                        upstream.as_str(),
                     );
                     log::info!("{line}");
 
@@ -827,23 +825,31 @@ impl RequestForwarder {
                                     }
                                 }
 
-                                let trace_requests = std::env::var("CC_SWITCH_TRACE_REQUESTS")
-                                    .ok()
-                                    .as_deref()
-                                    == Some("1");
-                                let log_model = effective_model
+                                // 统一日志：一次请求仅记录一条（包含映射关系）
+                                let tool = Self::tool_tag(&headers, app_type_str);
+                                let req_model = request_model
                                     .as_deref()
                                     .map(super::model_sanitizer::sanitize_gpt_model_name)
-                                    .unwrap_or_else(|| "-".to_string());
-                                let tool = Self::tool_tag(&headers, app_type_str);
+                                    .unwrap_or_else(|| "unknown".to_string());
+                                let eff_model = effective_model
+                                    .as_deref()
+                                    .map(super::model_sanitizer::sanitize_gpt_model_name)
+                                    .unwrap_or_else(|| "unknown".to_string());
+                                let upstream = if req_model.trim().is_empty()
+                                    || req_model == "unknown"
+                                    || req_model.eq_ignore_ascii_case(&eff_model)
+                                {
+                                    eff_model
+                                } else {
+                                    format!("{req_model} → {eff_model}")
+                                };
+
                                 let line = Self::format_success_log_line(
                                     tool,
                                     response.status().as_u16(),
                                     provider.name.as_str(),
                                     latency,
-                                    log_model.as_str(),
-                                    endpoint,
-                                    trace_requests,
+                                    upstream.as_str(),
                                 );
                                 log::info!("{line}");
 
@@ -1045,6 +1051,15 @@ impl RequestForwarder {
         })?;
 
         let is_claude = adapter.name() == "Claude";
+        let app_type_str: &'static str = if is_claude {
+            "claude"
+        } else if adapter.name() == "Codex" {
+            "codex"
+        } else if adapter.name() == "Gemini" {
+            "gemini"
+        } else {
+            "other"
+        };
 
         // 根据 adapter 选择转发目标（并保留 base_url 便于错误日志定位）
         let (url, target_description, upstream_base_url) = if is_claude {
@@ -1123,8 +1138,12 @@ impl RequestForwarder {
             request.json(json_body)
         };
 
-        // 构造最终请求体（Claude：支持映射/智能解析；其它：原样透传）
+        // 构造最终请求体（Claude/Codex：支持映射/智能解析；其它：原样透传）
         let original_request_model = if is_claude && endpoint == "/v1/messages" {
+            Self::extract_model_from_body(body).unwrap_or_default()
+        } else if app_type_str == "codex"
+            && (endpoint == "/v1/responses" || endpoint == "/v1/chat/completions")
+        {
             Self::extract_model_from_body(body).unwrap_or_default()
         } else {
             String::new()
@@ -1148,6 +1167,20 @@ impl RequestForwarder {
             } else {
                 (mapped_body, None)
             }
+        } else if app_type_str == "codex"
+            && (endpoint == "/v1/responses" || endpoint == "/v1/chat/completions")
+            && !original_request_model.is_empty()
+        {
+            // Codex/OpenAI：默认开启智能解析：当供应商仅开放部分模型或别名不一致时，
+            // 通过 /v1/models 选取最接近的真实可用模型，并在首次成功后写回到 provider env（避免重复匹配）。
+            super::openai_model_resolver::resolve_openai_model_in_body(
+                &self.client,
+                provider,
+                &auth.api_key,
+                &original_request_model,
+                body.clone(),
+            )
+            .await
         } else {
             (body.clone(), None)
         };
@@ -1176,27 +1209,30 @@ impl RequestForwarder {
         let status = response.status();
 
         if status.is_success() {
-            // Claude：请求成功后写回映射（避免后续重复匹配）
-            if is_claude {
-                if let Some(wb) = pending_writeback {
+            // Claude/Codex：请求成功后写回映射（避免后续重复匹配）
+            if let Some(wb) = pending_writeback {
+                if app_type_str == "claude" || app_type_str == "codex" {
                     let router = self.router.clone();
                     let provider_id = provider.id.clone();
                     let env_key = wb.env_key;
                     let env_value = wb.value.clone();
+                    let app_type = app_type_str.to_string();
                     tokio::spawn(async move {
                         if let Err(e) = router
-                            .writeback_provider_env("claude", &provider_id, env_key, &env_value)
+                            .writeback_provider_env(&app_type, &provider_id, env_key, &env_value)
                             .await
                         {
                             log::warn!(
-                                "[ModelResolver] 写回失败 provider={} key={} err={}",
+                                "[ModelResolver] 写回失败 app={} provider={} key={} err={}",
+                                app_type,
                                 provider_id,
                                 env_key,
                                 e
                             );
                         } else {
-                            log::info!(
-                                "[ModelResolver] 已写回 provider={} {}={}",
+                            log::debug!(
+                                "[ModelResolver] 已写回 app={} provider={} {}={}",
+                                app_type,
                                 provider_id,
                                 env_key,
                                 env_value
@@ -1250,7 +1286,7 @@ impl RequestForwarder {
                         .unwrap_or(false);
 
                     if should_retry {
-                        log::info!(
+                        log::debug!(
                             "[ModelResolver] provider={} 上游提示模型不可用，尝试重试 {} → {}",
                             provider.id,
                             current_model,
@@ -1303,7 +1339,7 @@ impl RequestForwarder {
                                             e
                                         );
                                     } else {
-                                        log::info!(
+                                        log::debug!(
                                             "[ModelResolver] 已写回 provider={} {}={}",
                                             provider_id,
                                             env_key,

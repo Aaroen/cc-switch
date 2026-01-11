@@ -3,6 +3,7 @@
 //! 在请求转发前，根据 Provider 配置替换请求中的模型名称
 
 use crate::provider::Provider;
+use crate::proxy::model_catalog::{detect_model_family, is_same_family, ModelFamily};
 use serde_json::Value;
 
 /// 模型映射配置
@@ -61,22 +62,6 @@ impl ModelMapping {
     pub fn map_model(&self, original_model: &str, has_thinking: bool) -> String {
         let model_lower = original_model.to_lowercase();
 
-        fn base_family(lower: &str) -> Option<&'static str> {
-            if lower.contains("claude") {
-                return Some("claude");
-            }
-            if lower.starts_with("gpt-") {
-                return Some("gpt");
-            }
-            if lower.contains("gemini") {
-                return Some("gemini");
-            }
-            if lower.contains("llama") || lower.contains("meta-llama") {
-                return Some("llama");
-            }
-            None
-        }
-
         fn claude_family(lower: &str) -> Option<&'static str> {
             if lower.contains("haiku") {
                 return Some("haiku");
@@ -93,24 +78,22 @@ impl ModelMapping {
         // 约束：家族守护（Claude/GPT/Gemini/Llama 等）
         // - 若原始模型能识别家族，则映射目标必须仍在同家族内（严禁跨到 GLM/GPT 等）。
         // - Claude 额外要求：尽量保持 haiku/sonnet/opus 一致（避免“性能断崖”）。
-        let original_base_family = base_family(&model_lower);
+        let original_family = detect_model_family(original_model);
         let original_claude_family = claude_family(&model_lower);
 
         let is_acceptable_mapping = |mapped: &str| -> bool {
             let mapped_lower = mapped.to_lowercase();
-            if let Some(req) = original_base_family {
-                // 1) 家族锚定：必须同家族
-                if base_family(&mapped_lower) != Some(req) {
-                    return false;
-                }
+            // 1) 家族锚定：必须同家族（保守：只有请求可识别时才强制）
+            if !is_same_family(original_model, mapped) {
+                return false;
+            }
 
-                // 2) Claude 的子家族守护：尽量保持 haiku/sonnet/opus 一致
-                if req == "claude" {
-                    // 映射值本身缺少 haiku/sonnet/opus 关键词时放行（交给后续智能解析兜底）
-                    if let Some(f) = original_claude_family {
-                        let mapped_family = claude_family(&mapped_lower);
-                        return mapped_family.is_none() || mapped_lower.contains(f);
-                    }
+            // 2) Claude 的子家族守护：尽量保持 haiku/sonnet/opus 一致
+            if original_family == ModelFamily::Claude {
+                // 映射值本身缺少 haiku/sonnet/opus 关键词时放行（交给后续智能解析兜底）
+                if let Some(f) = original_claude_family {
+                    let mapped_family = claude_family(&mapped_lower);
+                    return mapped_family.is_none() || mapped_lower.contains(f);
                 }
             }
             true
@@ -192,7 +175,6 @@ pub fn apply_model_mapping(
         let mapped = mapping.map_model(original, has_thinking);
 
         if mapped != *original {
-            log::info!("[ModelMapper] 模型映射: {original} → {mapped}");
             body["model"] = serde_json::json!(mapped);
             return (body, Some(original.clone()), Some(mapped));
         }

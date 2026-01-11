@@ -182,7 +182,9 @@ fn choose_best_model_with_avoid(
 ) -> Option<String> {
     let req_norm = normalize_token(request_model);
     let request = parse_features(request_model, thinking_from_body);
-    let request_is_claude = normalize_token(request_model).contains("claude");
+    let request_is_claude =
+        crate::proxy::model_catalog::detect_model_family(request_model)
+            == crate::proxy::model_catalog::ModelFamily::Claude;
 
     // 若存在至少一个同 family 候选，则强制在同 family 内选择（“优先 family”，但允许无同 family 时降级）
     let has_family_match = request.family.is_some()
@@ -538,7 +540,7 @@ pub async fn resolve_claude_model_in_body_with_avoid(
         .map(|v| normalize_token(v) != normalize_token(&chosen))
         .unwrap_or(true);
 
-    log::info!(
+    log::debug!(
         "[ModelResolver] provider={} model {} → {} (writeback_key={} {})",
         provider.id,
         current_model,
