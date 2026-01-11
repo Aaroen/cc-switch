@@ -429,11 +429,13 @@ if pgrep -f "uvicorn.*backend.app" > /dev/null; then
 fi
 
 # 停止CLI代理
-if pgrep -f "cc-switch-cli proxy" > /dev/null; then
+if pgrep -f "cc-switch-cli proxy" > /dev/null || pgrep -f "csc proxy" > /dev/null; then
     pkill -f "cc-switch-cli proxy" 2>/dev/null || true
+    pkill -f "csc proxy" 2>/dev/null || true
     sleep 1
-    if pgrep -f "cc-switch-cli proxy" > /dev/null; then
+    if pgrep -f "cc-switch-cli proxy" > /dev/null || pgrep -f "csc proxy" > /dev/null; then
         pkill -9 -f "cc-switch-cli proxy" 2>/dev/null || true
+        pkill -9 -f "csc proxy" 2>/dev/null || true
     fi
 fi
 
@@ -494,6 +496,52 @@ step_done $CURRENT_STEP $TOTAL_STEPS "安装到系统路径 ($INSTALL_DIR)"
 CURRENT_STEP=7
 step_running $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置"
 
+# 计算 Rust 代理端口（优先使用默认端口；若被占用则尝试释放旧 cc-switch 进程，否则自动选择可用端口）
+RUST_PROXY_HOST="127.0.0.1"
+RUST_PROXY_PORT="${CC_SWITCH_RUST_PORT:-$DEFAULT_RUST_PORT}"
+
+if is_port_in_use "$RUST_PROXY_PORT"; then
+    # 尝试释放（仅针对疑似旧 cc-switch 代理）
+    LISTEN_HINT="$(get_listen_process_hint "$RUST_PROXY_PORT")"
+    if echo "$LISTEN_HINT" | grep -qiE "cc-switch-cli|\\bcsc\\b"; then
+        pkill -f "cc-switch-cli proxy" 2>/dev/null || true
+        pkill -f "csc proxy" 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
+if is_port_in_use "$RUST_PROXY_PORT"; then
+    ALT_RUST_PORT="$(find_free_port_from $((RUST_PROXY_PORT+1)) $((RUST_PROXY_PORT+200)) 2>/dev/null || true)"
+    if [ -z "$ALT_RUST_PORT" ]; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置"
+        echo ""
+        echo -e "${RED}错误: Rust 代理端口 ${RUST_PROXY_PORT} 被占用且未找到可用替代端口${NC}"
+        echo "占用信息: $(get_listen_process_hint "$RUST_PROXY_PORT")"
+        exit 1
+    fi
+    RUST_PROXY_PORT="$ALT_RUST_PORT"
+fi
+
+RUST_PROXY_BASE="http://${RUST_PROXY_HOST}:${RUST_PROXY_PORT}"
+CODEX_PROXY_BASE="${RUST_PROXY_BASE}/v1"
+
+# 将最终端口写入 DB（proxy_config 三行镜像），确保 csc 能发现实际运行端口
+if command -v "$PYTHON_CMD" >/dev/null 2>&1; then
+    "$PYTHON_CMD" - <<PY 2>/dev/null || true
+import os, sqlite3
+db = os.path.expanduser("~/.cc-switch/cc-switch.db")
+if not os.path.exists(db):
+    raise SystemExit(0)
+con = sqlite3.connect(db, timeout=3)
+try:
+    con.execute("UPDATE proxy_config SET listen_address=?, listen_port=?, updated_at=datetime('now')",
+                ("${RUST_PROXY_HOST}", int("${RUST_PROXY_PORT}")))
+    con.commit()
+finally:
+    con.close()
+PY
+fi
+
 # 检测Shell配置文件
 SHELL_CONFIG=""
 if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
@@ -526,7 +574,7 @@ check_codex_config() {
     fi
 
     # 检查base_url是否指向本地代理
-    if grep -q 'base_url = "http://127.0.0.1:15721' "$config_file" 2>/dev/null; then
+    if grep -q "base_url = \"$CODEX_PROXY_BASE\"" "$config_file" 2>/dev/null; then
         # 检查API Key是否为占位符
         if grep -q '"OPENAI_API_KEY": "sk-placeholder-managed-by-cc-switch"' "$auth_file" 2>/dev/null; then
             return 0
@@ -544,7 +592,7 @@ check_gemini_config() {
     fi
 
     # 检查base_url是否指向本地代理
-    if grep -q 'GEMINI_API_BASE_URL=http://127.0.0.1:15721' "$env_file" 2>/dev/null; then
+    if grep -q "GEMINI_API_BASE_URL=$RUST_PROXY_BASE" "$env_file" 2>/dev/null; then
         return 0
     fi
     return 1
@@ -557,24 +605,31 @@ CLAUDE_CONFIG_STATUS="跳过"
 CLAUDE_CONFIG_RESULT=""
 ENV_NEEDS_FIX=false
 
-if ! check_env_config "$SHELL_CONFIG" "ANTHROPIC_BASE_URL" && [ -z "$ANTHROPIC_BASE_URL" ]; then
-    ENV_NEEDS_FIX=true
+CLAUDE_EXPECTED_BASE="$RUST_PROXY_BASE"
+
+# 若当前环境变量未指向期望地址，且 shell 配置文件里也没有期望的 export，则需要修复
+if [ "${ANTHROPIC_BASE_URL:-}" != "$CLAUDE_EXPECTED_BASE" ]; then
+    if [ -n "$SHELL_CONFIG" ] && [ -f "$SHELL_CONFIG" ]; then
+        if ! grep -q "export ANTHROPIC_BASE_URL=\"$CLAUDE_EXPECTED_BASE\"" "$SHELL_CONFIG" 2>/dev/null; then
+            ENV_NEEDS_FIX=true
+        fi
+    else
+        ENV_NEEDS_FIX=true
+    fi
 fi
 
 if [ "$ENV_NEEDS_FIX" = true ] && [ -n "$SHELL_CONFIG" ]; then
     cp "$SHELL_CONFIG" "${SHELL_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
 
-    if ! check_env_config "$SHELL_CONFIG" "ANTHROPIC_BASE_URL"; then
-        echo "" >> "$SHELL_CONFIG"
-        echo "# CC-Switch 环境变量配置 (Claude CLI)" >> "$SHELL_CONFIG"
-        echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:15721"' >> "$SHELL_CONFIG"
-        echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-rust-backend"' >> "$SHELL_CONFIG"
-        CLAUDE_CONFIG_STATUS="已修改"
-        CLAUDE_CONFIG_RESULT="→ http://127.0.0.1:15721"
-    fi
+    echo "" >> "$SHELL_CONFIG"
+    echo "# CC-Switch 环境变量配置 (Claude CLI)" >> "$SHELL_CONFIG"
+    echo "export ANTHROPIC_BASE_URL=\"${RUST_PROXY_BASE}\"" >> "$SHELL_CONFIG"
+    echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-rust-backend"' >> "$SHELL_CONFIG"
+    CLAUDE_CONFIG_STATUS="已修改"
+    CLAUDE_CONFIG_RESULT="→ ${RUST_PROXY_BASE}"
 else
     CLAUDE_CONFIG_STATUS="已配置"
-    CLAUDE_CONFIG_RESULT="http://127.0.0.1:15721 ✓"
+    CLAUDE_CONFIG_RESULT="${RUST_PROXY_BASE} ✓"
 fi
 
 # ============================================================================
@@ -590,7 +645,7 @@ CODEX_CONFIG_ORIGINAL=""
 if check_codex_config "$CODEX_CONFIG_FILE" "$CODEX_AUTH_FILE"; then
     # 配置已正确，跳过修改
     CODEX_CONFIG_STATUS="已配置"
-    CODEX_CONFIG_RESULT="http://127.0.0.1:15721/v1 ✓"
+    CODEX_CONFIG_RESULT="${CODEX_PROXY_BASE} ✓"
 else
     # 配置不正确，需要备份和修改
     if [ -f "$CODEX_AUTH_FILE" ] || [ -f "$CODEX_CONFIG_FILE" ]; then
@@ -628,23 +683,23 @@ EOF
     cat > "$CODEX_CONFIG_FILE" <<EOF
 # CC-Switch 接管配置 - 由应用自动管理
 # 原配置已备份到 backups/ 目录
-model = "gpt-4o-2024-08-06"
+model = "gpt-5.2"
 model_provider = "cc-switch-proxy"
 preferred_auth_method = "apikey"
 model_reasoning_effort = "medium"
 
 [model_providers.cc-switch-proxy]
 name = "CC-Switch Proxy"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "$CODEX_PROXY_BASE"
 wire_api = "responses"
 
 $PROJECTS_SECTION
 EOF
 
     if [ -n "$CODEX_CONFIG_ORIGINAL" ]; then
-        CODEX_CONFIG_RESULT="$CODEX_CONFIG_ORIGINAL → http://127.0.0.1:15721/v1"
+        CODEX_CONFIG_RESULT="$CODEX_CONFIG_ORIGINAL → $CODEX_PROXY_BASE"
     else
-        CODEX_CONFIG_RESULT="→ http://127.0.0.1:15721/v1"
+        CODEX_CONFIG_RESULT="→ $CODEX_PROXY_BASE"
     fi
 fi
 
@@ -660,7 +715,7 @@ GEMINI_CONFIG_RESULT=""
 if check_gemini_config "$GEMINI_ENV_FILE"; then
     # 配置已正确，跳过修改
     GEMINI_CONFIG_STATUS="已配置"
-    GEMINI_CONFIG_RESULT="http://127.0.0.1:15721 ✓"
+    GEMINI_CONFIG_RESULT="${RUST_PROXY_BASE} ✓"
 else
     # 配置不正确，需要备份和修改
     if [ -f "$GEMINI_ENV_FILE" ] || [ -f "$GEMINI_SETTINGS_FILE" ]; then
@@ -677,21 +732,21 @@ else
     mkdir -p "$GEMINI_CONFIG_DIR"
 
     # 写入CC-Switch接管配置
-    cat > "$GEMINI_ENV_FILE" <<'EOF'
+    cat > "$GEMINI_ENV_FILE" <<EOF
 # CC-Switch 接管配置 - 由应用自动管理
-GEMINI_API_BASE_URL=http://127.0.0.1:15721
+GEMINI_API_BASE_URL=$RUST_PROXY_BASE
 GEMINI_API_KEY=sk-placeholder-managed-by-cc-switch
 EOF
 
-    cat > "$GEMINI_SETTINGS_FILE" <<'EOF'
+    cat > "$GEMINI_SETTINGS_FILE" <<EOF
 {
   "model": "gemini-2.0-flash-exp",
   "provider": "cc-switch-proxy",
-  "baseUrl": "http://127.0.0.1:15721"
+  "baseUrl": "$RUST_PROXY_BASE"
 }
 EOF
 
-    GEMINI_CONFIG_RESULT="→ http://127.0.0.1:15721"
+    GEMINI_CONFIG_RESULT="→ ${RUST_PROXY_BASE}"
 fi
 
 step_done $CURRENT_STEP $TOTAL_STEPS "检测环境变量配置 (完成)"
@@ -796,7 +851,7 @@ CURRENT_STEP=9
 step_running $CURRENT_STEP $TOTAL_STEPS "启动 Rust 代理服务"
 
 cd "$SCRIPT_DIR" || exit 1
-nohup env CC_SWITCH_PYTHON_PROXY_BASE="$CC_SWITCH_PYTHON_PROXY_BASE" \
+nohup env CC_SWITCH_PYTHON_PROXY_BASE="$CC_SWITCH_PYTHON_PROXY_BASE" CC_SWITCH_LISTEN_ADDRESS="$RUST_PROXY_HOST" CC_SWITCH_LISTEN_PORT="$RUST_PROXY_PORT" \
     "$INSTALL_DIR/cc-switch-cli" proxy start > "$LOG_DIR/rust_proxy.log" 2>&1 &
 RUST_PROXY_PID=$!
 
@@ -865,10 +920,10 @@ else
 fi
 echo ""
 
-echo -e "${BLUE}   Rust 代理层 (端口 15721)${NC}"
+echo -e "${BLUE}   Rust 代理层 (端口 ${RUST_PROXY_PORT})${NC}"
 if [ "$RUST_OK" = true ]; then
     echo -e "   状态: ${GREEN}✓ 运行中${NC}"
-    echo -e "   地址: 127.0.0.1:15721"
+    echo -e "   地址: ${RUST_PROXY_HOST}:${RUST_PROXY_PORT}"
     echo -e "   日志: tail -f $LOG_DIR/rust_proxy.log"
 else
     echo -e "   状态: ${RED}✗ 未运行${NC}"
@@ -924,7 +979,7 @@ PY
         if [ -z "$FINGERPRINT_KEYS" ]; then
             FINGERPRINT_KEYS=$("$PYTHON_CMD" - <<'PY' 2>/dev/null || true
 import json, urllib.request
-url = "http://127.0.0.1:15721/status"
+url = "${RUST_PROXY_BASE}/status"
 try:
     with urllib.request.urlopen(url, timeout=2) as resp:
         data = json.loads(resp.read().decode("utf-8", errors="ignore"))

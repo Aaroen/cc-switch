@@ -228,8 +228,30 @@ async fn proxy_start() -> Result<(), AppError> {
     // 初始化数据库
     let db = Arc::new(Database::init()?);
 
-    // 创建代理配置
-    let config = ProxyConfig::default();
+    // 创建代理配置：优先从 DB 读取（与 GUI 行为一致），否则使用默认值
+    let mut config = match db.get_proxy_config().await {
+        Ok(cfg) => cfg,
+        Err(_) => ProxyConfig::default(),
+    };
+
+    // 允许通过环境变量覆盖监听地址/端口（主要供一键部署脚本在端口冲突时自动避让）
+    if let Ok(v) = std::env::var("CC_SWITCH_LISTEN_ADDRESS") {
+        let s = v.trim();
+        if !s.is_empty() {
+            config.listen_address = s.to_string();
+        }
+    }
+    if let Ok(v) = std::env::var("CC_SWITCH_LISTEN_PORT") {
+        if let Ok(p) = v.trim().parse::<u16>() {
+            if p > 0 {
+                config.listen_port = p;
+            }
+        }
+    }
+
+    // 若通过环境变量覆盖了端口/地址，则同步写回 DB，确保后续 `csc` 能发现实际运行端口
+    //（proxy_config 为三行镜像结构，更新一次即可覆盖三行公共字段）
+    let _ = db.update_proxy_config(config.clone()).await;
 
     // 创建代理服务器（不传入AppHandle，CLI模式下不需要GUI事件）
     let server = ProxyServer::new(config.clone(), db, None);
