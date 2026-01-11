@@ -29,6 +29,10 @@ chmod +x ./install-ccs.sh
 
 > 具体差异可对比：本仓库 vs 上游仓库/参考仓库（见下方链接）。
 
+- **层级轮询（核心功能）**：
+  - 供应商按优先级层级（`priority=0/1/2...`）组织；同层级内按 supplier 聚合并做 round-robin 轮询
+  - 启动前/启动时可做真实链路测速，优先使用当前层级最优 URL；失败后自动推进到下一层级
+  - 结合熔断器与冷静期，避免对故障供应商反复探测拖慢整体体验
 - **真实链路测速**：`csc t claude|codex|gemini` 通过“真实启动请求”验证可用性并择优固定。
 - **智能模型名解析 + 写回**：
   - Claude：按 `family(haiku/sonnet/opus) → major/minor(4/5) → thinking` 优先级匹配供应商真实模型名，成功后写回，避免重复匹配与启动报错。
@@ -45,6 +49,17 @@ chmod +x ./install-ccs.sh
 ```bash
 # 列出供应商
 csc ls
+
+# 将供应商加入/移出故障转移队列（层级轮询的候选集合）
+csc qa <app> <id>
+csc qr <app> <id>
+
+# 设置供应商层级（priority）
+csc sp <app> <id> <level>
+
+# 指定/取消指定使用某个供应商（指定优先级高于层级轮询）
+csc en <app> <id>
+csc dis <app>
 
 # 代理状态
 csc p st
@@ -84,4 +99,3 @@ tail -f ~/.cc-switch/logs/claude_proxy.log
 
 - 请勿把供应商 `API Key`、本地 `~/.cc-switch` 配置与日志直接公开到互联网。
 - 如需分享排障信息，建议先脱敏 `Authorization`、`api-key` 与任何包含 key 的字段。
-
