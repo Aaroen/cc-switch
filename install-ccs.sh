@@ -80,6 +80,10 @@ TOTAL_STEPS=10
 LOG_DIR="$HOME/.cc-switch/logs"
 mkdir -p "$LOG_DIR"
 
+# CC-Switch 数据目录（包含 sqlite DB、日志、pid 等）
+CC_SWITCH_DIR="$HOME/.cc-switch"
+DB_PATH="$CC_SWITCH_DIR/cc-switch.db"
+
 # 保留旧日志文件（避免排障线索丢失）。
 # 如需清理，请手动处理对应文件。
 
@@ -389,9 +393,28 @@ if pgrep -f "cc-switch-cli proxy" > /dev/null; then
     fi
 fi
 
-# 清理PID文件
-rm -f "$HOME/.cc-switch/proxy.pid" 2>/dev/null
-rm -f "$HOME/.cc-switch/python_proxy.pid" 2>/dev/null
+# 备份 sqlite 数据库（包含指纹 settings：last_request_summary_* 等）
+# 注意：为避免复制时 DB 正在写入，放在“停止旧服务”之后执行。
+backup_ccswitch_db() {
+    local ts
+    ts="$(date +%Y%m%d_%H%M%S)"
+    local backup_dir="$CC_SWITCH_DIR/backups"
+    mkdir -p "$backup_dir"
+
+    if [ -f "$DB_PATH" ]; then
+        cp -a "$DB_PATH" "$backup_dir/cc-switch.db.backup.$ts" 2>/dev/null || true
+        # WAL 模式下可能存在额外文件；一并备份以保证完整性
+        [ -f "${DB_PATH}-wal" ] && cp -a "${DB_PATH}-wal" "$backup_dir/cc-switch.db-wal.backup.$ts" 2>/dev/null || true
+        [ -f "${DB_PATH}-shm" ] && cp -a "${DB_PATH}-shm" "$backup_dir/cc-switch.db-shm.backup.$ts" 2>/dev/null || true
+    fi
+}
+
+backup_ccswitch_db
+
+# 保留 PID 文件（避免文件消失）。如存在则改名归档。
+ts_pid="$(date +%Y%m%d_%H%M%S)"
+[ -f "$CC_SWITCH_DIR/proxy.pid" ] && mv "$CC_SWITCH_DIR/proxy.pid" "$CC_SWITCH_DIR/proxy.pid.backup.$ts_pid" 2>/dev/null || true
+[ -f "$CC_SWITCH_DIR/python_proxy.pid" ] && mv "$CC_SWITCH_DIR/python_proxy.pid" "$CC_SWITCH_DIR/python_proxy.pid.backup.$ts_pid" 2>/dev/null || true
 
 step_done $CURRENT_STEP $TOTAL_STEPS "停止旧服务"
 
@@ -403,6 +426,12 @@ step_running $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
 
 INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
+
+# 保留旧二进制（避免覆盖导致旧版本消失）
+ts_bin="$(date +%Y%m%d_%H%M%S)"
+[ -f "$INSTALL_DIR/cc-switch-cli" ] && cp -a "$INSTALL_DIR/cc-switch-cli" "$INSTALL_DIR/cc-switch-cli.backup.$ts_bin" 2>/dev/null || true
+[ -f "$INSTALL_DIR/csc" ] && cp -a "$INSTALL_DIR/csc" "$INSTALL_DIR/csc.backup.$ts_bin" 2>/dev/null || true
+
 cp "$CLI_PATH" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/cc-switch-cli"
 
@@ -636,8 +665,11 @@ rotate_log_if_needed() {
     local file_size_mb=$(du -m "$log_file" 2>/dev/null | cut -f1)
 
     if [ "$file_size_mb" -ge "$max_size_mb" ]; then
+        local ts
+        ts="$(date +%Y%m%d_%H%M%S)"
         if [ -f "${log_file}.${max_backups}" ]; then
-            rm -f "${log_file}.${max_backups}"
+            # 不删除旧日志，改为归档保留
+            mv "${log_file}.${max_backups}" "${log_file}.archive.${ts}.${max_backups}" 2>/dev/null || true
         fi
         for i in $(seq $((max_backups-1)) -1 1); do
             if [ -f "${log_file}.${i}" ]; then
@@ -766,6 +798,74 @@ echo -e "${BLUE}   数据库${NC}"
 if [ "$DB_OK" = true ]; then
     echo -e "   状态: ${GREEN}✓ 已初始化${NC}"
     echo -e "   位置: ~/.cc-switch/cc-switch.db"
+
+    # 读取指纹 settings（用于 `csc t` 对齐真实请求形态）
+    if command -v "$PYTHON_CMD" >/dev/null 2>&1; then
+        FINGERPRINT_KEYS=$("$PYTHON_CMD" - <<'PY' 2>/dev/null || true
+import os, sqlite3
+db = os.path.expanduser("~/.cc-switch/cc-switch.db")
+if not os.path.exists(db):
+    raise SystemExit(0)
+con = sqlite3.connect(db, timeout=2)
+try:
+    rows = con.execute("SELECT key FROM settings WHERE key LIKE 'last_request_summary_%' ORDER BY key").fetchall()
+finally:
+    con.close()
+print("\n".join([r[0] for r in rows]))
+PY
+)
+        # 若未发现指纹，尝试从项目内置兜底写入（避免首次真实请求前 `csc t` 无法对齐形态）
+        if [ -z "$FINGERPRINT_KEYS" ]; then
+            export CC_SWITCH_BUILTIN_SUMMARIES_PATH="$SCRIPT_DIR/src-tauri/defaults/last_request_summaries.json"
+            FINGERPRINT_KEYS=$("$PYTHON_CMD" - <<'PY' 2>/dev/null || true
+import os, sqlite3, json
+db = os.path.expanduser("~/.cc-switch/cc-switch.db")
+src = os.environ.get("CC_SWITCH_BUILTIN_SUMMARIES_PATH") or ""
+if not os.path.exists(db) or not os.path.exists(src):
+    raise SystemExit(0)
+with open(src, "r", encoding="utf-8") as f:
+    data = json.load(f)
+con = sqlite3.connect(db, timeout=2)
+try:
+    con.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    for app_type, summary in data.items():
+        key = f"last_request_summary_{app_type}"
+        con.execute("INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)", (key, json.dumps(summary, ensure_ascii=False)))
+    con.commit()
+    rows = con.execute("SELECT key FROM settings WHERE key LIKE 'last_request_summary_%' ORDER BY key").fetchall()
+finally:
+    con.close()
+print("\\n".join([r[0] for r in rows]))
+PY
+)
+        fi
+        # 如果 sqlite 仍然未能读取到（可能被运行中的 rust_proxy 占用锁），再通过 /status 判定是否已加载内置兜底。
+        if [ -z "$FINGERPRINT_KEYS" ]; then
+            FINGERPRINT_KEYS=$("$PYTHON_CMD" - <<'PY' 2>/dev/null || true
+import json, urllib.request
+url = "http://127.0.0.1:15721/status"
+try:
+    with urllib.request.urlopen(url, timeout=2) as resp:
+        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+except Exception:
+    raise SystemExit(0)
+last = data.get("last_requests") or {}
+keys = []
+for k in sorted(last.keys()):
+    if not k:
+        continue
+    keys.append(f"last_request_summary_{k}")
+print("\\n".join(keys))
+PY
+)
+        fi
+        if [ -n "$FINGERPRINT_KEYS" ]; then
+            echo -e "   指纹: ${GREEN}✓ 已持久化${NC}"
+            echo "$FINGERPRINT_KEYS" | sed 's/^/     - /'
+        else
+            echo -e "   指纹: ${YELLOW}⚠ 未发现${NC}（首次真实请求后会自动写入并供重启后测速复用）"
+        fi
+    fi
 else
     echo -e "   状态: ${YELLOW}⚠ 未初始化${NC} (首次运行时自动创建)"
 fi

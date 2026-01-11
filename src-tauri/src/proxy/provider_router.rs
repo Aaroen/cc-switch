@@ -6,6 +6,7 @@ use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
 use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
+use serde_json::Value;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -70,6 +71,8 @@ pub struct BenchmarkSupplierResult {
     pub supplier: String,
     /// 真实请求中观察到的 model（用于 startup 测试与日志对齐）
     pub request_model: Option<String>,
+    /// 实际发往上游的 model（经过映射/智能解析后的最终值）
+    pub effective_model: Option<String>,
     pub chosen_url: Option<String>,
     /// OK / OV / FB / FAIL / COOLDOWN
     pub chosen_kind: String,
@@ -95,6 +98,9 @@ pub struct ProviderRouter {
     supplier_cooldowns: Arc<RwLock<HashMap<String, std::time::Instant>>>,
     /// URL 疑似失效标记 - key 格式: "app_type:supplier:base_url", value: 解除时间
     suspect_urls: Arc<RwLock<HashMap<String, std::time::Instant>>>,
+    /// URL 疑似失效后，下一次选路完成时输出“切换结果”（避免只看到“疑似失效”看不到切换到哪）
+    /// key 格式: "app_type:priority:supplier"
+    supplier_pending_url_switch: Arc<RwLock<HashMap<String, PendingUrlSwitch>>>,
     /// 每个供应商当前选中的 URL（同一时刻只使用一个“最快 URL”）
     /// key 格式: "app_type:priority:supplier", value: base_url
     supplier_current_url: Arc<RwLock<HashMap<String, String>>>,
@@ -120,12 +126,20 @@ struct TestOverride {
     expires_at: std::time::Instant,
 }
 
+#[derive(Debug, Clone)]
+struct PendingUrlSwitch {
+    from_url: String,
+    expires_at: std::time::Instant,
+}
+
 impl ProviderRouter {
     const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
     const CONNECTIVITY_PENALTY_MS: u64 = 30_000;
     const DEFAULT_BENCHMARK_SUMMARY_INFO_ENV: &'static str = "CC_SWITCH_BENCHMARK_SUMMARY";
     /// 熔断器 Open -> HalfOpen 的最小冷静期（秒）：避免频繁 HalfOpen 探测拖慢正常服务
     const MIN_CIRCUIT_OPEN_TIMEOUT_SECS: u64 = 600;
+    /// 标记 URL 疑似失效前至少连续失败轮数（默认对齐 3 轮）
+    const MIN_NETWORK_FAILS_BEFORE_SUSPECT: u32 = 3;
 
     /// 创建新的供应商路由器
     pub fn new(db: Arc<Database>) -> Self {
@@ -138,12 +152,18 @@ impl ProviderRouter {
             url_latencies: Arc::new(RwLock::new(HashMap::new())),
             supplier_cooldowns: Arc::new(RwLock::new(HashMap::new())),
             suspect_urls: Arc::new(RwLock::new(HashMap::new())),
+            supplier_pending_url_switch: Arc::new(RwLock::new(HashMap::new())),
             supplier_current_url: Arc::new(RwLock::new(HashMap::new())),
             supplier_retest_once: Arc::new(RwLock::new(HashMap::new())),
             supplier_benchmark_locks: Arc::new(RwLock::new(HashMap::new())),
             test_override: Arc::new(RwLock::new(None)),
             test_results: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    #[inline]
+    fn normalize_base_url(url: &str) -> String {
+        url.trim().trim_end_matches('/').to_string()
     }
 
     #[inline]
@@ -174,9 +194,42 @@ impl ProviderRouter {
         supplier: &str,
         url: &str,
     ) {
+        let url = Self::normalize_base_url(url);
         let key = Self::supplier_key(app_type, priority, supplier);
+
+        // 若之前有“疑似失效 -> 待展示切换结果”的标记，这里输出切换结果并清理
+        {
+            let now = std::time::Instant::now();
+            let mut map = self.supplier_pending_url_switch.write().await;
+            if let Some(p) = map.get(&key).cloned() {
+                if p.expires_at > now {
+                    map.remove(&key);
+                    if p.from_url != url {
+                        log::info!(
+                            "[{}:{}] URL切换完成 supplier={} from={} to={}",
+                            app_type,
+                            priority,
+                            supplier,
+                            p.from_url,
+                            url
+                        );
+                    } else {
+                        log::warn!(
+                            "[{}:{}] URL切换失败（无可用替代URL） supplier={} url={}",
+                            app_type,
+                            priority,
+                            supplier,
+                            url
+                        );
+                    }
+                } else {
+                    map.remove(&key);
+                }
+            }
+        }
+
         let mut map = self.supplier_current_url.write().await;
-        map.insert(key, url.to_string());
+        map.insert(key, url);
     }
 
     async fn clear_supplier_current_url(&self, app_type: &str, priority: usize, supplier: &str) {
@@ -188,8 +241,12 @@ impl ProviderRouter {
     async fn get_active_test_override(&self, app_type: &str) -> Option<TestOverride> {
         let mut guard = self.test_override.write().await;
         if let Some(o) = guard.as_ref() {
-            if o.app_type == app_type && std::time::Instant::now() < o.expires_at {
-                return Some(o.clone());
+            // 仅在过期时清理；不同 app_type 的请求不应误清空其它 app 的测试覆盖
+            if std::time::Instant::now() < o.expires_at {
+                if o.app_type == app_type {
+                    return Some(o.clone());
+                }
+                return None;
             }
         }
         // 过期清理
@@ -200,6 +257,58 @@ impl ProviderRouter {
     /// forwarder/CLI 可用：判断当前是否处于 startup 测试覆盖期
     pub async fn has_active_test_override(&self, app_type: &str) -> bool {
         self.get_active_test_override(app_type).await.is_some()
+    }
+
+    /// 将智能匹配出的模型名称写回 Provider 配置（避免后续重复匹配）
+    ///
+    /// - 仅更新 Provider.settings_config.env 中指定 key 的值
+    /// - 写回发生在“请求成功后”（由调用方控制），这里不判断上游是否成功
+    pub async fn writeback_provider_env(
+        &self,
+        app_type: &str,
+        provider_id: &str,
+        env_key: &str,
+        env_value: &str,
+    ) -> Result<(), AppError> {
+        let db = self.db.clone();
+        let app_type = app_type.to_string();
+        let provider_id = provider_id.to_string();
+        let env_key = env_key.to_string();
+        let env_value = env_value.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+            let Some(mut provider) = db.get_provider_by_id(&provider_id, &app_type)? else {
+                return Ok(());
+            };
+
+            // 确保 settings_config.env 存在且为 object
+            if provider.settings_config.is_null() {
+                provider.settings_config = serde_json::json!({});
+            }
+            if !provider.settings_config.is_object() {
+                provider.settings_config = serde_json::json!({});
+            }
+
+            let env = provider
+                .settings_config
+                .as_object_mut()
+                .expect("settings_config should be object")
+                .entry("env")
+                .or_insert_with(|| serde_json::json!({}));
+
+            if !env.is_object() {
+                *env = serde_json::json!({});
+            }
+
+            env.as_object_mut()
+                .expect("env should be object")
+                .insert(env_key, Value::String(env_value));
+
+            db.save_provider(&app_type, &provider)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| AppError::Message(format!("写回模型配置任务失败: {e}")))?
     }
 
     async fn mark_supplier_retest_once(
@@ -258,7 +367,7 @@ impl ProviderRouter {
             app_type: app_type.to_string(),
             priority,
             supplier: supplier.to_string(),
-            base_url: base_url.map(|s| s.to_string()),
+            base_url: base_url.map(Self::normalize_base_url),
             run_id: run_id.to_string(),
             expires_at: std::time::Instant::now() + std::time::Duration::from_secs(ttl_secs),
         };
@@ -272,6 +381,7 @@ impl ProviderRouter {
         app_type: &str,
         provider: &Provider,
         request_model: Option<&str>,
+        effective_model: Option<&str>,
         latency_ms: u64,
         status: Option<u16>,
         error_text: Option<String>,
@@ -368,6 +478,7 @@ impl ProviderRouter {
             priority,
             supplier: supplier.to_string(),
             request_model: request_model.map(|s| s.to_string()),
+            effective_model: effective_model.map(|s| s.to_string()),
             chosen_url: Some(base_url.clone()),
             chosen_kind: kind.clone(),
             metric_ms,
@@ -679,7 +790,7 @@ impl ProviderRouter {
 
     async fn is_url_suspect(&self, app_type: &str, supplier: &str, url: &str) -> bool {
         let now = std::time::Instant::now();
-        let key = format!("{app_type}:{supplier}:{url}");
+        let key = format!("{app_type}:{supplier}:{}", Self::normalize_base_url(url));
         let mut map = self.suspect_urls.write().await;
 
         match map.get(&key).copied() {
@@ -693,7 +804,7 @@ impl ProviderRouter {
     }
 
     async fn set_url_suspect(&self, app_type: &str, supplier: &str, url: &str, seconds: u64) {
-        let key = format!("{app_type}:{supplier}:{url}");
+        let key = format!("{app_type}:{supplier}:{}", Self::normalize_base_url(url));
         let until = std::time::Instant::now() + std::time::Duration::from_secs(seconds);
         let mut map = self.suspect_urls.write().await;
         map.insert(key, until);
@@ -805,6 +916,7 @@ impl ProviderRouter {
                     let Some(base_url) = Self::extract_base_url(provider, app_type) else {
                         continue;
                     };
+                    let base_url = Self::normalize_base_url(&base_url);
                     supplier_urls
                         .entry(supplier)
                         .or_insert_with(HashMap::new)
@@ -831,6 +943,7 @@ impl ProviderRouter {
                     let matching_override = test_override.as_ref().filter(|o| {
                         o.priority == *priority && o.supplier == *supplier
                     });
+                    let bypass_circuit_breaker = matching_override.is_some();
 
                     // startup 测试模式：可选固定到某个 base_url（逐 URL 做“真实启动链路”测速）
                     let pinned_url = matching_override.and_then(|o| o.base_url.clone());
@@ -854,6 +967,7 @@ impl ProviderRouter {
                                 priority: *priority,
                                 supplier: supplier.to_string(),
                                 request_model: Some(request_model.to_string()),
+                                effective_model: None,
                                 chosen_url: Some(pin.clone()),
                                 chosen_kind: "FAIL".to_string(),
                                 metric_ms: None,
@@ -1172,7 +1286,7 @@ impl ProviderRouter {
                     for provider in unique_by_key.values() {
                         let circuit_key = format!("{}:{}", app_type, provider.id);
                         let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
-                        if breaker.is_available().await {
+                        if bypass_circuit_breaker || breaker.is_available().await {
                             candidates.push(provider.clone());
                         }
                     }
@@ -1270,13 +1384,13 @@ impl ProviderRouter {
         error_msg: Option<String>,
     ) -> Result<(), AppError> {
         // 1. 按应用独立获取熔断器配置（用于更新健康状态和判断是否禁用）
-        let failure_threshold = match self.db.get_proxy_config_for_app(app_type).await {
-            Ok(app_config) => app_config.circuit_failure_threshold,
+        let (failure_threshold, max_retries) = match self.db.get_proxy_config_for_app(app_type).await {
+            Ok(app_config) => (app_config.circuit_failure_threshold, app_config.max_retries),
             Err(e) => {
                 log::warn!(
                     "Failed to load circuit config for {app_type}, using default threshold: {e}"
                 );
-                5 // 默认值
+                (5, 1) // 默认值
             }
         };
 
@@ -1305,27 +1419,58 @@ impl ProviderRouter {
                     if let Some(provider) = self.db.get_provider_by_id(provider_id, app_type)? {
                         let supplier = Self::supplier_name(&provider);
                         if let Some(url) = Self::extract_base_url(&provider, app_type) {
-                            self.set_url_suspect(app_type, &supplier, &url, seconds).await;
-                            let priority = provider.sort_index.unwrap_or(999999);
-                            self.clear_supplier_current_url(app_type, priority, &supplier)
-                                .await;
-                            // 强制下次在该层级、该供应商内重新测速所有 URL，并在日志输出结果（对齐 csc t 的决策逻辑）
-                            self.mark_supplier_retest_once(app_type, priority as usize, &supplier, seconds)
-                                .await;
-                            {
-                                let tested_key =
-                                    Self::supplier_key(app_type, priority as usize, &supplier);
-                                let mut tested_map = self.priority_level_tested.write().await;
-                                tested_map.remove(&tested_key);
-                            }
-                            log::info!(
-                                "[{}:{}] URL疑似失效 supplier={} url={} 将触发本层级重新测速并在同supplier内切换URL (err={})",
-                                app_type,
-                                priority,
-                                supplier,
-                                url,
-                                Self::shorten_for_log(err, 160)
+                            let url = Self::normalize_base_url(&url);
+                            let priority = provider.sort_index.unwrap_or(999999) as usize;
+
+                            let min_fails = std::cmp::max(
+                                Self::MIN_NETWORK_FAILS_BEFORE_SUSPECT,
+                                std::cmp::max(1, max_retries),
                             );
+                            let consecutive_failures = breaker.get_stats().await.consecutive_failures;
+                            if consecutive_failures >= min_fails
+                                && !self.is_url_suspect(app_type, &supplier, &url).await
+                            {
+                                self.set_url_suspect(app_type, &supplier, &url, seconds).await;
+
+                                // 记录一次“待展示切换结果”：下一次选路结束时输出 from->to
+                                {
+                                    let key = Self::supplier_key(app_type, priority, &supplier);
+                                    let until = std::time::Instant::now()
+                                        + std::time::Duration::from_secs(seconds);
+                                    let mut map = self.supplier_pending_url_switch.write().await;
+                                    map.insert(
+                                        key,
+                                        PendingUrlSwitch {
+                                            from_url: url.clone(),
+                                            expires_at: until,
+                                        },
+                                    );
+                                }
+
+                                self.clear_supplier_current_url(app_type, priority, &supplier)
+                                    .await;
+                                // 强制下次在该层级、该供应商内重新测速所有 URL，并在日志输出结果（对齐 csc t 的决策逻辑）
+                                self.mark_supplier_retest_once(
+                                    app_type,
+                                    priority,
+                                    &supplier,
+                                    seconds,
+                                )
+                                .await;
+                                {
+                                    let tested_key = Self::supplier_key(app_type, priority, &supplier);
+                                    let mut tested_map = self.priority_level_tested.write().await;
+                                    tested_map.remove(&tested_key);
+                                }
+                                log::info!(
+                                    "[{}:{}] URL疑似失效 supplier={} url={} 将触发本层级重新测速并在同supplier内切换URL (err={})",
+                                    app_type,
+                                    priority,
+                                    supplier,
+                                    url,
+                                    Self::shorten_for_log(err, 160)
+                                );
+                            }
                         }
                     }
                 }
@@ -1428,23 +1573,37 @@ impl ProviderRouter {
         let config = match self.db.get_proxy_config_for_app(app_type).await {
             Ok(app_config) => {
                 let configured_timeout = app_config.circuit_timeout_seconds as u64;
-                let timeout_seconds = configured_timeout.max(Self::MIN_CIRCUIT_OPEN_TIMEOUT_SECS);
-                if timeout_seconds != configured_timeout {
-                    log::info!(
+                // 0 表示“立即进入 HalfOpen”（主要用于测试/诊断）；其余情况才做最小值钳制
+                let timeout_seconds = if configured_timeout == 0 {
+                    0
+                } else {
+                    configured_timeout.max(Self::MIN_CIRCUIT_OPEN_TIMEOUT_SECS)
+                };
+                if configured_timeout != 0 && timeout_seconds != configured_timeout {
+                    log::debug!(
                         "Circuit breaker timeout clamped for {key} (app={app_type}): {}s -> {}s",
                         configured_timeout,
                         timeout_seconds
                     );
                 }
+
+                // 进入“熔断冷静期”前至少覆盖一次完整重试轮数（默认 3 轮）
+                let min_failure_threshold = std::cmp::max(
+                    Self::MIN_NETWORK_FAILS_BEFORE_SUSPECT,
+                    std::cmp::max(1, app_config.max_retries),
+                );
+                let failure_threshold =
+                    std::cmp::max(app_config.circuit_failure_threshold, min_failure_threshold);
+
                 log::debug!(
                     "Loading circuit breaker config for {key} (app={app_type}): \
                     failure_threshold={}, success_threshold={}, timeout={}s",
-                    app_config.circuit_failure_threshold,
+                    failure_threshold,
                     app_config.circuit_success_threshold,
                     timeout_seconds
                 );
                 crate::proxy::circuit_breaker::CircuitBreakerConfig {
-                    failure_threshold: app_config.circuit_failure_threshold,
+                    failure_threshold,
                     success_threshold: app_config.circuit_success_threshold,
                     timeout_seconds,
                     error_rate_threshold: app_config.circuit_error_rate_threshold,
@@ -1551,23 +1710,43 @@ impl ProviderRouter {
         let start = std::time::Instant::now();
 
         let response = if app_type == "codex" {
-            // Codex: 直接测试目标URL，使用OpenAI格式
+            // Codex: 真实客户端主要走 Responses API（/v1/responses），否则会出现“真实可用但测速不可用”的误判
             let test_payload = serde_json::json!({
                 "model": request_model,
-                "max_tokens": 100,
-                "temperature": 0.7,
-                "stream": false,
-                "messages": [{
+                "max_output_tokens": 64,
+                "stream": false
+                ,
+                "input": [{
                     "role": "user",
-                    "content": "请简短回答：什么是人工智能？"
+                    "content": [{"type":"input_text","text":"ping"}]
                 }]
             });
 
-            let target_url = format!("{}/v1/chat/completions", base_url);
+            let join = |base: &str, endpoint: &str| {
+                let base_trimmed = base.trim_end_matches('/');
+                let endpoint_trimmed = endpoint.trim_start_matches('/');
+                let mut url = format!("{base_trimmed}/{endpoint_trimmed}");
+                if url.contains("/v1/v1") {
+                    url = url.replace("/v1/v1", "/v1");
+                }
+                url
+            };
 
-            client
+            // 优先 /v1/responses（与 proxy handler 入口一致）
+            let target_url = join(base_url, "/v1/responses");
+
+            let resp = client
                 .post(&target_url)
                 .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("User-Agent", "codex_cli_rs/0.0 (external, cli)")
+                .header("x-request-id", format!("cc-switch-probe-{}", uuid::Uuid::new_v4()))
+                .header("x-stainless-os", std::env::consts::OS)
+                .header("x-stainless-arch", std::env::consts::ARCH)
+                .header("x-stainless-lang", "rust")
+                .header("x-stainless-runtime", "cc-switch")
+                .header("x-stainless-runtime-version", env!("CARGO_PKG_VERSION"))
+                .header("x-stainless-package-version", env!("CARGO_PKG_VERSION"))
                 .header("Authorization", format!("Bearer {}", api_key))
                 .json(&test_payload)
                 .send()
@@ -1578,6 +1757,69 @@ impl ProviderRouter {
                         message: format!("请求失败: {e}"),
                     },
                 })?
+                ;
+
+            // 若 responses 端点不兼容（常见：400/500 + bad_response_status_code/openai_error/Format mismatch），回退用 chat/completions 探测
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.ok();
+                let text = body.as_deref().unwrap_or_default().to_lowercase();
+                let looks_incompatible = text.contains("bad_response_status_code")
+                    || text.contains("openai_error")
+                    || text.contains("format mismatch")
+                    || (text.contains("openai_responses") && text.contains("openai_chat"))
+                    || text.contains("only [['openai_chat']]")
+                    || text.contains("only [[\"openai_chat\"]]");
+
+                if looks_incompatible {
+                    let payload_chat = serde_json::json!({
+                        "model": request_model,
+                        "max_tokens": 64,
+                        "temperature": 0.7,
+                        "stream": false,
+                        "messages": [{
+                            "role": "user",
+                            "content": "ping"
+                        }]
+                    });
+                    let target_chat = join(base_url, "/v1/chat/completions");
+                    client
+                        .post(&target_chat)
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("User-Agent", "codex_cli_rs/0.0 (external, cli)")
+                        .header(
+                            "x-request-id",
+                            format!("cc-switch-probe-{}", uuid::Uuid::new_v4()),
+                        )
+                        .header("x-stainless-os", std::env::consts::OS)
+                        .header("x-stainless-arch", std::env::consts::ARCH)
+                        .header("x-stainless-lang", "rust")
+                        .header("x-stainless-runtime", "cc-switch")
+                        .header("x-stainless-runtime-version", env!("CARGO_PKG_VERSION"))
+                        .header("x-stainless-package-version", env!("CARGO_PKG_VERSION"))
+                        .header("Authorization", format!("Bearer {}", api_key))
+                        .json(&payload_chat)
+                        .send()
+                        .await
+                        .map_err(|e| UrlProbeError {
+                            latency_ms: start.elapsed().as_millis() as u64,
+                            kind: UrlProbeErrorKind::Network {
+                                message: format!("请求失败: {e}"),
+                            },
+                        })?
+                } else {
+                    return Err(UrlProbeError {
+                        latency_ms: start.elapsed().as_millis() as u64,
+                        kind: UrlProbeErrorKind::Http {
+                            status,
+                            body: body.map(|t| Self::shorten_for_log(&t, 200)),
+                        },
+                    });
+                }
+            } else {
+                resp
+            }
         } else if app_type == "claude" {
             // Claude: 通过Python代理测试，使用Claude格式
             // 关键：测试请求必须尽量贴近真实 CLI 环境，否则会出现“测速不可用但真实可用”的误判。
@@ -2110,6 +2352,7 @@ impl ProviderRouter {
                         priority,
                         supplier,
                         request_model: Some(request_model.to_string()),
+                        effective_model: None,
                         chosen_url: None,
                         chosen_kind: "COOLDOWN".to_string(),
                         metric_ms: None,
@@ -2240,6 +2483,7 @@ impl ProviderRouter {
                     priority,
                     supplier,
                     request_model: Some(request_model.to_string()),
+                    effective_model: None,
                     chosen_url,
                     chosen_kind,
                     metric_ms,

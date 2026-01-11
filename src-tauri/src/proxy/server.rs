@@ -107,6 +107,9 @@ impl ProxyServer {
         status.port = self.config.listen_port;
         drop(status);
 
+        // 恢复最近一次真实请求指纹（供重启后 `csc t` 复用真实请求形态）
+        self.restore_last_request_summaries().await;
+
         // 记录启动时间
         *self.state.start_time.write().await = Some(std::time::Instant::now());
 
@@ -133,6 +136,89 @@ impl ProxyServer {
             port: self.config.listen_port,
             started_at: chrono::Utc::now().to_rfc3339(),
         })
+    }
+
+    async fn restore_last_request_summaries(&self) {
+        let db = self.state.db.clone();
+        let app_types = ["claude", "codex", "gemini"];
+
+        let mut restored: Vec<(String, LastRequestSummary)> = Vec::new();
+
+        for app_type in app_types {
+            let key = last_request_summary_setting_key(app_type);
+            let db = db.clone();
+
+            let key_for_task = key.clone();
+            let json = match tokio::task::spawn_blocking(move || db.get_setting(&key_for_task)).await {
+                Ok(Ok(Some(v))) => v,
+                Ok(Ok(None)) => {
+                    // 没有持久化指纹时，从“项目内置指纹”兜底，并写回 DB
+                    let Some(mut summary) = builtin_last_request_summary(app_type) else {
+                        continue;
+                    };
+                    summary.app_type = app_type.to_string();
+                    summary.at = chrono::Utc::now().to_rfc3339();
+
+                    let json = match serde_json::to_string(&summary) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+
+                    let db = self.state.db.clone();
+                    let key_for_write = key.clone();
+                    let _ = tokio::task::spawn_blocking(move || db.set_setting(&key_for_write, &json))
+                        .await;
+
+                    restored.push((app_type.to_string(), summary));
+                    continue;
+                }
+                Ok(Err(e)) => {
+                    log::warn!("[LastRequestSummary] 读取失败 key={key}: {e}");
+                    continue;
+                }
+                Err(e) => {
+                    log::warn!("[LastRequestSummary] 读取任务失败 key={key}: {e}");
+                    continue;
+                }
+            };
+
+            let mut summary: LastRequestSummary = match serde_json::from_str(&json) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::warn!("[LastRequestSummary] 解析失败 key={key}: {e}");
+                    // DB 内容损坏时，退回到内置指纹并写回
+                    let Some(mut summary) = builtin_last_request_summary(app_type) else {
+                        continue;
+                    };
+                    summary.app_type = app_type.to_string();
+                    summary.at = chrono::Utc::now().to_rfc3339();
+
+                    let Ok(json) = serde_json::to_string(&summary) else {
+                        continue;
+                    };
+                    let db = self.state.db.clone();
+                    let key_for_write = key.clone();
+                    let _ = tokio::task::spawn_blocking(move || db.set_setting(&key_for_write, &json))
+                        .await;
+
+                    restored.push((app_type.to_string(), summary));
+                    continue;
+                }
+            };
+
+            // 以 key 的 app_type 为准，避免旧格式或手工编辑导致不一致
+            summary.app_type = app_type.to_string();
+            restored.push((app_type.to_string(), summary));
+        }
+
+        if restored.is_empty() {
+            return;
+        }
+
+        let mut status = self.state.status.write().await;
+        for (app_type, summary) in restored {
+            status.last_requests.insert(app_type, summary);
+        }
     }
 
     pub async fn stop(&self) -> Result<(), ProxyError> {

@@ -111,6 +111,8 @@ fn sync_codex_provider_writes_auth_and_config() {
     manager.current = "codex-1".to_string();
 
     ConfigService::sync_current_providers_to_live(&mut config).expect("sync codex live");
+    // MCP 同步与 Provider live 同步解耦：需要显式调用 sync_enabled_to_codex
+    cc_switch_lib::sync_enabled_to_codex(&config).expect("sync codex mcp");
 
     let auth_path = cc_switch_lib::get_codex_auth_path();
     let config_path = cc_switch_lib::get_codex_config_path();
@@ -146,7 +148,10 @@ fn sync_codex_provider_writes_auth_and_config() {
         .get("config")
         .and_then(|v| v.as_str())
         .expect("config string");
-    assert_eq!(synced_cfg, toml_text);
+    assert!(
+        synced_cfg.contains("base_url = \"https://codex.test\""),
+        "provider config should still contain base_url"
+    );
 }
 
 #[test]

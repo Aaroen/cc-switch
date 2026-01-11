@@ -54,39 +54,105 @@ impl ModelMapping {
             || self.sonnet_model.is_some()
             || self.opus_model.is_some()
             || self.default_model.is_some()
+            || self.reasoning_model.is_some()
     }
 
     /// 根据原始模型名称获取映射后的模型
     pub fn map_model(&self, original_model: &str, has_thinking: bool) -> String {
         let model_lower = original_model.to_lowercase();
 
+        fn base_family(lower: &str) -> Option<&'static str> {
+            if lower.contains("claude") {
+                return Some("claude");
+            }
+            if lower.starts_with("gpt-") {
+                return Some("gpt");
+            }
+            if lower.contains("gemini") {
+                return Some("gemini");
+            }
+            if lower.contains("llama") || lower.contains("meta-llama") {
+                return Some("llama");
+            }
+            None
+        }
+
+        fn claude_family(lower: &str) -> Option<&'static str> {
+            if lower.contains("haiku") {
+                return Some("haiku");
+            }
+            if lower.contains("sonnet") {
+                return Some("sonnet");
+            }
+            if lower.contains("opus") {
+                return Some("opus");
+            }
+            None
+        }
+
+        // 约束：家族守护（Claude/GPT/Gemini/Llama 等）
+        // - 若原始模型能识别家族，则映射目标必须仍在同家族内（严禁跨到 GLM/GPT 等）。
+        // - Claude 额外要求：尽量保持 haiku/sonnet/opus 一致（避免“性能断崖”）。
+        let original_base_family = base_family(&model_lower);
+        let original_claude_family = claude_family(&model_lower);
+
+        let is_acceptable_mapping = |mapped: &str| -> bool {
+            let mapped_lower = mapped.to_lowercase();
+            if let Some(req) = original_base_family {
+                // 1) 家族锚定：必须同家族
+                if base_family(&mapped_lower) != Some(req) {
+                    return false;
+                }
+
+                // 2) Claude 的子家族守护：尽量保持 haiku/sonnet/opus 一致
+                if req == "claude" {
+                    // 映射值本身缺少 haiku/sonnet/opus 关键词时放行（交给后续智能解析兜底）
+                    if let Some(f) = original_claude_family {
+                        let mapped_family = claude_family(&mapped_lower);
+                        return mapped_family.is_none() || mapped_lower.contains(f);
+                    }
+                }
+            }
+            true
+        };
+
         // 1. thinking 模式优先使用推理模型
         if has_thinking {
             if let Some(ref m) = self.reasoning_model {
-                return m.clone();
+                if is_acceptable_mapping(m) {
+                    return m.clone();
+                }
             }
         }
 
         // 2. 按模型类型匹配
         if model_lower.contains("haiku") {
             if let Some(ref m) = self.haiku_model {
-                return m.clone();
+                if is_acceptable_mapping(m) {
+                    return m.clone();
+                }
             }
         }
         if model_lower.contains("opus") {
             if let Some(ref m) = self.opus_model {
-                return m.clone();
+                if is_acceptable_mapping(m) {
+                    return m.clone();
+                }
             }
         }
         if model_lower.contains("sonnet") {
             if let Some(ref m) = self.sonnet_model {
-                return m.clone();
+                if is_acceptable_mapping(m) {
+                    return m.clone();
+                }
             }
         }
 
         // 3. 默认模型
         if let Some(ref m) = self.default_model {
-            return m.clone();
+            if is_acceptable_mapping(m) {
+                return m.clone();
+            }
         }
 
         // 4. 无映射，保持原样
@@ -145,12 +211,12 @@ mod tests {
             id: "test".to_string(),
             name: "Test".to_string(),
             settings_config: json!({
-                "env": {
-                    "ANTHROPIC_MODEL": "default-model",
-                    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "haiku-mapped",
-                    "ANTHROPIC_DEFAULT_SONNET_MODEL": "sonnet-mapped",
-                    "ANTHROPIC_DEFAULT_OPUS_MODEL": "opus-mapped",
-                    "ANTHROPIC_REASONING_MODEL": "reasoning-model"
+                    "env": {
+                        "ANTHROPIC_MODEL": "cursor2-claude-4.5-sonnet",
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5-2cc",
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL": "cursor2-claude-4.5-sonnet",
+                    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-5-2cc",
+                    "ANTHROPIC_REASONING_MODEL": "claude-sonnet-4-5-thinking"
                 }
             }),
             website_url: None,
@@ -182,14 +248,35 @@ mod tests {
         }
     }
 
+    fn create_provider_with_reasoning_only() -> Provider {
+        Provider {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            settings_config: json!({
+                "env": {
+                    "ANTHROPIC_REASONING_MODEL": "claude-sonnet-4-5-thinking"
+                }
+            }),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+        }
+    }
+
     #[test]
     fn test_sonnet_mapping() {
         let provider = create_provider_with_mapping();
         let body = json!({"model": "claude-sonnet-4-5-20250929"});
         let (result, original, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "sonnet-mapped");
+        assert_eq!(result["model"], "cursor2-claude-4.5-sonnet");
         assert_eq!(original, Some("claude-sonnet-4-5-20250929".to_string()));
-        assert_eq!(mapped, Some("sonnet-mapped".to_string()));
+        assert_eq!(mapped, Some("cursor2-claude-4.5-sonnet".to_string()));
     }
 
     #[test]
@@ -197,8 +284,8 @@ mod tests {
         let provider = create_provider_with_mapping();
         let body = json!({"model": "claude-haiku-4-5"});
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "haiku-mapped");
-        assert_eq!(mapped, Some("haiku-mapped".to_string()));
+        assert_eq!(result["model"], "claude-haiku-4-5-2cc");
+        assert_eq!(mapped, Some("claude-haiku-4-5-2cc".to_string()));
     }
 
     #[test]
@@ -206,8 +293,8 @@ mod tests {
         let provider = create_provider_with_mapping();
         let body = json!({"model": "claude-opus-4-5"});
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "opus-mapped");
-        assert_eq!(mapped, Some("opus-mapped".to_string()));
+        assert_eq!(result["model"], "claude-opus-4-5-2cc");
+        assert_eq!(mapped, Some("claude-opus-4-5-2cc".to_string()));
     }
 
     #[test]
@@ -218,8 +305,33 @@ mod tests {
             "thinking": {"type": "enabled"}
         });
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "reasoning-model");
-        assert_eq!(mapped, Some("reasoning-model".to_string()));
+        assert_eq!(result["model"], "claude-sonnet-4-5-thinking");
+        assert_eq!(mapped, Some("claude-sonnet-4-5-thinking".to_string()));
+    }
+
+    #[test]
+    fn test_reasoning_only_mapping_in_thinking_mode() {
+        let provider = create_provider_with_reasoning_only();
+        let body = json!({
+            "model": "claude-sonnet-4-5",
+            "thinking": {"type": "enabled"}
+        });
+        let (result, _, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "claude-sonnet-4-5-thinking");
+        assert_eq!(mapped, Some("claude-sonnet-4-5-thinking".to_string()));
+    }
+
+    #[test]
+    fn test_reasoning_only_mapping_does_not_affect_non_thinking() {
+        let provider = create_provider_with_reasoning_only();
+        let body = json!({
+            "model": "claude-sonnet-4-5",
+            "thinking": {"type": "disabled"}
+        });
+        let (result, original, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "claude-sonnet-4-5");
+        assert_eq!(original, Some("claude-sonnet-4-5".to_string()));
+        assert!(mapped.is_none());
     }
 
     #[test]
@@ -230,8 +342,8 @@ mod tests {
             "thinking": {"type": "disabled"}
         });
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "sonnet-mapped");
-        assert_eq!(mapped, Some("sonnet-mapped".to_string()));
+        assert_eq!(result["model"], "cursor2-claude-4.5-sonnet");
+        assert_eq!(mapped, Some("cursor2-claude-4.5-sonnet".to_string()));
     }
 
     #[test]
@@ -239,8 +351,8 @@ mod tests {
         let provider = create_provider_with_mapping();
         let body = json!({"model": "some-unknown-model"});
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "default-model");
-        assert_eq!(mapped, Some("default-model".to_string()));
+        assert_eq!(result["model"], "cursor2-claude-4.5-sonnet");
+        assert_eq!(mapped, Some("cursor2-claude-4.5-sonnet".to_string()));
     }
 
     #[test]
@@ -258,7 +370,35 @@ mod tests {
         let provider = create_provider_with_mapping();
         let body = json!({"model": "Claude-SONNET-4-5"});
         let (result, _, mapped) = apply_model_mapping(body, &provider);
-        assert_eq!(result["model"], "sonnet-mapped");
-        assert_eq!(mapped, Some("sonnet-mapped".to_string()));
+        assert_eq!(result["model"], "cursor2-claude-4.5-sonnet");
+        assert_eq!(mapped, Some("cursor2-claude-4.5-sonnet".to_string()));
+    }
+
+    #[test]
+    fn test_claude_mapping_rejects_cross_family() {
+        let provider = Provider {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            settings_config: json!({
+                "env": {
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "zai-org/GLM-4.5"
+                }
+            }),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+        };
+
+        let body = json!({"model": "claude-haiku-4-5"});
+        let (result, original, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "claude-haiku-4-5");
+        assert_eq!(original, Some("claude-haiku-4-5".to_string()));
+        assert!(mapped.is_none());
     }
 }

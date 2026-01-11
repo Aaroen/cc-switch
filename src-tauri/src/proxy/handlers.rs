@@ -27,6 +27,146 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::str::FromStr;
 
+fn format_json_type(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+fn summarize_string_for_logs(s: &str) -> String {
+    format!("string(len={})", s.chars().count())
+}
+
+fn summarize_json_keys_for_logs(obj: &serde_json::Map<String, Value>) -> String {
+    let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+    keys.sort_unstable();
+    let head: Vec<&str> = keys.into_iter().take(32).collect();
+    format!("[{}{}]", head.join(","), if obj.len() > 32 { ",..." } else { "" })
+}
+
+fn summarize_openai_content_field_for_logs(content: &Value) -> String {
+    match content {
+        Value::String(s) => summarize_string_for_logs(s),
+        Value::Array(items) => {
+            // OpenAI typed content parts: [{type: "input_text"/"text"/... , ...}]
+            let mut types: Vec<String> = Vec::new();
+            for item in items.iter().take(8) {
+                let t = item
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                types.push(t.to_string());
+            }
+            format!(
+                "array(len={}, types=[{}{}])",
+                items.len(),
+                types.join(","),
+                if items.len() > 8 { ",..." } else { "" }
+            )
+        }
+        Value::Object(obj) => format!("object(keys={})", summarize_json_keys_for_logs(obj)),
+        other => format!("{}", format_json_type(other)),
+    }
+}
+
+fn summarize_openai_request_body_for_logs(api: &str, body: &Value) -> String {
+    let Value::Object(obj) = body else {
+        return format!("body_type={}", format_json_type(body));
+    };
+
+    let model = body.get("model").and_then(|v| v.as_str()).unwrap_or("-");
+    let stream = body
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "-".to_string());
+
+    let keys = summarize_json_keys_for_logs(obj);
+
+    match api {
+        "responses" => {
+            let input_summary = match body.get("input") {
+                None => "missing".to_string(),
+                Some(Value::String(s)) => summarize_string_for_logs(s),
+                Some(Value::Array(items)) => {
+                    let mut roles: Vec<String> = Vec::new();
+                    for item in items.iter().take(6) {
+                        let role = item
+                            .get("role")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("?");
+                        let content = item.get("content").unwrap_or(&Value::Null);
+                        roles.push(format!(
+                            "{}:{}",
+                            role,
+                            summarize_openai_content_field_for_logs(content)
+                        ));
+                    }
+                    format!(
+                        "array(len={}, items=[{}{}])",
+                        items.len(),
+                        roles.join(";"),
+                        if items.len() > 6 { ";..." } else { "" }
+                    )
+                }
+                Some(Value::Object(o)) => format!("object(keys={})", summarize_json_keys_for_logs(o)),
+                Some(other) => format!("{}", format_json_type(other)),
+            };
+            let max_out = body
+                .get("max_output_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            format!(
+                "api=responses model={} stream={} max_output_tokens={} keys={} input={}",
+                model, stream, max_out, keys, input_summary
+            )
+        }
+        "chat" => {
+            let messages_summary = match body.get("messages") {
+                None => "missing".to_string(),
+                Some(Value::Array(items)) => {
+                    let mut roles: Vec<String> = Vec::new();
+                    for item in items.iter().take(8) {
+                        let role = item
+                            .get("role")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("?");
+                        let content = item.get("content").unwrap_or(&Value::Null);
+                        roles.push(format!(
+                            "{}:{}",
+                            role,
+                            summarize_openai_content_field_for_logs(content)
+                        ));
+                    }
+                    format!(
+                        "array(len={}, items=[{}{}])",
+                        items.len(),
+                        roles.join(";"),
+                        if items.len() > 8 { ";..." } else { "" }
+                    )
+                }
+                Some(other) => format!("{}", format_json_type(other)),
+            };
+            let max_tokens = body
+                .get("max_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            format!(
+                "api=chat model={} stream={} max_tokens={} keys={} messages={}",
+                model, stream, max_tokens, keys, messages_summary
+            )
+        }
+        other => format!("api={} model={} stream={} keys={}", other, model, stream, keys),
+    }
+}
+
 // ============================================================================
 // 健康检查和状态查询（简单端点）
 // ============================================================================
@@ -515,8 +655,12 @@ async fn handle_claude_transform(
 pub async fn handle_chat_completions(
     State(state): State<ProxyState>,
     headers: axum::http::HeaderMap,
-    Json(body): Json<Value>,
+    Json(mut body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
+    // 禁止使用带日期后缀的 gpt-* 模型名（例如 gpt-5.2-2025-12-11）
+    // 该清洗发生在代理内部，不影响“正常可用模型”的请求。
+    let _ = crate::proxy::model_sanitizer::sanitize_openai_model_in_body(&mut body);
+
     let request_id = headers
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
@@ -543,6 +687,10 @@ pub async fn handle_chat_completions(
         .ok()
         .as_deref()
         == Some("1");
+    let trace_payload = std::env::var("CC_SWITCH_TRACE_CODEX_PAYLOAD")
+        .ok()
+        .as_deref()
+        == Some("1");
     if trace_requests {
         log::info!(
             "[Codex] IN request_id={} model={} stream={} ua={}",
@@ -558,6 +706,29 @@ pub async fn handle_chat_completions(
             model,
             is_stream,
             user_agent
+        );
+    }
+
+    if trace_payload {
+        let accept = headers
+            .get("accept")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        let openai_beta = headers
+            .get("openai-beta")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        log::info!(
+            "[Codex][trace] endpoint=/v1/chat/completions request_id={} accept={} content_type={} openai_beta={} {}",
+            request_id,
+            accept,
+            content_type,
+            openai_beta,
+            summarize_openai_request_body_for_logs("chat", &body)
         );
     }
 
@@ -617,8 +788,11 @@ pub async fn handle_chat_completions(
 pub async fn handle_responses(
     State(state): State<ProxyState>,
     headers: axum::http::HeaderMap,
-    Json(body): Json<Value>,
+    Json(mut body): Json<Value>,
 ) -> Result<axum::response::Response, ProxyError> {
+    // 禁止使用带日期后缀的 gpt-* 模型名（例如 gpt-5.2-2025-12-11）
+    let _ = crate::proxy::model_sanitizer::sanitize_openai_model_in_body(&mut body);
+
     let request_id = headers
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
@@ -645,6 +819,10 @@ pub async fn handle_responses(
         .ok()
         .as_deref()
         == Some("1");
+    let trace_payload = std::env::var("CC_SWITCH_TRACE_CODEX_PAYLOAD")
+        .ok()
+        .as_deref()
+        == Some("1");
     if trace_requests {
         log::info!(
             "[Codex] IN request_id={} model={} stream={} ua={}",
@@ -660,6 +838,29 @@ pub async fn handle_responses(
             model,
             is_stream,
             user_agent
+        );
+    }
+
+    if trace_payload {
+        let accept = headers
+            .get("accept")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        let openai_beta = headers
+            .get("openai-beta")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        log::info!(
+            "[Codex][trace] endpoint=/v1/responses request_id={} accept={} content_type={} openai_beta={} {}",
+            request_id,
+            accept,
+            content_type,
+            openai_beta,
+            summarize_openai_request_body_for_logs("responses", &body)
         );
     }
 

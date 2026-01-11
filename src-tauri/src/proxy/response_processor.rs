@@ -93,6 +93,8 @@ pub async fn handle_non_streaming(
     state: &ProxyState,
     parser_config: &UsageParserConfig,
 ) -> Result<Response, ProxyError> {
+    use super::model_sanitizer::sanitize_gpt_model_name;
+
     let response_headers = response.headers().clone();
     let status = response.status();
 
@@ -108,9 +110,11 @@ pub async fn handle_non_streaming(
         let status_str = json_value.get("stop_reason")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
-        let model_str = json_value.get("model")
+        let model_str = json_value
+            .get("model")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
+        let model_str = sanitize_gpt_model_name(model_str);
 
         log::debug!(
             "[{}] <<< 响应摘要: model={}, stop_reason={}",
@@ -123,11 +127,11 @@ pub async fn handle_non_streaming(
         if let Some(usage) = (parser_config.response_parser)(&json_value) {
             // 优先使用 usage 中解析出的模型名称，其次使用响应中的 model 字段，最后回退到请求模型
             let model = if let Some(ref m) = usage.model {
-                m.clone()
+                sanitize_gpt_model_name(m)
             } else if let Some(m) = json_value.get("model").and_then(|m| m.as_str()) {
-                m.to_string()
+                sanitize_gpt_model_name(m)
             } else {
-                ctx.request_model.clone()
+                sanitize_gpt_model_name(&ctx.request_model)
             };
 
             spawn_log_usage(state, ctx, usage, &model, status.as_u16(), false);
@@ -138,6 +142,7 @@ pub async fn handle_non_streaming(
                 .and_then(|m| m.as_str())
                 .unwrap_or(&ctx.request_model)
                 .to_string();
+            let model = sanitize_gpt_model_name(&model);
             spawn_log_usage(
                 state,
                 ctx,
@@ -162,7 +167,7 @@ pub async fn handle_non_streaming(
             state,
             ctx,
             TokenUsage::default(),
-            &ctx.request_model,
+            &sanitize_gpt_model_name(&ctx.request_model),
             status.as_u16(),
             false,
         );
@@ -324,10 +329,12 @@ fn spawn_log_usage(
     status_code: u16,
     is_streaming: bool,
 ) {
+    use super::model_sanitizer::sanitize_gpt_model_name;
+
     let state = state.clone();
     let provider_id = ctx.provider.id.clone();
     let app_type_str = ctx.app_type_str.to_string();
-    let model = model.to_string();
+    let model = sanitize_gpt_model_name(model);
     let latency_ms = ctx.latency_ms();
 
     tokio::spawn(async move {

@@ -894,7 +894,6 @@ pub(crate) fn find_model_pricing_row(
         }
     }
 
-    log::warn!("模型 {model_id} 未找到定价信息，成本将记录为 0");
     Ok(None)
 }
 
@@ -1007,9 +1006,9 @@ mod tests {
             "应该能通过删除后缀匹配 claude-haiku-4-5-20240229-preview"
         );
 
-        // 测试 GPT 模型
-        let result = find_model_pricing_row(&conn, "gpt-5-2024-11-20")?;
-        assert!(result.is_some(), "应该能通过删除后缀匹配 gpt-5-2024-11-20");
+        // 测试 GPT 模型（不使用日期后缀：避免出现“伪模型名”）
+        let result = find_model_pricing_row(&conn, "gpt-5-codex-low")?;
+        assert!(result.is_some(), "应该能通过删除后缀匹配 gpt-5-codex-low");
 
         // 测试 Gemini 模型
         let result = find_model_pricing_row(&conn, "gemini-2.5-flash-exp")?;

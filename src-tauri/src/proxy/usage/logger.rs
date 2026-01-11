@@ -210,9 +210,7 @@ impl<'a> UsageLogger<'a> {
     ) -> Result<(), AppError> {
         let pricing = self.get_model_pricing(&model)?;
 
-        if pricing.is_none() {
-            log::warn!("模型 {model} 的定价信息未找到，成本将记录为 0");
-        }
+        // 定价缺失属于常态（供应商别名/新模型），不输出任何日志（避免控制台噪音）
 
         let cost = CostCalculator::try_calculate(&usage, pricing.as_ref(), cost_multiplier);
 

@@ -7,6 +7,7 @@ use crate::provider::Provider;
 use crate::proxy::{
     forwarder::RequestForwarder, server::ProxyState, types::AppProxyConfig, ProxyError,
 };
+use crate::proxy::model_sanitizer::sanitize_gpt_model_name;
 use std::time::Instant;
 
 /// 流式超时配置
@@ -83,11 +84,12 @@ impl RequestContext {
             crate::settings::get_current_provider(&app_type).unwrap_or_default();
 
         // 从请求体提取模型名称
-        let request_model = body
+        let request_model_raw = body
             .get("model")
             .and_then(|m| m.as_str())
             .unwrap_or("unknown")
             .to_string();
+        let request_model = sanitize_gpt_model_name(&request_model_raw);
 
         // 使用共享的 ProviderRouter 选择 Provider（熔断器状态跨请求保持）
         // 注意：只在这里调用一次，结果传递给 forwarder，避免重复消耗 HalfOpen 名额
@@ -151,6 +153,7 @@ impl RequestContext {
     pub fn create_forwarder(&self, state: &ProxyState) -> RequestForwarder {
         RequestForwarder::new(
             state.provider_router.clone(),
+            state.db.clone(),
             self.app_config.non_streaming_timeout as u64,
             self.app_config.max_retries as u8,
             state.status.clone(),

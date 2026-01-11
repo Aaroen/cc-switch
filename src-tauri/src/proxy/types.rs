@@ -1,4 +1,35 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+pub(crate) const LAST_REQUEST_SUMMARY_SETTING_KEY_PREFIX: &str = "last_request_summary_";
+const BUILTIN_LAST_REQUEST_SUMMARIES_JSON: &str =
+    include_str!("../../defaults/last_request_summaries.json");
+
+pub(crate) fn last_request_summary_setting_key(app_type: &str) -> String {
+    // 仅允许 key 中包含 [a-z0-9_]+，其余字符替换为 '_'，避免污染 settings 命名空间
+    let sanitized = app_type
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    format!("{LAST_REQUEST_SUMMARY_SETTING_KEY_PREFIX}{sanitized}")
+}
+
+pub(crate) fn builtin_last_request_summary(app_type: &str) -> Option<LastRequestSummary> {
+    let Ok(map) = serde_json::from_str::<HashMap<String, LastRequestSummary>>(
+        BUILTIN_LAST_REQUEST_SUMMARIES_JSON,
+    ) else {
+        return None;
+    };
+    map.get(app_type).cloned()
+}
 
 /// 代理服务器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +120,69 @@ pub struct ProxyStatus {
     /// 当前活跃的代理目标列表
     #[serde(default)]
     pub active_targets: Vec<ActiveTarget>,
+    /// 各 app 最近一次真实请求摘要（用于 `csc t` 的 model=auto）
+    #[serde(default)]
+    pub last_requests: HashMap<String, LastRequestSummary>,
+}
+
+/// 最近一次请求摘要（用于诊断与测速对齐真实环境）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LastRequestSummary {
+    pub app_type: String, // "claude" | "codex" | "gemini"
+    pub endpoint: String, // 例如 "/v1/responses"
+    pub model: String,
+    #[serde(default)]
+    pub openai_beta: Option<String>,
+    #[serde(default)]
+    pub openai_version: Option<String>,
+    #[serde(default)]
+    pub openai_organization: Option<String>,
+    #[serde(default)]
+    pub openai_project: Option<String>,
+    #[serde(default)]
+    pub accept: Option<String>,
+    #[serde(default)]
+    pub content_type: Option<String>,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+    #[serde(default)]
+    pub stainless_runtime: Option<String>,
+    #[serde(default)]
+    pub stainless_runtime_version: Option<String>,
+    #[serde(default)]
+    pub stainless_package_version: Option<String>,
+    #[serde(default)]
+    pub stainless_os: Option<String>,
+    #[serde(default)]
+    pub stainless_arch: Option<String>,
+    #[serde(default)]
+    pub stainless_lang: Option<String>,
+    #[serde(default)]
+    pub stream: Option<bool>,
+    #[serde(default)]
+    pub body_keys: Vec<String>,
+    #[serde(default)]
+    pub input_shape: Option<String>,
+    #[serde(default)]
+    pub messages_shape: Option<String>,
+    /// 以下字段用于“完整上下文探测”（wong 等供应商可能依赖这些字段才能通过）
+    #[serde(default)]
+    pub prompt_cache_key: Option<String>,
+    #[serde(default)]
+    pub include: Vec<String>,
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
+    #[serde(default)]
+    pub tool_choice: Option<String>,
+    #[serde(default)]
+    pub parallel_tool_calls: Option<bool>,
+    #[serde(default)]
+    pub store: Option<bool>,
+    #[serde(default)]
+    pub text_format_type: Option<String>,
+    #[serde(default)]
+    pub instructions_len: Option<u32>,
+    pub at: String,
 }
 
 /// 活跃的代理目标信息
