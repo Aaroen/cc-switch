@@ -165,7 +165,7 @@ pub struct LastRequestSummary {
     pub input_shape: Option<String>,
     #[serde(default)]
     pub messages_shape: Option<String>,
-    /// 以下字段用于“完整上下文探测”（wong 等供应商可能依赖这些字段才能通过）
+    /// 以下字段用于“完整上下文探测”（少数供应商可能依赖这些字段才能通过）
     #[serde(default)]
     pub prompt_cache_key: Option<String>,
     #[serde(default)]

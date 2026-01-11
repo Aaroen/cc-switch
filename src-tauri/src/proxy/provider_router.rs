@@ -604,7 +604,7 @@ impl ProviderRouter {
 
     fn default_url_priority_for_supplier(supplier: &str) -> Vec<&'static str> {
         match supplier.to_lowercase().as_str() {
-            // 用户需求：anyrouter 的 https://anyrouter.top 可用时优先使用
+            // 支持为特定 supplier 内置首选 URL（用于更快命中稳定入口）
             "anyrouter" => vec!["https://anyrouter.top"],
             _ => Vec::new(),
         }
@@ -1050,7 +1050,7 @@ impl ProviderRouter {
                             let force_retest =
                                 self.take_supplier_retest_once(app_type, *priority, supplier).await;
 
-                            // URL 优先级：当指定 URL 可用时优先使用（例如 anyrouter.top）
+                            // URL 优先级：当指定 URL 可用时优先使用（例如首选域名）
                             // 优先级来源：默认规则 + provider.settingsConfig/baseUrlPriority + env.BASE_URL_PRIORITY
                             if !force_retest {
                                 let mut preferred: Vec<String> =
@@ -2549,7 +2549,7 @@ mod tests {
                 json!({
                     "env": {
                         "ANTHROPIC_API_KEY": "sk-a",
-                        "ANTHROPIC_BASE_URL": "https://anyrouter.top"
+                        "ANTHROPIC_BASE_URL": "https://example.com"
                     }
                 }),
                 None,
@@ -2562,7 +2562,7 @@ mod tests {
                 json!({
                     "env": {
                         "ANTHROPIC_API_KEY": "sk-b",
-                        "ANTHROPIC_BASE_URL": "https://anyrouter.top"
+                        "ANTHROPIC_BASE_URL": "https://example.com"
                     }
                 }),
                 None,
@@ -2614,7 +2614,7 @@ mod tests {
                 json!({
                     "env": {
                         "ANTHROPIC_API_KEY": "sk-a",
-                        "ANTHROPIC_BASE_URL": "https://anyrouter.top"
+                        "ANTHROPIC_BASE_URL": "https://example.com"
                     }
                 }),
                 None,
@@ -2626,7 +2626,7 @@ mod tests {
                 json!({
                     "env": {
                         "ANTHROPIC_API_KEY": "sk-b",
-                        "ANTHROPIC_BASE_URL": "https://anyrouter.top"
+                        "ANTHROPIC_BASE_URL": "https://example.com"
                     }
                 }),
                 None,

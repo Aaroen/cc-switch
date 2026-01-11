@@ -1739,7 +1739,7 @@ disable_response_storage = true
 
 [model_providers.any]
 name = "any"
-base_url = "https://anyrouter.top/v1"
+base_url = "https://example.com/v1"
 wire_api = "responses"
 requires_openai_auth = true
 "#;

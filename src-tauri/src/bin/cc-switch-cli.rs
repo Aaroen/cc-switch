@@ -1203,7 +1203,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                 return true;
             }
             // 允许通过环境变量扩展：逗号分隔 supplier 名称
-            // 例如：export CC_SWITCH_CODEX_FULL_CONTEXT_SUPPLIERS=wong,foo,bar
+            // 例如：export CC_SWITCH_CODEX_FULL_CONTEXT_SUPPLIERS=example_supplier,foo,bar
             let Ok(v) = std::env::var("CC_SWITCH_CODEX_FULL_CONTEXT_SUPPLIERS") else {
                 return false;
             };
@@ -1222,7 +1222,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
         /// 对“已知探测不稳定但真实可用”的 supplier：允许使用“历史成功请求”做无 token 的保底判定。
         ///
         /// 注意：这不是“真实请求测速”。默认关闭，只有显式配置才会启用：
-        /// `export CC_SWITCH_CODEX_NO_TOKEN_BENCHMARK_SUPPLIERS=wong,foo`
+        /// `export CC_SWITCH_CODEX_NO_TOKEN_BENCHMARK_SUPPLIERS=example_supplier,foo`
         fn is_codex_no_token_benchmark_supplier(supplier: &str) -> bool {
             let Ok(v) = std::env::var("CC_SWITCH_CODEX_NO_TOKEN_BENCHMARK_SUPPLIERS") else {
                 return false;
@@ -1356,13 +1356,13 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                         .await;
                 }
             } else if app_type == "codex" {
-                // Codex：部分供应商（例如 wong）对“探测请求形态”更敏感，导致真实可用但探测失败；
+                // Codex：部分供应商对“探测请求形态”更敏感，导致真实可用但探测失败；
                 // 这类供应商默认通过真实 `codex exec` 触发一次请求，以贴近正式使用场景。
                 //
                 // 配置项：
                 // - 强制全局开启：export CC_SWITCH_STARTUP_TEST_SPAWN_CODEX=1
                 // - 强制全局关闭：export CC_SWITCH_STARTUP_TEST_SPAWN_CODEX=0
-                // - 指定 supplier 列表：export CC_SWITCH_CODEX_SPAWN_CLI_SUPPLIERS=wong,foo,bar
+                // - 指定 supplier 列表：export CC_SWITCH_CODEX_SPAWN_CLI_SUPPLIERS=example_supplier,foo,bar
                 fn should_spawn_codex_cli_for_supplier(supplier: &str) -> bool {
                     if supplier.eq_ignore_ascii_case("wong") {
                         return true;
@@ -2257,7 +2257,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                         for m in codex_candidates.iter() {
                             let full_context_supplier = is_codex_full_context_supplier(supplier.as_str());
                             let api_order = if full_context_supplier {
-                                // wong 已知对探测更敏感：优先按 endpoint_hint 的 API 测，避免无谓切换 API
+                                // 对“探测更敏感”的供应商：优先按 endpoint_hint 的 API 测，避免无谓切换 API
                                 vec![preferred_api]
                             } else {
                                 choose_codex_api_order_for_model(preferred_api, fallback_api, m)
@@ -2275,7 +2275,7 @@ async fn handle_test_latency(app_type: &str, id: Option<String>, mode: &str) -> 
                                         _ => 0,
                                     }
                                 };
-                                // 默认从 1 开始尽量省 token；但对“完整上下文探测”供应商（如 wong）至少用 16，
+                                // 默认从 1 开始尽量省 token；但对“完整上下文探测”供应商至少用 16，
                                 // 避免上游对过小 token 直接拒绝且不回显具体字段限制。
                                 let (mut responses_max_output_tokens, mut chat_max_tokens) =
                                     if full_context_supplier { (16, 16) } else { (1, 1) };

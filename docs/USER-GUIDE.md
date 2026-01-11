@@ -35,8 +35,8 @@ csc c claude
 csc add <应用类型> <ID> --name <名称> --api-key <密钥> --base-url <URL> --priority <层级>
 
 # 示例：添加 claude 供应商
-csc add claude x666 \
-  --name x666 \
+csc add claude demo \
+  --name demo \
   --api-key sk-xxxxx \
   --base-url https://example.com \
   --priority 1
@@ -51,7 +51,7 @@ csc add claude x666 \
 csc rm <应用类型> <ID>
 
 # 示例
-csc rm claude x666
+csc rm claude demo
 ```
 
 ### 启用供应商（指定使用）
@@ -59,8 +59,8 @@ csc rm claude x666
 ```bash
 csc en <应用类型> <ID>
 
-# 示例：指定使用 x666 供应商
-csc en claude x666
+# 示例：指定使用 demo 供应商
+csc en claude demo
 
 # 重要：指定后该供应商将被优先使用（优先于故障转移队列）
 # 需要重启代理服务器生效：csc p r
@@ -83,8 +83,8 @@ csc dis claude
 ```bash
 csc sp <应用类型> <ID> <层级>
 
-# 示例：将 x666 设置为层级 1
-csc sp claude x666 1
+# 示例：将 demo 设置为层级 1
+csc sp claude demo 1
 
 # 层级说明：
 # - 层级 0：最高优先级（主要供应商）
@@ -99,7 +99,7 @@ csc sp claude x666 1
 csc qa <应用类型> <ID>
 
 # 示例
-csc qa claude x666
+csc qa claude demo
 ```
 
 ### 从队列移除
@@ -108,7 +108,7 @@ csc qa claude x666
 csc qr <应用类型> <ID>
 
 # 示例
-csc qr claude x666
+csc qr claude demo
 ```
 
 ## 延迟测试
@@ -118,7 +118,7 @@ csc qr claude x666
 csc t claude
 
 # 测试指定供应商
-csc t claude x666
+csc t claude demo
 
 # 测试说明：
 # - 发送真实 API 请求 "1+1=?"
@@ -208,17 +208,17 @@ csc proxy status
 
 ```bash
 # 1. 添加供应商
-csc add claude x666 \
-  --name x666 \
+csc add claude demo \
+  --name demo \
   --api-key sk-xxxxx \
   --base-url https://example.com \
   --priority 1
 
 # 2. 添加到故障转移队列
-csc qa claude x666
+csc qa claude demo
 
 # 3. 测试延迟
-csc t claude x666
+csc t claude demo
 
 # 4. 查看配置
 csc ls claude
@@ -228,7 +228,7 @@ csc ls claude
 
 ```bash
 # 1. 指定供应商
-csc en claude x666
+csc en claude demo
 
 # 2. 重启代理服务器
 csc p r

@@ -309,7 +309,7 @@ impl RequestForwarder {
             let input_shape = json_shape(body.get("input"));
             let messages_shape = json_shape(body.get("messages"));
 
-            // Codex 真实请求中常见字段（wong 等供应商可能依赖这些字段才能通过）
+            // Codex 真实请求中常见字段（少数供应商可能依赖这些字段才能通过）
             let prompt_cache_key = body
                 .get("prompt_cache_key")
                 .and_then(|v| v.as_str())
