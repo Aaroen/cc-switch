@@ -1835,7 +1835,10 @@ impl ProviderRouter {
             });
 
             client
-                .post("http://127.0.0.1:15722/v1/messages")
+                .post(format!(
+                    "{}/v1/messages",
+                    crate::proxy::python_proxy::python_proxy_base()
+                ))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", "claude-cli/2.0.8 (external, cli)")

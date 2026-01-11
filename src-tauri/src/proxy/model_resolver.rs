@@ -13,7 +13,6 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const MODELS_ENDPOINT: &str = "/v1/models";
-const PYTHON_PROXY_BASE: &str = "http://127.0.0.1:15722";
 
 const MODEL_LIST_TTL: Duration = Duration::from_secs(6 * 60 * 60); // 6h
 const MODEL_LIST_FAILURE_COOLDOWN: Duration = Duration::from_secs(30 * 60); // 30m
@@ -289,7 +288,10 @@ async fn fetch_models_via_python_proxy(
     base_url: &str,
     api_key: &str,
 ) -> Result<Vec<String>, String> {
-    let url = format!("{PYTHON_PROXY_BASE}{MODELS_ENDPOINT}");
+    let url = format!(
+        "{}{MODELS_ENDPOINT}",
+        crate::proxy::python_proxy::python_proxy_base()
+    );
 
     async fn do_fetch(
         client: &Client,

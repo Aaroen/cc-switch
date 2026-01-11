@@ -84,6 +84,50 @@ mkdir -p "$LOG_DIR"
 CC_SWITCH_DIR="$HOME/.cc-switch"
 DB_PATH="$CC_SWITCH_DIR/cc-switch.db"
 
+# 默认端口（可通过环境变量覆盖；若端口冲突会自动选择可用端口并同步给 Rust 代理）
+DEFAULT_RUST_PORT=15721
+DEFAULT_PYTHON_PORT=15722
+
+# 端口探测工具
+is_port_in_use() {
+    local port="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltnH "sport = :$port" 2>/dev/null | grep -q .
+        return $?
+    fi
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+        return $?
+    fi
+    return 1
+}
+
+get_listen_process_hint() {
+    local port="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltnp "sport = :$port" 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//'
+        return 0
+    fi
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -n 1
+        return 0
+    fi
+    echo ""
+}
+
+find_free_port_from() {
+    local start="$1"
+    local end="$2"
+    local p
+    for p in $(seq "$start" "$end"); do
+        if ! is_port_in_use "$p"; then
+            echo "$p"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # 保留旧日志文件（避免排障线索丢失）。
 # 如需清理，请手动处理对应文件。
 
@@ -691,22 +735,58 @@ CURRENT_STEP=8
 step_running $CURRENT_STEP $TOTAL_STEPS "启动 Python 代理服务"
 
 cd "$SCRIPT_DIR/claude_proxy" || exit 1
-nohup env HTTP_PROXY="http://127.0.0.1:7890" HTTPS_PROXY="http://127.0.0.1:7890" \
-    $PYTHON_CMD -m uvicorn backend.app:app --host 127.0.0.1 --port 15722 --log-level warning \
-    > "$LOG_DIR/claude_proxy.log" 2>&1 &
-PYTHON_PROXY_PID=$!
+PYTHON_PROXY_HOST="127.0.0.1"
+PYTHON_PROXY_PORT="${CC_SWITCH_PYTHON_PORT:-$DEFAULT_PYTHON_PORT}"
 
-echo "$PYTHON_PROXY_PID" > "$HOME/.cc-switch/python_proxy.pid"
+# 若端口已被占用：
+# - 如果是同一 Python 代理已在运行：复用并继续
+# - 否则：自动选择下一个可用端口，并把 base 写入 Rust 代理环境（CC_SWITCH_PYTHON_PROXY_BASE）
+PYTHON_ALREADY_RUNNING=false
+if is_port_in_use "$PYTHON_PROXY_PORT"; then
+    EXISTING_PID="$(pgrep -n -f "uvicorn.*backend\\.app:app.*--port ${PYTHON_PROXY_PORT}" 2>/dev/null || true)"
+    if [ -n "$EXISTING_PID" ]; then
+        PYTHON_ALREADY_RUNNING=true
+        PYTHON_PROXY_PID="$EXISTING_PID"
+    else
+        # 自动找可用端口（向后找一段范围）
+        ALT_PORT="$(find_free_port_from $((PYTHON_PROXY_PORT+1)) $((PYTHON_PROXY_PORT+200)) 2>/dev/null || true)"
+        if [ -z "$ALT_PORT" ]; then
+            step_error $CURRENT_STEP $TOTAL_STEPS "Python 代理服务启动失败"
+            echo ""
+            echo -e "${RED}错误: Python 代理端口 ${PYTHON_PROXY_PORT} 被占用且未找到可用替代端口${NC}"
+            echo "占用信息: $(get_listen_process_hint "$PYTHON_PROXY_PORT")"
+            exit 1
+        fi
+        PYTHON_PROXY_PORT="$ALT_PORT"
+    fi
+fi
 
-sleep 2
+export CC_SWITCH_PYTHON_PROXY_BASE="http://${PYTHON_PROXY_HOST}:${PYTHON_PROXY_PORT}"
 
-if ps -p $PYTHON_PROXY_PID > /dev/null 2>&1; then
-    step_done $CURRENT_STEP $TOTAL_STEPS "启动 Python 代理服务 (PID: $PYTHON_PROXY_PID)"
+if [ "$PYTHON_ALREADY_RUNNING" = true ]; then
+    echo "$PYTHON_PROXY_PID" > "$HOME/.cc-switch/python_proxy.pid"
+    echo "$CC_SWITCH_PYTHON_PROXY_BASE" > "$HOME/.cc-switch/python_proxy_base"
+    step_done $CURRENT_STEP $TOTAL_STEPS "Python 代理已运行 (PID: $PYTHON_PROXY_PID, 端口: $PYTHON_PROXY_PORT)"
 else
-    step_error $CURRENT_STEP $TOTAL_STEPS "Python 代理服务启动失败"
-    echo ""
-    echo -e "${RED}启动失败，查看日志: tail -f $LOG_DIR/claude_proxy.log${NC}"
-    exit 1
+    nohup env HTTP_PROXY="http://127.0.0.1:7890" HTTPS_PROXY="http://127.0.0.1:7890" \
+        CC_SWITCH_PYTHON_PROXY_BASE="$CC_SWITCH_PYTHON_PROXY_BASE" \
+        $PYTHON_CMD -m uvicorn backend.app:app --host "$PYTHON_PROXY_HOST" --port "$PYTHON_PROXY_PORT" --log-level warning \
+        > "$LOG_DIR/claude_proxy.log" 2>&1 &
+    PYTHON_PROXY_PID=$!
+
+    echo "$PYTHON_PROXY_PID" > "$HOME/.cc-switch/python_proxy.pid"
+    echo "$CC_SWITCH_PYTHON_PROXY_BASE" > "$HOME/.cc-switch/python_proxy_base"
+
+    sleep 2
+
+    if ps -p $PYTHON_PROXY_PID > /dev/null 2>&1; then
+        step_done $CURRENT_STEP $TOTAL_STEPS "启动 Python 代理服务 (PID: $PYTHON_PROXY_PID, 端口: $PYTHON_PROXY_PORT)"
+    else
+        step_error $CURRENT_STEP $TOTAL_STEPS "Python 代理服务启动失败"
+        echo ""
+        echo -e "${RED}启动失败，查看日志: tail -f $LOG_DIR/claude_proxy.log${NC}"
+        exit 1
+    fi
 fi
 
 # ============================================================================
@@ -716,7 +796,8 @@ CURRENT_STEP=9
 step_running $CURRENT_STEP $TOTAL_STEPS "启动 Rust 代理服务"
 
 cd "$SCRIPT_DIR" || exit 1
-nohup "$INSTALL_DIR/cc-switch-cli" proxy start > "$LOG_DIR/rust_proxy.log" 2>&1 &
+nohup env CC_SWITCH_PYTHON_PROXY_BASE="$CC_SWITCH_PYTHON_PROXY_BASE" \
+    "$INSTALL_DIR/cc-switch-cli" proxy start > "$LOG_DIR/rust_proxy.log" 2>&1 &
 RUST_PROXY_PID=$!
 
 sleep 2
@@ -744,7 +825,7 @@ PYTHON_OK=false
 RUST_OK=false
 DB_OK=false
 
-if pgrep -f "uvicorn.*backend.app.*--port 15722" > /dev/null; then
+if pgrep -f "uvicorn.*backend.app.*--port ${PYTHON_PROXY_PORT}" > /dev/null; then
     PYTHON_OK=true
 fi
 
@@ -774,10 +855,10 @@ echo -e "${GREEN}          部署完成 - 服务状态报告              ${NC}"
 echo ""
 
 # 服务状态详情
-echo -e "${BLUE}   Python 代理层 (端口 15722)${NC}"
+echo -e "${BLUE}   Python 代理层 (端口 ${PYTHON_PROXY_PORT})${NC}"
 if [ "$PYTHON_OK" = true ]; then
     echo -e "   状态: ${GREEN}✓ 运行中${NC}"
-    echo -e "   地址: 127.0.0.1:15722"
+    echo -e "   地址: ${PYTHON_PROXY_HOST}:${PYTHON_PROXY_PORT}"
     echo -e "   日志: tail -f $LOG_DIR/claude_proxy.log"
 else
     echo -e "   状态: ${RED}✗ 未运行${NC}"

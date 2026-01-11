@@ -16,6 +16,7 @@ pub(crate) mod model_catalog;
 pub(crate) mod model_sanitizer;
 pub(crate) mod model_resolver;
 pub(crate) mod openai_model_resolver;
+pub(crate) mod python_proxy;
 pub mod provider_router;
 pub mod providers;
 pub mod response_handler;

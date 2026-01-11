@@ -1064,14 +1064,18 @@ impl RequestForwarder {
         // 根据 adapter 选择转发目标（并保留 base_url 便于错误日志定位）
         let (url, target_description, upstream_base_url) = if is_claude {
             // Claude 通过 Python 透明代理（用于 system prompt 等处理）
-            let url = format!("http://127.0.0.1:15722{}", endpoint);
+            let url = format!("{}{}", crate::proxy::python_proxy::python_proxy_base(), endpoint);
             let base_url = provider
                 .settings_config
                 .get("env")
                 .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            (url, "Python代理(15722)".to_string(), base_url)
+            (
+                url,
+                crate::proxy::python_proxy::python_proxy_label(),
+                base_url,
+            )
         } else {
             // 其它（Codex/Gemini 等）直接转发到目标 URL
             let base_url = adapter.extract_base_url(provider)?;
