@@ -1,91 +1,123 @@
-# CC-Switch（Linux 终端增强版 / Terminal Edition）
+<div align="center">
 
-本仓库是对上游 `farion1231/cc-switch` 的二次开发版本：**专注纯 Linux 终端/CLI 场景**，目标是让 Claude Code / Codex CLI / Gemini CLI 在 Linux 下能“更稳、更快、更好排障”地使用多供应商代理与测速能力。
+# All-in-One Assistant for Claude Code, Codex & Gemini CLI
 
-- 原上游 README 备份：`README.upstream.md`
-- 一键安装/部署脚本：`install-ccs.sh`
-- 终端使用指南：`docs/USER-GUIDE.md`
+[![Version](https://img.shields.io/badge/version-3.8.3-blue.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/farion1231/cc-switch/releases)
+[![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
+[![Downloads](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/downloads/farion1231/cc-switch/total)](https://github.com/farion1231/cc-switch/releases/latest)
 
----
+<a href="https://trendshift.io/repositories/15372" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15372" alt="farion1231%2Fcc-switch | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-## 一键部署（推荐）
+English | [中文](README_ZH.md) | [日本語](README_JA.md) | [Changelog](CHANGELOG.md)
 
-```bash
-git clone https://github.com/Aaroen/cc-switch.git
-cd cc-switch
-chmod +x ./install-ccs.sh
-./install-ccs.sh
-```
+</div>
 
-脚本会自动：
-- 编译并安装 `csc` CLI
-- 启动 Python 代理层（默认端口 `15722`）与 Rust 代理层（默认端口 `15721`）
-- 接管/写入 Claude CLI / Codex CLI / Gemini CLI 的本地代理配置
-- 初始化 `~/.cc-switch/cc-switch.db` 并输出服务状态与日志位置
+## ❤️Sponsor
+
+[![Zhipu GLM](assets/partners/banners/glm-en.jpg)](https://z.ai/subscribe?ic=8JVLJQFSKB)
+
+This project is sponsored by Z.ai, supporting us with their GLM CODING PLAN.GLM CODING PLAN is a subscription service designed for AI coding, starting at just $3/month. It provides access to their flagship GLM-4.6 model across 10+ popular AI coding tools (Claude Code, Cline, Roo Code, etc.), offering developers top-tier, fast, and stable coding experiences.Get 10% OFF the GLM CODING PLAN with [this link](https://z.ai/subscribe?ic=8JVLJQFSKB)!
 
 ---
 
-## 终端特性（相对上游的重点增强）
+<table>
+<tr>
+<td width="180"><a href="https://www.packyapi.com/register?aff=cc-switch"><img src="assets/partners/logos/packycode.png" alt="PackyCode" width="150"></a></td>
+<td>Thanks to PackyCode for sponsoring this project! PackyCode is a reliable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides special discounts for our software users: register using <a href="https://www.packyapi.com/register?aff=cc-switch">this link</a> and enter the "cc-switch" promo code during recharge to get 10% off.</td>
+</tr>
 
-> 具体差异可对比：本仓库 vs 你本机参考目录 `/home/user/projects/cc-switch-original`、`/home/user/projects/AnyRouter-Transparent-Proxy`。
+<tr>
+<td width="180"><a href="https://aigocode.com/invite/CC-SWITCH"><img src="assets/partners/logos/aigocode.png" alt="AIGoCode" width="150"></a></td>
+<td>Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform that integrates Claude Code, Codex, and the latest Gemini models, providing you with stable, efficient, and highly cost-effective AI coding services. The platform offers flexible subscription plans, zero risk of account suspension, direct access with no VPN required, and lightning-fast responses. AIGoCode has prepared a special benefit for CC Switch users: if you register via <a href="https://aigocode.com/invite/CC-SWITCH">this link</a>, you'll receive an extra 10% bonus credit on your first top-up!</td>
+</tr>
 
-- **真实链路测速**：`csc t claude|codex|gemini` 通过“真实启动请求”验证可用性并择优固定。
-- **智能模型名解析 + 写回**：
-  - Claude：按 `family(haiku/sonnet/opus) → major/minor(4/5) → thinking` 优先级匹配供应商真实模型名，成功后写回，避免重复匹配与启动报错。
-  - Codex(OpenAI)：基于同家族模型策略（`gpt/o1/o3` 等），结合供应商 `/v1/models` 与历史写回别名，选择最贴近的真实模型名并写回。
-- **家族守护（Family Affinity）**：优先保证“请求家族不跨家族映射”，避免 `claude-*` 被映射到其他家族造成体验断崖。
-- **GPT 模型名深度净化**：对 `gpt-*` 强制去除日期/版本尾巴（例如 `-2024-08-06`、`-0613`），内部只处理基础名，杜绝“幽灵模型名”导致的匹配失败。
-- **指纹/请求摘要兜底**：内置 `src-tauri/defaults/last_request_summaries.json`，即使首次没有真实请求，也能提供一套可用默认摘要用于启动测速复用（提升安装后可用性）。
-- **日志降噪 + 可视化对齐**：北京时间（UTC+8）、单行输出、追加上游实际模型（含映射箭头），方便在纯终端环境快速定位问题。
+<tr>
+<td width="180"><a href="https://www.dmxapi.cn/register?aff=bUHu"><img src="assets/partners/logos/dmx-en.jpg" alt="DMXAPI" width="150"></a></td>
+<td>Thanks to DMXAPI for sponsoring this project! DMXAPI provides global large model API services to 200+ enterprise users. One API key for all global models. Features include: instant invoicing, unlimited concurrency, starting from $0.15, 24/7 technical support. GPT/Claude/Gemini all at 32% off, domestic models 20-50% off, Claude Code exclusive models at 66% off! <a href="https://www.dmxapi.cn/register?aff=bUHu">Register here</a></td>
+</tr>
 
----
+</table>
 
-## 常用命令
+## Screenshots
 
-```bash
-# 列出供应商
-csc ls
+|                  Main Interface                   |                  Add Provider                  |
+| :-----------------------------------------------: | :--------------------------------------------: |
+| ![Main Interface](assets/screenshots/main-en.png) | ![Add Provider](assets/screenshots/add-en.png) |
 
-# 代理状态
-csc p st
+## Features
 
-# 真实测速（可选指定 supplier）
-csc t claude
-csc t codex
-csc t codex wong
+### Current Version: v3.8.3 | [Full Changelog](CHANGELOG.md) | [Release Notes](docs/release-note-v3.8.0-en.md)
 
-# 导入/导出配置
-csc ex my.json
-csc im my.json
-```
+**v3.8.0 Major Update (2025-11-28)**
 
-日志查看：
+**Persistence Architecture Upgrade & Brand New UI**
 
-```bash
-tail -f ~/.cc-switch/logs/rust_proxy.log
-tail -f ~/.cc-switch/logs/claude_proxy.log
-```
+- **SQLite + JSON Dual-layer Architecture**
+  - Migrated from JSON file storage to SQLite + JSON dual-layer structure
+  - Syncable data (providers, MCP, Prompts, Skills) stored in SQLite
+  - Device-level data (window state, local paths) stored in JSON
+  - Lays the foundation for future cloud sync functionality
+  - Schema version management for database migrations
 
----
+- **Brand New User Interface**
+  - Completely redesigned interface layout
+  - Unified component styles and smoother animations
+  - Optimized visual hierarchy
+  - Tailwind CSS downgraded from v4 to v3.4 for better browser compatibility
 
-## 协议与致谢（MIT）
+- **Japanese Language Support**
+  - Added Japanese interface support (now supports Chinese/English/Japanese)
 
-本仓库遵循 `LICENSE`（MIT）。
+- **Auto Launch on Startup**
+  - One-click enable/disable in settings
+  - Platform-native APIs (Registry/LaunchAgent/XDG autostart)
 
-二次开发来源与参考（均为 MIT）：
-- 上游：`https://github.com/farion1231/cc-switch`
-- 参考透明代理实现思路：`https://github.com/RebornQ/AnyRouter-Transparent-Proxy`
+- **Skills Recursive Scanning**
+  - Support for multi-level directory structures
+  - Allow same-named skills from different repositories
 
-本仓库保留并遵循其许可证要求；如需查看上游的原始说明与截图，请见 `README.upstream.md`。
+- **Critical Bug Fixes**
+  - Fixed custom endpoints lost when updating providers
+  - Fixed Gemini configuration write issues
+  - Fixed Linux WebKitGTK rendering issues
 
----
+**v3.7.0 Highlights**
 
-## 安全提示
+**Six Core Features, 18,000+ Lines of New Code**
 
-- 请勿把供应商 `API Key`、本地 `~/.cc-switch` 配置与日志直接公开到互联网。
-- 如需分享排障信息，建议先脱敏 `Authorization`、`api-key` 与任何包含 key 的字段。
+- **Gemini CLI Integration**
+  - Third supported AI CLI (Claude Code / Codex / Gemini)
+  - Dual-file configuration support (`.env` + `settings.json`)
+  - Complete MCP server management
+  - Presets: Google Official (OAuth) / PackyCode / Custom
 
-<!-- 上游 README（已备份到 README.upstream.md）：为避免与本 Linux 终端版说明重复，这里隐藏原文 -->
+- **Claude Skills Management System**
+  - Auto-scan skills from GitHub repositories (3 pre-configured curated repos)
+  - One-click install/uninstall to `~/.claude/skills/`
+  - Custom repository support + subdirectory scanning
+  - Complete lifecycle management (discover/install/update)
+
+- **Prompts Management System**
+  - Multi-preset system prompt management (unlimited presets, quick switching)
+  - Cross-app support (Claude: `CLAUDE.md` / Codex: `AGENTS.md` / Gemini: `GEMINI.md`)
+  - Markdown editor (CodeMirror 6 + real-time preview)
+  - Smart backfill protection, preserves manual modifications
+
+- **MCP v3.7.0 Unified Architecture**
+  - Single panel manages MCP servers across three applications
+  - New SSE (Server-Sent Events) transport type
+  - Smart JSON parser + Codex TOML format auto-correction
+  - Unified import/export + bidirectional sync
+
+- **Deep Link Protocol**
+  - `ccswitch://` protocol registration (all platforms)
+  - One-click import provider configs via shared links
+  - Security validation + lifecycle integration
+
+- **Environment Variable Conflict Detection**
+  - Auto-detect cross-app configuration conflicts (Claude/Codex/Gemini/MCP)
+  - Visual conflict indicators + resolution suggestions
   - Override warnings + backup before changes
 
 **Core Capabilities**
@@ -438,4 +470,3 @@ Before submitting PRs, please ensure:
 ## License
 
 MIT © Jason Young
--->
